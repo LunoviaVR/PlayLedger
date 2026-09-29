@@ -78,7 +78,7 @@ Timestamps are .NET `DateTimeOffset` ISO 8601 with offset and up to 7 fractional
 ## Updates
 
 GitHub API `repos/LunoviaVR/PlaytimeTracker/releases/latest`, 1 min after start then every 6 h (if enabled). Only
-non-draft, non-prerelease plain `vX.Y.Z` tags newer than the running version. `PlaytimeTrackerSetup.exe` must come
+non-draft, non-prerelease plain `vX.Y.Z` tags newer than the running version. `Setup.exe` (the online installer) must come
 from this repo's release download URL over HTTPS (redirects only to `github.com` / `*.githubusercontent.com`) and
 match GitHub's recorded size and SHA-256 digest. It runs only for installed copies (the Apps entry's
 `InstallLocation` is the exe's folder), silently with `/S /relaunch`; the installer then starts the app with

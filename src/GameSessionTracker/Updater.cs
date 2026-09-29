@@ -25,7 +25,8 @@ internal sealed class Updater : IDisposable
 {
     public const string Owner = "LunoviaVR";
     public const string Repository = "PlaytimeTracker";
-    private const string InstallerAssetName = "PlaytimeTrackerSetup.exe";
+    // Releases carry one installer, "Setup.exe" (the small online installer; it fetches .NET 8 if needed).
+    private const string InstallerAssetName = "Setup.exe";
     private const string InstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\PlaytimeTracker";
     private const long MaxInstallerBytes = 300L * 1024 * 1024;
     private const int MaxApiResponseBytes = 2 * 1024 * 1024;

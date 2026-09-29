@@ -8,7 +8,8 @@ use serde::Deserialize;
 
 pub const OWNER: &str = "LunoviaVR";
 pub const REPOSITORY: &str = "PlaytimeTracker";
-pub const INSTALLER_ASSET: &str = "PlaytimeTrackerSetup.exe";
+/// Releases carry one installer, `Setup.exe` (the online installer; it fetches .NET 8 if needed).
+pub const INSTALLER_ASSET: &str = "Setup.exe";
 
 /// A version as released: major.minor.patch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -162,8 +163,8 @@ mod tests {
     fn release(tag: &str, extra: &str) -> String {
         let hash = "a".repeat(64);
         format!(
-            r#"{{"tag_name":"{tag}","draft":false,"prerelease":false{extra},"assets":[{{"name":"PlaytimeTrackerSetup.exe","size":123,
-            "digest":"sha256:{hash}","browser_download_url":"https://github.com/LunoviaVR/PlaytimeTracker/releases/download/{tag}/PlaytimeTrackerSetup.exe"}}]}}"#
+            r#"{{"tag_name":"{tag}","draft":false,"prerelease":false{extra},"assets":[{{"name":"Setup.exe","size":123,
+            "digest":"sha256:{hash}","browser_download_url":"https://github.com/LunoviaVR/PlaytimeTracker/releases/download/{tag}/Setup.exe"}}]}}"#
         )
     }
 
