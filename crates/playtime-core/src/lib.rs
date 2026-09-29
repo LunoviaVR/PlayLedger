@@ -7,6 +7,7 @@
 //! `playtime-windows` behind the traits defined here.
 
 pub mod catalog;
+pub mod discovery;
 pub mod launchers;
 pub mod model;
 pub mod paths;

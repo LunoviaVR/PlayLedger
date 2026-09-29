@@ -23,7 +23,7 @@ UI Automation (screen readers), virtualised lists and Windows motion. So:
 | Crate | Contents | Status |
 | --- | --- | --- |
 | `playtime-core` | Domain model + JSON compatible with C#, `Timestamp` (.NET format), session tracker, game catalog matching, launcher metadata parsers (Steam KeyValues, Epic manifests), settings (+ migration), protected-file format and recovery rules, reports (durations, CSV), update-release parsing | **Done** (phases 2–4), 54 tests |
-| `playtime-windows` | DPAPI `DataProtector`, HKCU generation store, read-only file locks, data folders | **Started**: DPAPI, registry, locks |
+| `playtime-windows` | DPAPI `DataProtector`, HKCU generation store, read-only file locks, data folders | DPAPI, registry generations, file locks, discovery host (registry, known folders, exe version info) |
 | `playtime-tracker` | Background service: tray, polling loop, IPC server | Phase 7 |
 | `playtime-artwork` | `ArtworkProvider` trait; Steam/Epic local art, exe icons, optional online providers, cache | Phase 6 |
 | dashboard (WinUI 3) | Presentation only | Phase 8 |
@@ -48,9 +48,9 @@ compatibility; the ID keys artwork and future per-game settings.
 | 1 | Document current behaviour | Done: [`current-behavior.md`](current-behavior.md) |
 | 2 | Rust workspace, domain models | Done |
 | 3 | Storage and session model | Done: format, recovery, tracker (tested against C#-written JSON) |
-| 4 | Game detection | Done: matching rules; discovery of files/registry comes with phase 5 |
-| 5 | Launcher integrations (discovery on disk/registry) | Next |
-| 6 | Artwork service | Planned |
+| 4 | Game detection | Done: matching rules |
+| 5 | Launcher integrations (discovery on disk/registry) | Done: `playtime_core::discovery` (Steam, Epic, GOG, Ubisoft, EA/Origin, Xbox, Riot, `X:\Games`, extra folders, Windows game list) over a `DiscoveryHost` trait; `playtime_windows::discovery::WindowsHost` |
+| 6 | Artwork service | Next |
 | 7 | Tray/background tracker in Rust | Planned |
 | 8 | WinUI 3 dashboard | Planned |
 | 9 | Migrations (verify-then-switch, logs, backups) | Planned |
