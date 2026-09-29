@@ -5,14 +5,18 @@ namespace GameSessionTracker.Ui;
 /// <summary>On/off switch.</summary>
 internal sealed class ToggleSwitch : PaintedControl
 {
+    private readonly Tween _knob;
+    private readonly Tween _hover;
     private bool _checked;
-    private bool _hot;
 
     public ToggleSwitch()
     {
         SetStyle(ControlStyles.Selectable, true);
         TabStop = true;
         Cursor = Cursors.Hand;
+        AccessibleRole = AccessibleRole.CheckButton;
+        _knob = new Tween(this);
+        _hover = new Tween(this);
     }
 
     public event EventHandler? CheckedChanged;
@@ -25,11 +29,12 @@ internal sealed class ToggleSwitch : PaintedControl
             if (_checked == value)
                 return;
             _checked = value;
-            Invalidate();
+            _knob.Jump(value ? 1 : 0); // loading a value doesn't animate; only the user's toggles do
         }
     }
 
-    public Size LogicalSize => new(S(40), S(22));
+    /// <summary>44×24 switch plus the focus-ring margin.</summary>
+    public Size LogicalSize => new(S(44 + 2 * Glass.FocusMargin), S(24 + 2 * Glass.FocusMargin));
 
     protected override void OnClick(EventArgs e)
     {
@@ -47,45 +52,61 @@ internal sealed class ToggleSwitch : PaintedControl
 
     private void Toggle()
     {
-        Checked = !Checked;
+        _checked = !_checked;
+        _knob.To(_checked ? 1 : 0);
         CheckedChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); _hot = true; Invalidate(); }
-    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _hot = false; Invalidate(); }
+    protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); _hover.To(1); }
+    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _hover.To(0); }
     protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
     protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _knob.Dispose();
+            _hover.Dispose();
+        }
+        base.Dispose(disposing);
+    }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        g.Clear(Parent?.BackColor is { A: 255 } bg ? bg : Theme.Surface);
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        var track = new RectangleF(1, 1, Width - 3, Height - 3);
+        var track = BodyRect;
+        var on = _knob.Value;
         using (var path = Theme.RoundedRect(track, track.Height / 2))
         {
-            if (_checked)
-            {
-                using var fill = new SolidBrush(Theme.Accent);
+            // Off: a glass track. On: the accent gradient fades in over it.
+            using (var fill = new SolidBrush(Glass.Lerp(Theme.GlassControl, Theme.GlassHover, _hover.Value)))
                 g.FillPath(fill, path);
-            }
-            else
+            if (on > 0.001f)
             {
-                using var fill = new SolidBrush(_hot ? Theme.Hover : Theme.Surface);
-                using var pen = new Pen(Theme.TextMuted, 1);
-                g.FillPath(fill, path);
-                g.DrawPath(pen, path);
+                using var accent = new LinearGradientBrush(new RectangleF(track.X - 1, track.Y, track.Width + 2, track.Height),
+                    Theme.WithAlpha(Theme.AccentGradientStart, (int)(255 * on)), Theme.WithAlpha(Theme.AccentGradientEnd, (int)(255 * on)),
+                    LinearGradientMode.Horizontal);
+                g.FillPath(accent, path);
             }
-            if (Focused && ShowFocusCues)
-            {
-                using var focus = new Pen(Theme.TextPrimary, 1) { DashStyle = DashStyle.Dot };
-                g.DrawPath(focus, path);
-            }
+            using var pen = new Pen(Glass.Lerp(Theme.GlassBorderStrong, Theme.WithAlpha(Theme.AccentGradientEnd, 0), on), 1);
+            g.DrawPath(pen, path);
         }
-        var knob = track.Height - S(8);
-        var x = _checked ? track.Right - S(4) - knob : track.X + S(4);
-        using var knobBrush = new SolidBrush(_checked ? Color.White : Theme.TextMuted);
-        g.FillEllipse(knobBrush, x, track.Y + S(4), knob, knob);
+        if (ShowFocusRing)
+            Glass.PaintFocusRing(g, track, track.Height / 2, Theme, UiScale);
+
+        var inset = S(3);
+        var knob = track.Height - inset * 2;
+        var x = track.X + inset + (track.Width - knob - inset * 2) * on;
+        var knobColor = Glass.Lerp(Theme.TextSecondary, Color.White, on);
+        if (on > 0.5f)
+        {
+            using var shadow = new SolidBrush(Color.FromArgb(50, 0, 0, 0));
+            g.FillEllipse(shadow, x, track.Y + inset + S(1), knob, knob);
+        }
+        using var knobBrush = new SolidBrush(knobColor);
+        g.FillEllipse(knobBrush, x, track.Y + inset, knob, knob);
     }
 }
 
@@ -99,6 +120,7 @@ internal sealed class Stepper : PaintedControl
     {
         SetStyle(ControlStyles.Selectable, true);
         TabStop = true;
+        AccessibleRole = AccessibleRole.SpinButton;
     }
 
     public int Minimum { get; set; }
@@ -117,13 +139,15 @@ internal sealed class Stepper : PaintedControl
             if (clamped == _value)
                 return;
             _value = clamped;
+            AccessibleDescription = Format(_value);
             Invalidate();
         }
     }
 
-    public Size LogicalSize => new(S(150), S(32));
+    /// <summary>156×36 field plus the focus-ring margin.</summary>
+    public Size LogicalSize => new(S(156 + 2 * Glass.FocusMargin), S(36 + 2 * Glass.FocusMargin));
 
-    private int ZoneWidth => S(34);
+    private int ZoneWidth => S(36 + Glass.FocusMargin);
 
     private void Change(int delta)
     {
@@ -195,25 +219,36 @@ internal sealed class Stepper : PaintedControl
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        g.Clear(Parent?.BackColor is { A: 255 } bg ? bg : Theme.Surface);
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
-        using (var path = Theme.RoundedRect(rect, S(6)))
-        using (var fill = new SolidBrush(Theme.Surface))
-        using (var pen = new Pen(Focused ? Theme.Accent : Theme.Border, 1))
+        var rect = BodyRect;
+        var radius = S(Radius.Control);
+        using (var path = Theme.RoundedRect(rect, radius))
         {
-            g.FillPath(fill, path);
-            if (_hotZone != 0)
+            using (var fill = new SolidBrush(Theme.GlassControl))
+                g.FillPath(fill, path);
+            var canChange = _hotZone < 0 ? _value > Minimum : _value < Maximum;
+            if (_hotZone != 0 && canChange)
             {
-                using var hover = new SolidBrush(Theme.Hover);
-                var zone = _hotZone < 0 ? new RectangleF(rect.X, rect.Y, ZoneWidth, rect.Height) : new RectangleF(rect.Right - ZoneWidth, rect.Y, ZoneWidth, rect.Height);
+                using var hover = new SolidBrush(Theme.GlassHover);
+                var zoneWidth = ZoneWidth - (rect.X - 0.5f);
+                var zone = _hotZone < 0 ? new RectangleF(rect.X, rect.Y, zoneWidth, rect.Height) : new RectangleF(rect.Right - zoneWidth, rect.Y, zoneWidth, rect.Height);
                 var state = g.Save();
                 g.SetClip(path);
                 g.FillRectangle(hover, zone);
                 g.Restore(state);
             }
-            g.DrawPath(pen, path);
+            using (var divider = new Pen(Theme.Separator, 1))
+            {
+                g.DrawLine(divider, ZoneWidth, rect.Y + S(8), ZoneWidth, rect.Bottom - S(8));
+                g.DrawLine(divider, Width - ZoneWidth, rect.Y + S(8), Width - ZoneWidth, rect.Bottom - S(8));
+            }
+            if (Focused)
+                Glass.PaintBorder(g, path, rect, Theme.AccentBorder, Theme.AccentBorder);
+            else
+                Glass.PaintBorder(g, path, rect, Theme.GlassBorderStrong, Theme.GlassBorder);
         }
+        if (ShowFocusRing)
+            Glass.PaintFocusRing(g, rect, radius, Theme, UiScale);
         if (Fonts is null)
             return;
         var minusColor = _value > Minimum ? Theme.TextPrimary : Theme.TextMuted;
@@ -224,10 +259,10 @@ internal sealed class Stepper : PaintedControl
     }
 }
 
-/// <summary>Rounded text button. Primary buttons are filled with the accent colour.</summary>
+/// <summary>Rounded text button. Primary buttons carry the accent gradient; secondary buttons are glass.</summary>
 internal sealed class PillButton : PaintedControl
 {
-    private bool _hot;
+    private readonly Tween _hover;
     private bool _pressed;
 
     public PillButton(string text)
@@ -236,22 +271,34 @@ internal sealed class PillButton : PaintedControl
         SetStyle(ControlStyles.Selectable, true);
         TabStop = true;
         Cursor = Cursors.Hand;
+        AccessibleRole = AccessibleRole.PushButton;
+        AccessibleName = text;
+        _hover = new Tween(this);
     }
 
     public bool Primary { get; set; }
 
+    /// <summary>Button body (text + padding, 34 px tall) plus the focus-ring margin.</summary>
     public Size PreferredButtonSize(Graphics? g = null)
     {
-        var width = Fonts is null ? S(80) : TextRenderer.MeasureText(Text, Fonts.Body, Size.Empty, TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding).Width + S(32);
-        return new Size(Math.Max(S(72), width), S(32));
+        var width = Fonts is null ? S(80) : TextRenderer.MeasureText(Text, Fonts.BodyStrong, Size.Empty, TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding).Width + S(36);
+        var margin = S(2 * Glass.FocusMargin);
+        return new Size(Math.Max(S(80), width) + margin, S(34) + margin);
     }
 
-    protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); _hot = true; Invalidate(); }
-    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _hot = false; _pressed = false; Invalidate(); }
+    protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); _hover.To(1); }
+    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _pressed = false; _hover.To(0); }
     protected override void OnMouseDown(MouseEventArgs e) { base.OnMouseDown(e); _pressed = true; Invalidate(); }
     protected override void OnMouseUp(MouseEventArgs e) { base.OnMouseUp(e); _pressed = false; Invalidate(); }
     protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
     protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        base.OnEnabledChanged(e);
+        Cursor = Enabled ? Cursors.Hand : Cursors.Default;
+        Invalidate();
+    }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -260,50 +307,82 @@ internal sealed class PillButton : PaintedControl
             OnClick(EventArgs.Empty);
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _hover.Dispose();
+        base.Dispose(disposing);
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        g.Clear(Parent?.BackColor is { A: 255 } bg ? bg : Theme.Surface);
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
-        using var path = Theme.RoundedRect(rect, S(6));
-        Color fill, text;
+        var hover = Enabled ? _hover.Value : 0;
+        var body = BodyRect;
+        // Hovered buttons rise by 1 px (the margin leaves room); pressed ones settle back.
+        var lift = _pressed || Motion.Reduced ? 0 : hover * UiScale;
+        body.Y -= lift;
+        var radius = S(Radius.Control);
+        using var path = Theme.RoundedRect(body, radius);
+        Color text;
         if (Primary)
         {
-            fill = _pressed ? ControlPaint.Dark(Theme.Accent, 0.05f) : _hot ? ControlPaint.Light(Theme.Accent, 0.15f) : Theme.Accent;
-            text = Color.White;
+            if (Enabled)
+            {
+                using var shadow = Theme.RoundedRect(new RectangleF(body.X + S(2), body.Y + S(2) + lift, body.Width - S(4), body.Height), radius);
+                using var shadowBrush = new SolidBrush(Theme.WithAlpha(Theme.AccentGradientEnd, (int)(40 + 30 * hover)));
+                g.FillPath(shadowBrush, shadow);
+            }
+            using (var fill = new LinearGradientBrush(new RectangleF(body.X - 1, body.Y - 1, body.Width + 2, body.Height + 2),
+                       Theme.AccentGradientStart, Theme.AccentGradientEnd, LinearGradientMode.ForwardDiagonal))
+                g.FillPath(fill, path);
+            var overlay = _pressed ? Color.FromArgb(28, 0, 0, 0) : Color.FromArgb((int)(28 * hover), 255, 255, 255);
+            using (var brush = new SolidBrush(overlay))
+                g.FillPath(brush, path);
+            Glass.PaintBorder(g, path, body, Color.FromArgb(70, 255, 255, 255), Color.FromArgb(10, 255, 255, 255));
+            text = Theme.TextOnAccent;
         }
         else
         {
-            fill = _pressed ? Theme.Track : _hot ? Theme.Hover : Theme.Surface;
+            var fill = _pressed ? Theme.GlassPressed : Glass.Lerp(Theme.GlassControl, Theme.GlassHover, hover);
+            using (var brush = new SolidBrush(fill))
+                g.FillPath(brush, path);
+            Glass.PaintBorder(g, path, body, Glass.Lerp(Theme.GlassBorderStrong, Theme.WithAlpha(Theme.GlassBorderStrong, Math.Min(255, Theme.GlassBorderStrong.A * 3 / 2)), hover), Theme.GlassBorder);
             text = Theme.TextPrimary;
         }
-        using (var brush = new SolidBrush(fill))
-            g.FillPath(brush, path);
-        if (!Primary || Focused)
+        if (!Enabled)
         {
-            using var pen = new Pen(Focused ? Theme.TextPrimary : Theme.Border, 1);
-            g.DrawPath(pen, path);
+            // Disabled: washed out and flat, with muted text.
+            using var wash = new SolidBrush(Color.FromArgb(150, Theme.Base));
+            g.FillPath(wash, path);
+            text = Theme.TextMuted;
         }
+        if (ShowFocusRing)
+            Glass.PaintFocusRing(g, body, radius, Theme, UiScale);
         if (Fonts is not null)
-            DrawLabel(g, Text, Fonts.Body, text, ClientRectangle, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            DrawLabel(g, Text, Fonts.BodyStrong, text, Rectangle.Round(body), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 }
 
 /// <summary>A settings card: title, optional description, and rows of "label + description → control".</summary>
-internal sealed class SettingsCard : PaintedControl
+internal sealed class SettingsCard : PaintedControl, IGlassSurface
 {
     private readonly List<(string Title, string Description, Control Control)> _rows = new();
+
+    public float CornerRadius => Radius.Card;
 
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
 
-    private int HeaderHeight => string.IsNullOrEmpty(Description) ? S(52) : S(70);
-    private int RowHeight => S(64);
+    private int HeaderHeight => string.IsNullOrEmpty(Description) ? S(58) : S(76);
+    private int RowHeight => S(68);
 
     public void AddRow(string title, string description, Control control)
     {
         _rows.Add((title, description, control));
+        if (string.IsNullOrEmpty(control.AccessibleName))
+            control.AccessibleName = title; // screen readers announce the row's label for its control
         Controls.Add(control);
     }
 
@@ -316,7 +395,7 @@ internal sealed class SettingsCard : PaintedControl
         Invalidate();
     }
 
-    public int PreferredHeight => HeaderHeight + _rows.Count * RowHeight + S(8);
+    public int PreferredHeight => HeaderHeight + _rows.Count * RowHeight + S(4);
 
     protected override void OnLayout(LayoutEventArgs e)
     {
@@ -332,7 +411,8 @@ internal sealed class SettingsCard : PaintedControl
                 _ => control.Size,
             };
             var rowTop = HeaderHeight + i * RowHeight;
-            control.Bounds = new Rectangle(Width - S(20) - size.Width, rowTop + (RowHeight - size.Height) / 2, size.Width, size.Height);
+            // Controls include a focus-ring margin; line their visible edge up with the card's 24 px padding.
+            control.Bounds = new Rectangle(Width - S(24 - Glass.FocusMargin) - size.Width, rowTop + (RowHeight - size.Height) / 2, size.Width, size.Height);
         }
     }
 
@@ -342,34 +422,28 @@ internal sealed class SettingsCard : PaintedControl
         PaintCard(g);
         if (Fonts is null)
             return;
-        var x = S(20);
-        var w = Width - S(40);
-        DrawLabel(g, Title, Fonts.Heading, Theme.TextPrimary, new Rectangle(x, S(18), w, S(20)));
+        var x = S(24);
+        var w = Width - S(48);
+        DrawLabel(g, Title, Fonts.Heading, Theme.TextPrimary, new Rectangle(x, S(20), w, S(22)));
         if (!string.IsNullOrEmpty(Description))
-            DrawLabel(g, Description, Fonts.Small, Theme.TextSecondary, new Rectangle(x, S(40), w, S(18)));
+            DrawLabel(g, Description, Fonts.Small, Theme.TextSecondary, new Rectangle(x, S(44), w, S(18)));
 
-        using var separator = new Pen(Theme.Track, 1);
+        using var separator = new Pen(Theme.Separator, 1);
+        g.SmoothingMode = SmoothingMode.None;
         for (var i = 0; i < _rows.Count; i++)
         {
             var (title, description, control) = _rows[i];
             var top = HeaderHeight + i * RowHeight;
             g.DrawLine(separator, x, top, Width - x, top);
             var textWidth = Math.Max(0, control.Left - S(24) - x);
-            DrawLabel(g, title, Fonts.Body, Theme.TextPrimary, new Rectangle(x, top + S(13), textWidth, S(20)));
-            DrawLabel(g, description, Fonts.Small, Theme.TextSecondary, new Rectangle(x, top + S(34), textWidth, S(18)));
+            DrawLabel(g, title, Fonts.Body, Theme.TextPrimary, new Rectangle(x, top + S(14), textWidth, S(20)));
+            DrawLabel(g, description, Fonts.Small, Theme.TextSecondary, new Rectangle(x, top + S(37), textWidth, S(18)));
         }
-    }
-
-    protected override void OnBackColorChanged(EventArgs e)
-    {
-        base.OnBackColorChanged(e);
-        foreach (Control c in Controls)
-            c.Invalidate();
     }
 }
 
 /// <summary>A card with an editable list: header buttons add items, hovering a row reveals "Remove".</summary>
-internal sealed class ListEditor : PaintedControl
+internal sealed class ListEditor : PaintedControl, IGlassSurface
 {
     private const int MaxVisibleRows = 6;
     private readonly RowList _list = new() { SelectionMode = SelectionMode.None };
@@ -388,6 +462,8 @@ internal sealed class ListEditor : PaintedControl
         };
         _list.MouseMove += (_, e) => _list.Cursor = _list.HotIndex >= 0 && e.X >= _list.Width - S(90) ? Cursors.Hand : Cursors.Default;
     }
+
+    public float CornerRadius => Radius.Card;
 
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
@@ -419,14 +495,14 @@ internal sealed class ListEditor : PaintedControl
         Parent?.PerformLayout();
     }
 
-    private int HeaderHeight => S(76);
+    private int HeaderHeight => S(80);
     private int RowHeight => S(40);
 
     public int PreferredHeight => HeaderHeight + Math.Clamp(_items.Count, 1, MaxVisibleRows) * RowHeight + S(12);
 
     public void ApplyTheme()
     {
-        _list.BackColor = Theme.Surface;
+        _list.BackColor = Theme.Base;
         _list.ForeColor = Theme.TextMuted;
         _list.ItemHeight = RowHeight;
         if (Fonts is not null)
@@ -452,15 +528,15 @@ internal sealed class ListEditor : PaintedControl
     protected override void OnLayout(LayoutEventArgs e)
     {
         base.OnLayout(e);
-        var right = Width - S(20);
+        var right = Width - S(24 - Glass.FocusMargin);
         foreach (var button in Enumerable.Reverse(_buttons))
         {
             var size = button.PreferredButtonSize();
-            button.Bounds = new Rectangle(right - size.Width, S(20), size.Width, size.Height);
-            right -= size.Width + S(8);
+            button.Bounds = new Rectangle(right - size.Width, S(20 - Glass.FocusMargin), size.Width, size.Height);
+            right -= size.Width + S(8 - 2 * Glass.FocusMargin);
         }
         _list.ItemHeight = RowHeight;
-        _list.Bounds = new Rectangle(S(8), HeaderHeight, Width - S(16), Height - HeaderHeight - S(10));
+        _list.Bounds = new Rectangle(S(12), HeaderHeight, Width - S(24), Height - HeaderHeight - S(10));
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -469,25 +545,24 @@ internal sealed class ListEditor : PaintedControl
         PaintCard(g);
         if (Fonts is null)
             return;
-        var x = S(20);
-        var textWidth = (_buttons.Count > 0 ? _buttons.Min(b => b.Left) - S(16) : Width - S(20)) - x;
-        DrawLabel(g, Title, Fonts.Heading, Theme.TextPrimary, new Rectangle(x, S(18), textWidth, S(20)));
-        DrawLabel(g, Description, Fonts.Small, Theme.TextSecondary, new Rectangle(x, S(40), textWidth, S(18)));
-        using var separator = new Pen(Theme.Track, 1);
+        var x = S(24);
+        var textWidth = (_buttons.Count > 0 ? _buttons.Min(b => b.Left) - S(12) : Width - S(24)) - x;
+        DrawLabel(g, Title, Fonts.Heading, Theme.TextPrimary, new Rectangle(x, S(20), textWidth, S(22)));
+        DrawLabel(g, Description, Fonts.Small, Theme.TextSecondary, new Rectangle(x, S(44), textWidth, S(18)));
+        using var separator = new Pen(Theme.Separator, 1);
+        g.SmoothingMode = SmoothingMode.None;
         g.DrawLine(separator, x, HeaderHeight - S(6), Width - x, HeaderHeight - S(6));
     }
 
     private void DrawRow(Graphics g, Rectangle bounds, int index, bool selected, bool hot)
     {
-        using (var bg = new SolidBrush(Theme.Surface))
-            g.FillRectangle(bg, bounds);
         if (index >= _items.Count || Fonts is null)
             return;
         if (hot)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            using var path = Theme.RoundedRect(new RectangleF(bounds.X + S(2), bounds.Y + S(2), bounds.Width - S(4), bounds.Height - S(4)), S(6));
-            using var hover = new SolidBrush(Theme.Hover);
+            using var path = Theme.RoundedRect(new RectangleF(bounds.X + S(2), bounds.Y + S(2), bounds.Width - S(4), bounds.Height - S(4)), S(Radius.Small));
+            using var hover = new SolidBrush(Theme.GlassControl);
             g.FillPath(hover, path);
         }
         var (primary, secondary) = _items[index];
@@ -505,19 +580,25 @@ internal sealed class ListEditor : PaintedControl
             TextRenderer.DrawText(g, secondary, Fonts.Small, new Rectangle(sx, bounds.Y, Math.Max(0, available - primaryWidth - S(12)), bounds.Height), Theme.TextMuted, flags | TextFormatFlags.PathEllipsis);
         }
         if (hot)
-            TextRenderer.DrawText(g, "Remove", Fonts.Body, new Rectangle(bounds.Right - S(12) - removeWidth, bounds.Y, removeWidth, bounds.Height), Theme.Accent, flags | TextFormatFlags.Right);
+            TextRenderer.DrawText(g, "Remove", Fonts.Body, new Rectangle(bounds.Right - S(12) - removeWidth, bounds.Y, removeWidth, bounds.Height), Theme.ErrorText, flags | TextFormatFlags.Right);
     }
 }
 
-/// <summary>Small themed dialog asking for one line of text.</summary>
+/// <summary>Themed modal asking for one line of text, shown over a darkened window.</summary>
 internal sealed class PromptDialog : Form
 {
-    private readonly TextBox _input;
+    private readonly Theme _theme;
+    private readonly Backdrop _backdrop = new();
+    private readonly InputField _field;
+
+    private TextBox Input => _field.TextBox;
 
     private PromptDialog(Theme theme, Fonts fonts, string title, string label, string initial)
     {
+        _theme = theme;
         var s = DeviceDpi / 96f;
         int S(float v) => (int)Math.Round(v * s);
+        var margin = S(Glass.FocusMargin);
 
         Text = title;
         AutoScaleMode = AutoScaleMode.None;
@@ -525,73 +606,220 @@ internal sealed class PromptDialog : Form
         MaximizeBox = MinimizeBox = false;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
-        BackColor = theme.Surface;
-        ClientSize = new Size(S(420), S(150));
+        BackColor = theme.SurfaceStrong;
+        DoubleBuffered = true;
+        ClientSize = new Size(S(460), S(184));
 
         var caption = new Label
         {
-            Text = label, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = theme.Surface,
-            AutoSize = false, Bounds = new Rectangle(S(20), S(16), S(380), S(22)),
+            Text = label, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = Color.Transparent,
+            AutoSize = false, Bounds = new Rectangle(S(24), S(24), S(412), S(22)),
         };
-        _input = new TextBox
-        {
-            Text = initial, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = theme.Window,
-            BorderStyle = BorderStyle.FixedSingle, Bounds = new Rectangle(S(20), S(44), S(380), S(28)),
-        };
-        var ok = new PillButton("OK") { Theme = theme, Fonts = fonts, Primary = true, Bounds = new Rectangle(S(228), S(100), S(80), S(32)) };
-        var cancel = new PillButton("Cancel") { Theme = theme, Fonts = fonts, Bounds = new Rectangle(S(320), S(100), S(80), S(32)) };
+        _field = new InputField(theme, fonts) { Bounds = new Rectangle(S(24) - margin, S(52) - margin, S(412) + 2 * margin, S(40) + 2 * margin) };
+        Input.Text = initial;
+        Input.AccessibleName = label;
+
+        var ok = new PillButton("OK") { Theme = theme, Fonts = fonts, Primary = true };
+        var cancel = new PillButton("Cancel") { Theme = theme, Fonts = fonts };
+        var okSize = ok.PreferredButtonSize();
+        var cancelSize = cancel.PreferredButtonSize();
+        var buttonsTop = ClientSize.Height - S(24) - okSize.Height + margin;
+        cancel.Bounds = new Rectangle(ClientSize.Width - S(24) + margin - cancelSize.Width, buttonsTop, cancelSize.Width, cancelSize.Height);
+        ok.Bounds = new Rectangle(cancel.Left - S(8) + 2 * margin - okSize.Width, buttonsTop, okSize.Width, okSize.Height);
         ok.Click += (_, _) => { DialogResult = DialogResult.OK; Close(); };
         cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
-        Controls.AddRange(new Control[] { caption, _input, ok, cancel });
+        Controls.AddRange(new Control[] { caption, _field, ok, cancel });
         KeyPreview = true;
         KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Enter) { DialogResult = DialogResult.OK; Close(); e.SuppressKeyPress = true; }
             else if (e.KeyCode == Keys.Escape) { DialogResult = DialogResult.Cancel; Close(); }
         };
-        HandleCreated += (_, _) => Theme.ApplyWindowChrome(this, theme.IsDark);
-        Shown += (_, _) => { _input.Focus(); _input.SelectAll(); };
+        HandleCreated += (_, _) => Theme.ApplyWindowChrome(this, theme);
+        Shown += (_, _) => { Input.Focus(); Input.SelectAll(); };
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        // The atmosphere shows faintly through a strong glass surface, so the modal reads as the top layer.
+        var g = e.Graphics;
+        _backdrop.Paint(g, e.ClipRectangle, ClientSize, _theme);
+        using (var veil = new SolidBrush(Theme.WithAlpha(_theme.SurfaceStrong, 215)))
+            g.FillRectangle(veil, e.ClipRectangle);
+        using var highlight = new Pen(_theme.GlassHighlight, 1);
+        g.DrawLine(highlight, 0, 0, ClientSize.Width, 0);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _backdrop.Dispose();
+        base.Dispose(disposing);
     }
 
     /// <summary>Returns the trimmed text, or null if cancelled or left empty.</summary>
     public static string? Ask(IWin32Window owner, Theme theme, Fonts fonts, string title, string label, string initial = "")
     {
         using var dialog = new PromptDialog(theme, fonts, title, label, initial);
-        return dialog.ShowDialog(owner) == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog._input.Text)
-            ? dialog._input.Text.Trim()
+        return ModalScrim.Show(owner, theme, () => dialog.ShowDialog(owner)) == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.Input.Text)
+            ? dialog.Input.Text.Trim()
             : null;
+    }
+
+    /// <summary>A rounded input surface around a borderless native text box, with an accent focus ring.</summary>
+    private sealed class InputField : PaintedControl
+    {
+        public InputField(Theme theme, Fonts fonts)
+        {
+            Theme = theme;
+            Fonts = fonts;
+            Cursor = Cursors.IBeam;
+            // Native edit controls can't be translucent, so the input surface is opaque and the text box matches it.
+            TextBox = new TextBox { BorderStyle = BorderStyle.None, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = theme.InputSolid };
+            TextBox.GotFocus += (_, _) => Invalidate();
+            TextBox.LostFocus += (_, _) => Invalidate();
+            Controls.Add(TextBox);
+        }
+
+        public TextBox TextBox { get; }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            TextBox.Focus();
+        }
+
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            var body = Rectangle.Round(BodyRect);
+            var height = TextBox.PreferredHeight;
+            TextBox.Bounds = new Rectangle(body.X + S(12), body.Y + (body.Height - height) / 2, Math.Max(0, body.Width - S(24)), height);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var body = BodyRect;
+            var radius = S(Radius.Input);
+            var focused = TextBox.Focused;
+            using var path = Theme.RoundedRect(body, radius);
+            using (var fill = new SolidBrush(Theme.InputSolid))
+                g.FillPath(fill, path);
+            if (focused)
+            {
+                Glass.PaintBorder(g, path, body, Theme.AccentBorder, Theme.AccentBorder);
+                // Soft ring rather than a glow: visible, not loud.
+                var ring = RectangleF.Inflate(body, UiScale * 1.5f, UiScale * 1.5f);
+                using var ringPath = Theme.RoundedRect(ring, radius + UiScale * 1.5f);
+                using var ringPen = new Pen(Theme.WithAlpha(Theme.Accent, 70), 3 * UiScale);
+                g.DrawPath(ringPen, ringPath);
+            }
+            else
+            {
+                Glass.PaintBorder(g, path, body, Theme.GlassBorderStrong, Theme.GlassBorder);
+            }
+        }
     }
 }
 
-/// <summary>Right-click menus that match the light/dark theme.</summary>
+/// <summary>Right-click menus: a strong (near-opaque) glass surface so what's behind never hurts readability.</summary>
 internal static class ThemedMenu
 {
+    private const string DestructiveTag = "destructive";
+
     public static void Apply(ContextMenuStrip menu, Theme theme, Font font)
     {
-        menu.Renderer = new ToolStripProfessionalRenderer(new Colors(theme)) { RoundedEdges = true };
-        menu.BackColor = theme.Surface;
+        menu.Renderer = new Renderer(theme);
+        menu.BackColor = theme.SurfaceStrong;
         menu.ForeColor = theme.TextPrimary;
         menu.Font = font;
         menu.ShowImageMargin = false;
+        menu.Padding = new Padding(4, 4, 4, 4);
+        menu.Opened -= OnOpened;
+        menu.Opened += OnOpened;
+        menu.Tag = theme;
     }
 
-    public static ToolStripMenuItem Item(string text, Theme theme, Action onClick) =>
-        new(text, null, (_, _) => onClick()) { ForeColor = theme.TextPrimary, Padding = new Padding(4, 6, 4, 6) };
+    public static ToolStripMenuItem Item(string text, Theme theme, Action onClick, bool destructive = false) =>
+        new(text, null, (_, _) => onClick())
+        {
+            ForeColor = destructive ? theme.ErrorText : theme.TextPrimary,
+            Padding = new Padding(4, 6, 4, 6),
+            Tag = destructive ? DestructiveTag : null,
+        };
+
+    private static void OnOpened(object? sender, EventArgs e)
+    {
+        if (sender is ContextMenuStrip { Tag: Theme theme } menu && menu.IsHandleCreated)
+            Theme.ApplyPopupChrome(menu.Handle, theme);
+    }
+
+    private sealed class Renderer : ToolStripProfessionalRenderer
+    {
+        private readonly Theme _t;
+
+        public Renderer(Theme theme) : base(new Colors(theme))
+        {
+            _t = theme;
+            RoundedEdges = false;
+        }
+
+        protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+        {
+            using var brush = new SolidBrush(_t.SurfaceStrong);
+            e.Graphics.FillRectangle(brush, e.AffectedBounds);
+        }
+
+        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+        {
+            if (Theme.IsWindows11)
+                return; // DWM draws a rounded, themed border (see Theme.ApplyPopupChrome)
+            using var pen = new Pen(Theme.Over(_t.GlassBorderStrong, _t.SurfaceStrong), 1);
+            e.Graphics.DrawRectangle(pen, 0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+        }
+
+        protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+        {
+            if (!e.Item.Selected || !e.Item.Enabled)
+                return;
+            var scale = (e.ToolStrip?.DeviceDpi ?? 96) / 96f;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var rect = new RectangleF(2 * scale, 1, e.Item.Width - 4 * scale, e.Item.Height - 2);
+            using var path = Theme.RoundedRect(rect, 6 * scale);
+            var fill = Equals(e.Item.Tag, DestructiveTag) ? _t.ErrorSoft : _t.GlassHover;
+            using var brush = new SolidBrush(Theme.Over(fill, _t.SurfaceStrong));
+            g.FillPath(brush, path);
+        }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            e.TextColor = !e.Item.Enabled ? _t.TextMuted : Equals(e.Item.Tag, DestructiveTag) ? _t.ErrorText : _t.TextPrimary;
+            base.OnRenderItemText(e);
+        }
+
+        protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+        {
+            var scale = (e.ToolStrip?.DeviceDpi ?? 96) / 96f;
+            var y = e.Item.Height / 2;
+            using var pen = new Pen(Theme.Over(_t.Separator, _t.SurfaceStrong), 1);
+            e.Graphics.DrawLine(pen, 8 * scale, y, e.Item.Width - 8 * scale, y);
+        }
+    }
 
     private sealed class Colors : ProfessionalColorTable
     {
         private readonly Theme _t;
         public Colors(Theme theme) { _t = theme; UseSystemColors = false; }
-        public override Color ToolStripDropDownBackground => _t.Surface;
-        public override Color MenuBorder => _t.Border;
-        public override Color MenuItemBorder => _t.Hover;
-        public override Color MenuItemSelected => _t.Hover;
-        public override Color MenuItemSelectedGradientBegin => _t.Hover;
-        public override Color MenuItemSelectedGradientEnd => _t.Hover;
-        public override Color SeparatorDark => _t.Border;
-        public override Color SeparatorLight => _t.Surface;
-        public override Color ImageMarginGradientBegin => _t.Surface;
-        public override Color ImageMarginGradientMiddle => _t.Surface;
-        public override Color ImageMarginGradientEnd => _t.Surface;
+        public override Color ToolStripDropDownBackground => _t.SurfaceStrong;
+        public override Color MenuBorder => Theme.Over(_t.GlassBorderStrong, _t.SurfaceStrong);
+        public override Color MenuItemBorder => Color.Transparent;
+        public override Color SeparatorDark => Theme.Over(_t.Separator, _t.SurfaceStrong);
+        public override Color SeparatorLight => _t.SurfaceStrong;
+        public override Color ImageMarginGradientBegin => _t.SurfaceStrong;
+        public override Color ImageMarginGradientMiddle => _t.SurfaceStrong;
+        public override Color ImageMarginGradientEnd => _t.SurfaceStrong;
     }
 }

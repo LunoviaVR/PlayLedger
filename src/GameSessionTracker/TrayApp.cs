@@ -70,6 +70,8 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
             new ToolStripSeparator(),
             new ToolStripMenuItem("Exit", null, (_, _) => ExitApp()),
         });
+        // Same glass menu styling as the dashboard, following the current light/dark setting.
+        menu.Opening += (_, _) => ThemedMenu.Apply(menu, Ui.Theme.Current(), SystemFonts.MenuFont ?? Control.DefaultFont);
 
         _trayIcon = new NotifyIcon
         {
