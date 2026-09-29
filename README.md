@@ -1,14 +1,32 @@
 # Game Session Tracker
 
-A small Windows 11 app that runs in the system tray, notices when you open a game, and keeps a file with
+A small Windows 11 app that runs in the system tray, notices when you open a game, and keeps track of
 how many times you've played each game and how long every session lasted.
 
-- **Runs in the background** in the system tray (the controller icon). Right-click it for the menu, or left-click to open your stats.
-- **Starts with Windows** automatically. You can turn this off with **Start with Windows** in the tray menu.
+![Dashboard](docs/dashboard.png)
+
+- **Dashboard**: all your data in one window. Left-click the tray icon (or open *Game Session Tracker* from the Start menu).
+- **Runs in the background** in the system tray (the controller icon). Right-click it for **Open dashboard**, **Settings** and **Exit**.
+- **Starts with Windows** automatically. You can turn this off in **Settings**.
 - **Close it any time** with **Exit** in the tray menu. A game that's running when you exit is logged up to that moment.
 - **Finds games on its own** from Steam, Epic Games, GOG, Ubisoft Connect, EA app/Origin, Xbox app/Game Pass (`XboxGames`),
   Riot Games, any `X:\Games` folder, and every program Windows' Xbox Game Bar recognises as a game.
   You can add anything else yourself (see [Settings](#settings)).
+
+## The dashboard
+
+- **Top row**: total playtime, number of sessions (and the average length), the past 7 days, and your most-played game.
+- **Daily playtime**: a bar per day for the last 30 days. Hover a bar to see the exact time.
+- **Games**: every game with its total time, session count and when you last played it. Click a game to filter the whole window
+  (tiles, chart and sessions) to that game; click **All games** to go back.
+- **Sessions**: every session, newest first, with date, start and end time, and length. A game you're playing right now
+  shows at the top and counts up live.
+- **Right-click a game** to stop tracking it (or track it again), or to delete its history.
+  **Right-click a session** to delete it.
+
+When a game is selected, the tiles also show its average and longest session, and when you first played it.
+
+It follows your Windows light/dark setting. Closing the window doesn't stop tracking; the app keeps running in the tray.
 
 ## Install
 
@@ -37,11 +55,11 @@ Click **More info → Run anyway**.
 
 ## Your files
 
-Everything lives in `Documents\Game Session Tracker\` (tray menu → **Open data folder**):
+Everything lives in `Documents\Game Session Tracker\` (dashboard → **Settings** → **Your data** → **Open folder**):
 
 | File | What it is |
 | --- | --- |
-| `Game Stats.txt` | The readable report: times played, total and average time per game, and every session with start/end time and length. |
+| `Game Stats.txt` | A plain-text version of the dashboard: times played, total and average time per game, and every session with start/end time and length. |
 | `Sessions.csv` | Every session, one per row. Opens in Excel / Google Sheets. |
 | `sessions.json` | The tracker's own data. Don't edit it while the app is running. |
 | `settings.json` | Your settings (see below). |
@@ -74,35 +92,20 @@ Beat Saber
 
 ## Settings
 
-Tray menu → **Edit settings...** opens `settings.json` in Notepad. Save the file and changes apply within a few seconds.
+Everything is in the dashboard's **Settings** tab (or tray menu → **Settings**). Changes save and take effect immediately.
 
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| `pollIntervalSeconds` | `5` | How often to check for running games. |
-| `minimumSessionSeconds` | `30` | Shorter sessions are ignored. |
-| `gracePeriodSeconds` | `20` | Close and reopen within this time = same session. |
-| `showNotifications` | `true` | Show a notification when a session is logged. |
-| `useWindowsGameList` | `true` | Also count programs Xbox Game Bar has flagged as games. |
-| `extraGameFolders` | `[]` | Folders where every sub-folder is a game. |
-| `customGames` | `[]` | Games identified by exe name or full path. |
-| `ignoredGames` | launchers, redistributables, SteamVR, Wallpaper Engine... | Game or folder names never to track. |
-| `ignoredExecutables` | launchers, crash reporters, anti-cheat, Unity/Unreal editors... | Exe names never to track. |
+![Settings](docs/settings.png)
 
-Example: track Minecraft and everything in `D:\MyGames`, and stop ignoring SteamVR:
+- **General**: start with Windows, notifications when a session is logged, and whether to use the Xbox Game Bar's list of games.
+- **Tracking**: how often to check for games (default 5 seconds), the shortest session worth keeping (30 seconds),
+  and how long a game can be closed before a reopen counts as a new session (20 seconds).
+- **Custom games**: pick any game's `.exe` to track something the app doesn't find on its own (e.g. Minecraft's `javaw.exe`).
+- **Game folders**: add a folder where every sub-folder is a game, e.g. `D:\Games`.
+- **Ignored games / Ignored programs**: things that should never count as playing. Launchers, redistributables, crash reporters,
+  anti-cheat, SteamVR, Wallpaper Engine and the Unity/Unreal editors are there by default; hover a row and click **Remove** to un-ignore one.
+- **Your data**: rescan installed games, export all sessions to a spreadsheet (`.csv`), open the plain-text report, open the data folder.
 
-```json
-{
-  "extraGameFolders": [ "D:\\MyGames" ],
-  "customGames": [
-    { "name": "Minecraft", "executable": "javaw.exe" },
-    { "name": "Some Indie Game", "executable": "C:\\Stuff\\Indie\\game.exe" }
-  ],
-  "ignoredGames": [ "Steamworks Common Redistributables", "Wallpaper Engine", "Launcher" ]
-}
-```
-
-(Remember to double the backslashes `\\` in paths.) If a game isn't being picked up, add it to `customGames`.
-If something is counted that shouldn't be, add its exe to `ignoredExecutables` or its name to `ignoredGames`.
+Settings are stored in `settings.json`, which you can still edit by hand if you like; the app picks up changes within a few seconds.
 
 ## Uninstall
 
