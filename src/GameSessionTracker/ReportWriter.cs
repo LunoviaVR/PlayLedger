@@ -87,8 +87,8 @@ internal static class ReportWriter
 
     public static string FormatDuration(TimeSpan duration)
     {
-        if (duration < TimeSpan.Zero)
-            duration = TimeSpan.Zero;
+        if (duration < TimeSpan.FromSeconds(1))
+            return "0m";
         var totalHours = (int)duration.TotalHours;
         if (totalHours > 0)
             return $"{totalHours}h {duration.Minutes:00}m";

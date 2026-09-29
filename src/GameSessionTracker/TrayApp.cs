@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using GameSessionTracker.Ui;
 using Microsoft.Win32;
 
 namespace GameSessionTracker;
@@ -32,9 +33,11 @@ internal sealed class TrayApp : ApplicationContext
     private DateTimeOffset _lastPoll;
     private DateTimeOffset _lastSave;
     private readonly RegisteredWaitHandle _exitWait;
+    private readonly RegisteredWaitHandle _showWait;
+    private DashboardForm? _dashboard;
     private bool _shutDown;
 
-    public TrayApp(bool launchedAtStartup, WaitHandle exitRequested)
+    public TrayApp(bool launchedAtStartup, WaitHandle exitRequested, WaitHandle showRequested)
     {
         _dataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Game Session Tracker");
         Directory.CreateDirectory(_dataFolder);
@@ -56,14 +59,15 @@ internal sealed class TrayApp : ApplicationContext
         // ---- Tray icon & menu ----
         _statusItem = new ToolStripMenuItem("Not playing anything") { Enabled = false };
         _startupItem = new ToolStripMenuItem("Start with Windows", null, (_, _) => ToggleStartup());
-        var openStats = new ToolStripMenuItem("Open game stats", null, (_, _) => OpenStats()) { Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold) };
+        var openDashboard = new ToolStripMenuItem("Open dashboard", null, (_, _) => ShowDashboard()) { Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold) };
 
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[]
         {
             _statusItem,
             new ToolStripSeparator(),
-            openStats,
+            openDashboard,
+            new ToolStripMenuItem("Open game stats (text file)", null, (_, _) => OpenStats()),
             new ToolStripMenuItem("Open sessions spreadsheet (CSV)", null, (_, _) => Open(_csvPath)),
             new ToolStripMenuItem("Open data folder", null, (_, _) => Open(_dataFolder)),
             new ToolStripSeparator(),
@@ -82,7 +86,7 @@ internal sealed class TrayApp : ApplicationContext
             ContextMenuStrip = menu,
             Visible = true,
         };
-        _trayIcon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) OpenStats(); };
+        _trayIcon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowDashboard(); };
 
         // Creating controls above installed the WinForms synchronization context.
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
@@ -94,6 +98,9 @@ internal sealed class TrayApp : ApplicationContext
         // Another copy started with --exit (the installer/uninstaller) asked us to close.
         _exitWait = ThreadPool.RegisterWaitForSingleObject(
             exitRequested, (_, _) => _ui.Post(_ => ExitApp(), null), null, Timeout.Infinite, executeOnlyOnce: true);
+        // The app was launched again (e.g. from the Start menu): show the dashboard instead.
+        _showWait = ThreadPool.RegisterWaitForSingleObject(
+            showRequested, (_, _) => _ui.Post(_ => ShowDashboard(), null), null, Timeout.Infinite, executeOnlyOnce: false);
 
         SaveAll();
 
@@ -105,7 +112,7 @@ internal sealed class TrayApp : ApplicationContext
         if (settingsError is not null)
             Notify("settings.json has a problem", $"Using default settings until it's fixed. {settingsError}", ToolTipIcon.Warning);
         else if (!launchedAtStartup)
-            Notify("Game Session Tracker is running", "It's in the system tray. Right-click the icon for your stats, settings, or to exit.", ToolTipIcon.Info);
+            ShowDashboard();
     }
 
     // ---------- Polling ----------
@@ -137,6 +144,8 @@ internal sealed class TrayApp : ApplicationContext
 
             if (changed || (_tracker.Active.Count > 0 && now - _lastSave >= ActiveSaveInterval))
                 SaveAll();
+            if (changed)
+                _dashboard?.RefreshData();
 
             UpdateStatus(now);
         }
@@ -310,6 +319,22 @@ internal sealed class TrayApp : ApplicationContext
 
     // ---------- Actions ----------
 
+    private void ShowDashboard()
+    {
+        if (_shutDown)
+            return;
+        if (_dashboard is null || _dashboard.IsDisposed)
+        {
+            _dashboard = new DashboardForm(() => new DashboardModel(_data.Sessions, _tracker.Active, DateTimeOffset.Now), () => Open(_dataFolder));
+            _dashboard.FormClosed += (_, _) => _dashboard = null;
+            _dashboard.Show();
+        }
+        if (_dashboard.WindowState == FormWindowState.Minimized)
+            _dashboard.WindowState = FormWindowState.Normal;
+        _dashboard.Activate();
+        _dashboard.BringToFront();
+    }
+
     private void OpenStats()
     {
         SaveAll(); // so "now playing" times are current
@@ -371,6 +396,7 @@ internal sealed class TrayApp : ApplicationContext
 
         SystemEvents.SessionEnding -= OnSessionEnding;
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        _dashboard?.Close();
         _trayIcon.Visible = false;
     }
 
@@ -380,6 +406,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             Shutdown();
             _exitWait.Unregister(null);
+            _showWait.Unregister(null);
             _timer.Dispose();
             _trayIcon.Dispose();
         }

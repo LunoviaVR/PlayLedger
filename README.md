@@ -1,14 +1,28 @@
 # Game Session Tracker
 
-A small Windows 11 app that runs in the system tray, notices when you open a game, and keeps a file with
+A small Windows 11 app that runs in the system tray, notices when you open a game, and keeps track of
 how many times you've played each game and how long every session lasted.
 
-- **Runs in the background** in the system tray (the controller icon). Right-click it for the menu, or left-click to open your stats.
+![Dashboard](docs/dashboard.png)
+
+- **Dashboard**: all your data in one window. Left-click the tray icon (or open *Game Session Tracker* from the Start menu).
+- **Runs in the background** in the system tray (the controller icon). Right-click it for the menu.
 - **Starts with Windows** automatically. You can turn this off with **Start with Windows** in the tray menu.
 - **Close it any time** with **Exit** in the tray menu. A game that's running when you exit is logged up to that moment.
 - **Finds games on its own** from Steam, Epic Games, GOG, Ubisoft Connect, EA app/Origin, Xbox app/Game Pass (`XboxGames`),
   Riot Games, any `X:\Games` folder, and every program Windows' Xbox Game Bar recognises as a game.
   You can add anything else yourself (see [Settings](#settings)).
+
+## The dashboard
+
+- **Top row**: total playtime, number of sessions (and the average length), the past 7 days, and your most-played game.
+- **Daily playtime**: a bar per day for the last 30 days. Hover a bar to see the exact time.
+- **Games**: every game with its total time, session count and when you last played it. Click a game to filter the whole window
+  (tiles, chart and sessions) to that game; click **All games** to go back.
+- **Sessions**: every session, newest first, with date, start and end time, and length. A game you're playing right now
+  shows at the top and counts up live.
+
+It follows your Windows light/dark setting. Closing the window doesn't stop tracking; the app keeps running in the tray.
 
 ## Install
 
@@ -41,7 +55,7 @@ Everything lives in `Documents\Game Session Tracker\` (tray menu → **Open data
 
 | File | What it is |
 | --- | --- |
-| `Game Stats.txt` | The readable report: times played, total and average time per game, and every session with start/end time and length. |
+| `Game Stats.txt` | A plain-text version of the dashboard: times played, total and average time per game, and every session with start/end time and length. |
 | `Sessions.csv` | Every session, one per row. Opens in Excel / Google Sheets. |
 | `sessions.json` | The tracker's own data. Don't edit it while the app is running. |
 | `settings.json` | Your settings (see below). |

@@ -3,7 +3,7 @@
 #   publish\GameSessionTrackerSetup-Online.exe   small installer, downloads the .NET runtime if needed
 # Requires the .NET 8 SDK (https://dotnet.microsoft.com/download/dotnet/8.0)
 # and NSIS for the installers (https://nsis.sourceforge.io, or: winget install NSIS.NSIS).
-param([string]$Version = "1.0.0")
+param([string]$Version = "1.1.0")
 $ErrorActionPreference = 'Stop'
 $project = "$PSScriptRoot\src\GameSessionTracker"
 $out = "$PSScriptRoot\publish"
