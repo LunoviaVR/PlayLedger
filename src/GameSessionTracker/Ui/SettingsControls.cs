@@ -705,6 +705,18 @@ internal sealed class SettingsCard : PaintedControl, IGlassSurface
         Invalidate();
     }
 
+    private readonly Dictionary<Control, double> _progress = new();
+
+    /// <summary>Shows a thin progress bar under a row's description (e.g. an update downloading); null hides it.</summary>
+    public void SetRowProgress(Control control, double? progress)
+    {
+        if (progress is { } value)
+            _progress[control] = Math.Clamp(value, 0, 1);
+        else if (!_progress.Remove(control))
+            return;
+        Invalidate();
+    }
+
     public int PreferredHeight => HeaderHeight + _rows.Count * RowHeight + S(4);
 
     protected override void OnLayout(LayoutEventArgs e)
@@ -750,6 +762,9 @@ internal sealed class SettingsCard : PaintedControl, IGlassSurface
             var textWidth = Math.Max(0, control.Left - S(24) - x);
             DrawLabel(g, title, Fonts.Body, Theme.TextPrimary, new Rectangle(x, top + S(14), textWidth, S(20)));
             DrawLabel(g, description, Fonts.Small, Theme.TextSecondary, new Rectangle(x, top + S(37), textWidth, S(18)));
+            if (_progress.TryGetValue(control, out var progress))
+                RowPainter.ShareBar(g, new RectangleF(x, top + S(58), Math.Max(S(40), Math.Min(textWidth, S(320))), S(3)), progress, Theme);
+            g.SmoothingMode = SmoothingMode.None;
         }
     }
 }

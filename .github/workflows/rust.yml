@@ -1,0 +1,52 @@
+name: Rust
+
+# Checks the Rust rewrite (crates/). Runs on Windows so the DPAPI, registry and file-lock code is compiled and tested
+# for real. The shipping C# app is still built by build.yml.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "clippy.toml"
+      - ".github/workflows/rust.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  check:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      # rustup is preinstalled on the runner; rust-toolchain.toml pins the exact toolchain and components.
+      - name: Install pinned toolchain
+        shell: pwsh
+        run: rustup show active-toolchain
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked --all-targets
+
+      - name: Security audit (RustSec)
+        shell: pwsh
+        run: |
+          cargo install cargo-audit --locked --version 0.22.2
+          cargo audit --deny warnings

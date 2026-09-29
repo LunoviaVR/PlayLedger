@@ -1,0 +1,24 @@
+# Rust rewrite of Playtime Tracker (in progress; see docs/architecture/rust-migration.md).
+# The shipping app is still the C# one in src/ until the Rust version reaches feature parity.
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "2.2.0"
+edition = "2021"
+license = "GPL-3.0-only"
+repository = "https://github.com/LunoviaVR/PlaytimeTracker"
+rust-version = "1.80"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

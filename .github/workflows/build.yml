@@ -45,7 +45,7 @@ jobs:
           GIT_REF: ${{ github.ref }}
           GIT_REF_NAME: ${{ github.ref_name }}
         run: |
-          $version = if ($env:GIT_REF -like 'refs/tags/v*') { $env:GIT_REF_NAME.Substring(1) } else { '2.1.0' }
+          $version = if ($env:GIT_REF -like 'refs/tags/v*') { $env:GIT_REF_NAME.Substring(1) } else { '2.2.0' }
           ./build.ps1 -Version $version
 
       - name: Upload installers
@@ -60,20 +60,40 @@ jobs:
 
   release:
     # Only version tags publish a release, and only this job can write to the repository.
+    # The release carries a single installer, Setup.exe (the online installer); the app's updater looks for that name.
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          sparse-checkout: docs/releases
+
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: PlaytimeTracker-Installers
           path: publish
 
-      - name: Attach installers to release
+      - name: Prepare Setup.exe and release notes
+        id: prepare
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          cp publish/PlaytimeTrackerSetup-Online.exe publish/Setup.exe
+          notes="docs/releases/${TAG}.md"
+          if [ ! -f "$notes" ]; then
+            notes="$RUNNER_TEMP/notes.md"
+            echo "Playtime Tracker ${TAG#v}" > "$notes"
+          fi
+          echo "notes=$notes" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: |
-            publish/PlaytimeTrackerSetup.exe
-            publish/PlaytimeTrackerSetup-Online.exe
+          name: Playtime Tracker ${{ github.ref_name }}
+          body_path: ${{ steps.prepare.outputs.notes }}
+          files: publish/Setup.exe
+          fail_on_unmatched_files: true

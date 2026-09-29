@@ -58,13 +58,12 @@ Closing the window doesn't stop tracking; the app keeps running in the tray.
 
 ## Install
 
-1. Download one of the installers:
-   - **`PlaytimeTrackerSetup.exe`** (about 48 MB) has everything built in and works offline.
-   - **`PlaytimeTrackerSetup-Online.exe`** (under 1 MB) is the same app. If your PC doesn't already have
-     Microsoft's .NET 8 Desktop Runtime, setup downloads and installs it for you (Windows will ask for permission once).
+1. Download **`Setup.exe`** from the [latest release](https://github.com/LunoviaVR/PlaytimeTracker/releases/latest).
+   It's small; if your PC doesn't already have Microsoft's .NET 8 Desktop Runtime, setup downloads it from Microsoft
+   (over HTTPS, and only runs it if it's signed by Microsoft) and installs it for you. Windows asks for permission once.
 
-   Both are built automatically by the **Build** workflow on GitHub (Actions tab → latest run → *Artifacts*),
-   and attached to any release.
+   An offline installer with everything built in (`PlaytimeTrackerSetup.exe`, about 48 MB) is also produced by the
+   **Build** workflow on GitHub (Actions tab → latest run → *Artifacts*).
 2. Double-click it and click through **Next → Next → Install → Finish**. No admin rights, no command prompt.
 
 The installer:
