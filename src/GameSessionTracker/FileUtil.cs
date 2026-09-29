@@ -4,20 +4,49 @@ namespace GameSessionTracker;
 
 internal static class FileUtil
 {
-    /// <summary>Writes to a temp file then swaps it in, so a crash or power cut never leaves a half-written file.</summary>
-    public static void WriteAllTextAtomic(string path, string contents)
+    /// <summary>
+    /// Writes to a temp file then swaps it in, so a crash or power cut never leaves a half-written file. With a
+    /// <paramref name="backupPath"/>, the previous version is kept there.
+    /// </summary>
+    public static void WriteAllBytesAtomic(string path, byte[] contents, string? backupPath = null)
     {
         var tempPath = path + ".tmp";
-        File.WriteAllText(tempPath, contents, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        File.WriteAllBytes(tempPath, contents);
+        if (backupPath is not null && File.Exists(path))
+        {
+            try
+            {
+                File.Replace(tempPath, path, backupPath, ignoreMetadataErrors: true);
+                return;
+            }
+            catch (IOException)
+            {
+                // Some file systems don't support ReplaceFile; fall back to copy-then-move.
+                File.Copy(path, backupPath, overwrite: true);
+            }
+        }
         File.Move(tempPath, path, overwrite: true);
     }
 
-    /// <summary>Writes with a UTF-8 BOM so Excel and Notepad pick the right encoding for game names.</summary>
-    public static void WriteAllTextAtomicWithBom(string path, string contents)
+    /// <summary>
+    /// Writes with a UTF-8 BOM so Excel and Notepad pick the right encoding for game names. <paramref name="readOnly"/>
+    /// marks the file read-only afterwards, for reports the app regenerates (editing them would change nothing).
+    /// </summary>
+    public static void WriteAllTextAtomicWithBom(string path, string contents, bool readOnly = false)
     {
         var tempPath = path + ".tmp";
         File.WriteAllText(tempPath, contents, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        if (readOnly)
+            ClearReadOnly(path); // our own earlier copy; replacing a read-only file would fail
         File.Move(tempPath, path, overwrite: true);
+        if (readOnly)
+            File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.ReadOnly);
+    }
+
+    private static void ClearReadOnly(string path)
+    {
+        if (File.Exists(path) && File.GetAttributes(path).HasFlag(FileAttributes.ReadOnly))
+            File.SetAttributes(path, File.GetAttributes(path) & ~FileAttributes.ReadOnly);
     }
 }
 

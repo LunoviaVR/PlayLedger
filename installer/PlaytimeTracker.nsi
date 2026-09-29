@@ -80,10 +80,24 @@ VIAddVersionKey "LegalCopyright" ""
 
   DetailPrint "Downloading the .NET 8 Desktop Runtime from Microsoft..."
   InitPluginsDir
-  nsExec::ExecToLog '"$SYSDIR\curl.exe" -L -f -s -S -o "$PLUGINSDIR\dotnet-runtime.exe" "${DOTNET_URL}"'
+  ; HTTPS only, including redirects (curl verifies the server certificate).
+  nsExec::ExecToLog '"$SYSDIR\curl.exe" --proto =https --proto-redir =https --tlsv1.2 -L -f -s -S -o "$PLUGINSDIR\dotnet-runtime.exe" "${DOTNET_URL}"'
   Pop $0
   StrCmp $0 "0" 0 dotnet_failed
 
+  ; Only run the download if it carries a valid Authenticode signature from Microsoft. The path is passed through an
+  ; environment variable so nothing in it (e.g. an apostrophe in the user name) can change the command.
+  DetailPrint "Checking the download's Microsoft signature..."
+  System::Call 'Kernel32::SetEnvironmentVariable(t "PT_RUNTIME_INSTALLER", t "$PLUGINSDIR\dotnet-runtime.exe")i'
+  ; -ExecutionPolicy Bypass applies to this one process, which runs a fixed inline command and no script files.
+  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$s = Get-AuthenticodeSignature -LiteralPath $$env:PT_RUNTIME_INSTALLER; if ($$s.Status -eq 'Valid' -and $$s.SignerCertificate.Subject -like '*O=Microsoft Corporation*') { exit 0 } else { exit 1 }"`
+  Pop $0
+  StrCmp $0 "0" dotnet_signed
+  Delete "$PLUGINSDIR\dotnet-runtime.exe"
+  DetailPrint "The download isn't signed by Microsoft; not running it."
+  Goto dotnet_failed
+
+dotnet_signed:
   DetailPrint "Installing the .NET 8 Desktop Runtime (Windows will ask for permission)..."
   ExecWait '"$PLUGINSDIR\dotnet-runtime.exe" /install /passive /norestart' $0
   StrCmp $0 "0" dotnet_done
@@ -98,11 +112,12 @@ dotnet_done:
 !macro CloseRunningTracker
   IfFileExists "$INSTDIR\${APP_EXE}" 0 +2
     ExecWait '"$INSTDIR\${APP_EXE}" --exit'
-  ; Fallback for a copy running from somewhere else (e.g. the Downloads folder).
-  nsExec::Exec 'taskkill /IM "${APP_EXE}"'
+  ; Fallback for a copy running from somewhere else (e.g. the Downloads folder). Full path to taskkill, so a file
+  ; of that name next to the installer (e.g. in Downloads) can't be run instead.
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /IM "${APP_EXE}"'
   Pop $0
   Sleep 1000
-  nsExec::Exec 'taskkill /F /IM "${APP_EXE}"'
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${APP_EXE}"'
   Pop $0
 !macroend
 
@@ -111,7 +126,7 @@ dotnet_done:
   StrCmp $1 "" legacy_done
   IfFileExists "$1\${LEGACY_EXE}" 0 +2
     ExecWait '"$1\${LEGACY_EXE}" --exit'
-  nsExec::Exec 'taskkill /F /IM "${LEGACY_EXE}"'
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${LEGACY_EXE}"'
   Pop $0
   Delete "$1\${LEGACY_EXE}"
   Delete "$1\Uninstall.exe"
@@ -184,6 +199,9 @@ Section "un.${APP_NAME}" UnSecApp
 SectionEnd
 
 Section /o "un.Delete my play history and settings" UnSecData
+  ; The readable reports are kept read-only by the app; clear that so they can be removed.
+  SetFileAttributes "$DOCUMENTS\Playtime Tracker\Game Stats.txt" NORMAL
+  SetFileAttributes "$DOCUMENTS\Playtime Tracker\Sessions.csv" NORMAL
   RMDir /r "$DOCUMENTS\Playtime Tracker"
 SectionEnd
 

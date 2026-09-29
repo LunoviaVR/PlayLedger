@@ -3,7 +3,11 @@
 #   publish\PlaytimeTrackerSetup-Online.exe   small installer, downloads the .NET runtime if needed
 # Requires the .NET 8 SDK (https://dotnet.microsoft.com/download/dotnet/8.0)
 # and NSIS for the installers (https://nsis.sourceforge.io, or: winget install NSIS.NSIS).
-param([string]$Version = "2.0.0")
+param(
+    # Plain x.y.z only: the value ends up in the exe's metadata and the installer's version resource.
+    [ValidatePattern('^\d{1,5}\.\d{1,5}\.\d{1,5}$')]
+    [string]$Version = "2.0.0"
+)
 $ErrorActionPreference = 'Stop'
 $project = "$PSScriptRoot\src\GameSessionTracker"
 $out = "$PSScriptRoot\publish"

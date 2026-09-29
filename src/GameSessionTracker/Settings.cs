@@ -115,23 +115,52 @@ public sealed class Settings
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     };
 
-    /// <summary>Loads settings, creating the file with defaults if it doesn't exist. Throws if the file is malformed.</summary>
-    public static Settings Load(string path)
+    private const string Purpose = "settings";
+
+    /// <summary>
+    /// Loads the protected settings file, creating it with defaults if it doesn't exist. The first time, imports the old
+    /// plain-text <paramref name="legacyJsonPath"/> (then removes it). If the file fails verification it is set aside
+    /// and the last saved copy (or the defaults) is used; <paramref name="warning"/> says so.
+    /// </summary>
+    public static Settings Load(string path, string legacyJsonPath, out string? warning)
     {
-        if (!File.Exists(path))
+        var settings = ProtectedStore.LoadWithRecovery(path, Purpose, Parse, out warning);
+        if (settings is not null)
+            return settings;
+
+        if (!File.Exists(path) && File.Exists(legacyJsonPath))
         {
-            var defaults = new Settings();
-            defaults.Save(path);
-            return defaults;
+            try
+            {
+                settings = Parse(File.ReadAllText(legacyJsonPath));
+                settings.Save(path);
+                Parse(ProtectedStore.Read(path, Purpose)); // verify before removing the editable copy
+                File.Delete(legacyJsonPath);
+                return settings;
+            }
+            catch (Exception ex) when (ex is JsonException or IOException or UnverifiedDataException)
+            {
+                ErrorLog.Write("Could not import settings.json; using defaults.", ex);
+                warning = "Your old settings.json couldn't be read, so default settings are in use.";
+            }
         }
 
-        var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), JsonOptions)
-                       ?? throw new JsonException("settings.json is empty.");
+        settings = new Settings();
+        settings.Save(path);
+        return settings;
+    }
+
+    /// <summary>Reads settings from a protected file that changed on disk. Throws if it doesn't verify.</summary>
+    public static Settings LoadVerified(string path) => Parse(ProtectedStore.Read(path, Purpose));
+
+    private static Settings Parse(string json)
+    {
+        var settings = JsonSerializer.Deserialize<Settings>(json, JsonOptions) ?? throw new JsonException("The settings file is empty.");
         settings.Normalize();
         return settings;
     }
 
-    public void Save(string path) => FileUtil.WriteAllTextAtomic(path, JsonSerializer.Serialize(this, JsonOptions));
+    public void Save(string path) => ProtectedStore.Write(path, Purpose, JsonSerializer.Serialize(this, JsonOptions));
 
     /// <summary>Clamps values into sensible ranges and replaces missing lists.</summary>
     internal void Normalize()

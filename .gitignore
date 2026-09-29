@@ -1,5 +1,33 @@
+# Build output
 bin/
 obj/
 publish/
+*.tmp
+
+# IDE / editor state
 *.user
+*.suo
 .vs/
+.idea/
+.vscode/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Secrets and signing material (e.g. a future code-signing certificate). Never commit these.
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key
+*.snk
+
+# Local app data copied in for debugging: play history, settings, logs
+sessions.dat*
+settings.dat*
+sessions.json
+settings.json
+errors.log*

@@ -262,7 +262,7 @@ internal sealed class PromptDialog : GlassDialog
             Fonts = fonts;
             Cursor = Cursors.IBeam;
             // Native edit controls can't be translucent, so the input surface is opaque and the text box matches it.
-            TextBox = new TextBox { BorderStyle = BorderStyle.None, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = theme.InputSolid };
+            TextBox = new TextBox { BorderStyle = BorderStyle.None, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = theme.InputSolid, MaxLength = 260 };
             TextBox.GotFocus += (_, _) => Invalidate();
             TextBox.LostFocus += (_, _) => Invalidate();
             Controls.Add(TextBox);
@@ -383,7 +383,8 @@ internal sealed class SessionDetailsDialog : GlassDialog
     }
 
     private string? ProgramPath =>
-        _session.Executable is { } exe && Path.IsPathRooted(exe) && File.Exists(exe) ? exe : null;
+        // Local, fully-qualified paths only: probing a UNC path (\\server\...) would make Windows connect to that server.
+        _session.Executable is { Length: > 3 } exe && char.IsAsciiLetter(exe[0]) && exe[1] == ':' && exe[2] == '\\' && File.Exists(exe) ? exe : null;
 
     private IEnumerable<(string Label, string Value)> Fields()
     {
@@ -447,7 +448,10 @@ internal sealed class SessionDetailsDialog : GlassDialog
             return;
         try
         {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{exe}\"") { UseShellExecute = true });
+            // Full path to Explorer (no search-path lookup). The argument is a path that exists on disk, and Windows paths
+            // can't contain quotes, so it can't break out of the quoted /select argument.
+            var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            Process.Start(new ProcessStartInfo(explorer, $"/select,\"{exe}\"") { UseShellExecute = false });
         }
         catch (Exception ex)
         {
@@ -506,16 +510,15 @@ internal sealed class DayDetailsDialog : GlassDialog
         _host = host;
         _day = day.Date;
         _game = game;
-        ClientSize = new Size(S(560), S(520));
+        ClientSize = new Size(S(560), S(536));
 
         _card.Theme = theme;
         _card.Fonts = fonts;
         _card.ApplyPadding();
-        _card.Bounds = new Rectangle(S(24), S(112), ClientSize.Width - S(48), ClientSize.Height - S(112) - S(24) - S(40) - S(20));
+        _card.Bounds = new Rectangle(S(24), S(128), ClientSize.Width - S(48), ClientSize.Height - S(128) - S(24) - S(40) - S(20));
         _list.Dock = DockStyle.Fill;
         _list.ItemHeight = S(44);
-        _list.Font = fonts.Body;
-        _list.BackColor = theme.Base;
+        _list.EmptyFont = fonts.Body;
         _list.ForeColor = theme.TextMuted;
         _list.EmptyText = "No sessions on this day.";
         _list.DrawRow += (g, bounds, index, selected, hot) =>
@@ -579,7 +582,7 @@ internal sealed class DayDetailsDialog : GlassDialog
         else if (!structureChanged && _day != DateTime.Now.Date)
             _timer.Stop(); // a past day with nothing running won't change on its own
         _card.Invalidate(false);
-        Invalidate(new Rectangle(0, 0, ClientSize.Width, S(108)));
+        Invalidate(new Rectangle(0, 0, ClientSize.Width, S(124)));
     }
 
     private void OpenSession(SessionView session)
@@ -608,14 +611,16 @@ internal sealed class DayDetailsDialog : GlassDialog
         }
         else if (_history is { Total.Ticks: > 0 } h)
         {
-            summary = $"{ReportWriter.FormatDuration(h.Total)} · " + string.Join(" · ", h.Games.Select(p => $"{p.Game} {ReportWriter.FormatDuration(p.Time)}"));
+            summary = h.Games.Count == 1
+                ? $"{h.Games[0].Game} · {ReportWriter.FormatDuration(h.Total)}"
+                : $"{ReportWriter.FormatDuration(h.Total)} in total · " + string.Join(" · ", h.Games.Select(p => $"{p.Game} {ReportWriter.FormatDuration(p.Time)}"));
         }
         else
         {
             summary = "No play on this day";
         }
-        DrawText(g, summary, Fonts.Body, Theme.TextSecondary, new Rectangle(x, S(60), w, S(22)));
-        DrawText(g, "Click a session for when the game was opened and closed.", Fonts.Small, Theme.TextMuted, new Rectangle(x, S(84), w, S(18)));
+        DrawText(g, summary, Fonts.Body, Theme.TextSecondary, new Rectangle(x, S(62), w, S(22)));
+        DrawText(g, "Click a session for when the game was opened and closed.", Fonts.Small, Theme.TextMuted, new Rectangle(x, S(92), w, S(18)));
     }
 
     private TimeSpan ModelDayPart(SessionView s) =>
