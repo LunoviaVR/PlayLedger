@@ -252,61 +252,61 @@ internal sealed class PromptDialog : GlassDialog
             ? dialog.Input.Text.Trim()
             : null;
     }
+}
 
-    /// <summary>A rounded input surface around a borderless native text box, with an accent focus ring.</summary>
-    private sealed class InputField : PaintedControl
+/// <summary>A rounded input surface around a borderless native text box, with an accent focus ring.</summary>
+internal sealed class InputField : PaintedControl
+{
+    public InputField(Theme theme, Fonts fonts)
     {
-        public InputField(Theme theme, Fonts fonts)
+        Theme = theme;
+        Fonts = fonts;
+        Cursor = Cursors.IBeam;
+        // Native edit controls can't be translucent, so the input surface is opaque and the text box matches it.
+        TextBox = new TextBox { BorderStyle = BorderStyle.None, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = theme.InputSolid, MaxLength = 260 };
+        TextBox.GotFocus += (_, _) => Invalidate();
+        TextBox.LostFocus += (_, _) => Invalidate();
+        Controls.Add(TextBox);
+    }
+
+    public TextBox TextBox { get; }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        TextBox.Focus();
+    }
+
+    protected override void OnLayout(LayoutEventArgs levent)
+    {
+        base.OnLayout(levent);
+        var body = Rectangle.Round(BodyRect);
+        var height = TextBox.PreferredHeight;
+        TextBox.Bounds = new Rectangle(body.X + S(12), body.Y + (body.Height - height) / 2, Math.Max(0, body.Width - S(24)), height);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        var body = BodyRect;
+        var radius = S(Radius.Input);
+        var focused = TextBox.Focused;
+        using var path = Theme.RoundedRect(body, radius);
+        using (var fill = new SolidBrush(Theme.InputSolid))
+            g.FillPath(fill, path);
+        if (focused)
         {
-            Theme = theme;
-            Fonts = fonts;
-            Cursor = Cursors.IBeam;
-            // Native edit controls can't be translucent, so the input surface is opaque and the text box matches it.
-            TextBox = new TextBox { BorderStyle = BorderStyle.None, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = theme.InputSolid, MaxLength = 260 };
-            TextBox.GotFocus += (_, _) => Invalidate();
-            TextBox.LostFocus += (_, _) => Invalidate();
-            Controls.Add(TextBox);
+            Glass.PaintBorder(g, path, body, Theme.AccentBorder, Theme.AccentBorder);
+            // Soft ring rather than a glow: visible, not loud.
+            var ring = RectangleF.Inflate(body, UiScale * 1.5f, UiScale * 1.5f);
+            using var ringPath = Theme.RoundedRect(ring, radius + UiScale * 1.5f);
+            using var ringPen = new Pen(Theme.WithAlpha(Theme.Accent, 70), 3 * UiScale);
+            g.DrawPath(ringPen, ringPath);
         }
-
-        public TextBox TextBox { get; }
-
-        protected override void OnMouseDown(MouseEventArgs e)
+        else
         {
-            base.OnMouseDown(e);
-            TextBox.Focus();
-        }
-
-        protected override void OnLayout(LayoutEventArgs levent)
-        {
-            base.OnLayout(levent);
-            var body = Rectangle.Round(BodyRect);
-            var height = TextBox.PreferredHeight;
-            TextBox.Bounds = new Rectangle(body.X + S(12), body.Y + (body.Height - height) / 2, Math.Max(0, body.Width - S(24)), height);
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            var body = BodyRect;
-            var radius = S(Radius.Input);
-            var focused = TextBox.Focused;
-            using var path = Theme.RoundedRect(body, radius);
-            using (var fill = new SolidBrush(Theme.InputSolid))
-                g.FillPath(fill, path);
-            if (focused)
-            {
-                Glass.PaintBorder(g, path, body, Theme.AccentBorder, Theme.AccentBorder);
-                // Soft ring rather than a glow: visible, not loud.
-                var ring = RectangleF.Inflate(body, UiScale * 1.5f, UiScale * 1.5f);
-                using var ringPath = Theme.RoundedRect(ring, radius + UiScale * 1.5f);
-                using var ringPen = new Pen(Theme.WithAlpha(Theme.Accent, 70), 3 * UiScale);
-                g.DrawPath(ringPen, ringPath);
-            }
-            else
-            {
-                Glass.PaintBorder(g, path, body, Theme.GlassBorderStrong, Theme.GlassBorder);
-            }
+            Glass.PaintBorder(g, path, body, Theme.GlassBorderStrong, Theme.GlassBorder);
         }
     }
 }

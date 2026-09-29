@@ -28,6 +28,7 @@ internal static class Program
                 (DashboardForm.HistoryTab, "history.png"), (DashboardForm.SettingsTab, "settings.png"));
             CaptureDashboard(new DemoHost("light"), outDir, (DashboardForm.OverviewTab, "dashboard-light.png"));
             CaptureSessionDetails(dark, Path.Combine(outDir, "session-details.png"));
+            CaptureAccentPicker(dark, Path.Combine(outDir, "accent-picker.png"));
             return 0;
         }
         catch (Exception ex)
@@ -58,6 +59,19 @@ internal static class Program
         var session = model.Sessions.First(s => !s.IsLive && s.Game == "Elden Ring");
         using var fonts = new Fonts(1f);
         using var dialog = new SessionDetailsDialog(host, Theme.Resolve(host.Settings), fonts, session)
+        {
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(0, 0),
+        };
+        dialog.Show();
+        Save(dialog, path);
+        dialog.Close();
+    }
+
+    private static void CaptureAccentPicker(DemoHost host, string path)
+    {
+        using var fonts = new Fonts(1f);
+        using var dialog = new AccentColorDialog(Theme.Resolve(host.Settings), fonts, ColorTranslator.FromHtml("#8b5cf6"))
         {
             StartPosition = FormStartPosition.Manual,
             Location = new Point(0, 0),

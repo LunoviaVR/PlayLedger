@@ -10,6 +10,7 @@ internal static class ReportWriter
     {
         var sb = new StringBuilder();
         sb.AppendLine("PLAYTIME TRACKER");
+        sb.AppendLine("Generated from your protected play history and rewritten on every save; edits to this file aren't kept.");
         sb.AppendLine($"Last updated: {FormatDateTime(now)}");
         sb.AppendLine();
 

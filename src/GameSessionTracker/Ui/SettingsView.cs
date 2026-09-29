@@ -300,6 +300,7 @@ internal sealed class SettingsView : Panel
         }
 
         _updates.SetRowDescription(_updateButton, status);
+        _updates.SetRowProgress(_updateButton, updater.Busy ? updater.Progress : null);
         if (_updateButton.Text != button)
         {
             _updateButton.Text = button;
@@ -376,15 +377,10 @@ internal sealed class SettingsView : Panel
 
     private void PickCustomAccent()
     {
-        using var dialog = new ColorDialog
-        {
-            FullOpen = true,
-            AnyColor = true,
-            Color = Accents.Parse(_host.Settings.AccentColor).GradientStart,
-        };
-        if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
+        var (theme, fonts) = _style();
+        if (AccentColorDialog.Pick(FindForm()!, theme, fonts, Accents.Parse(_host.Settings.AccentColor).GradientStart) is not { } color)
             return;
-        var key = Accents.ToKey(dialog.Color);
+        var key = Accents.ToKey(color);
         _accent.SelectedKey = key;
         ChangeAppearance(s => s.AccentColor = key);
     }

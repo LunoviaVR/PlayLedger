@@ -36,11 +36,23 @@ internal static class FileUtil
     {
         var tempPath = path + ".tmp";
         File.WriteAllText(tempPath, contents, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-        if (readOnly)
+        if (!readOnly)
+        {
+            File.Move(tempPath, path, overwrite: true);
+            return;
+        }
+        // The app's own reports: read-only, and held open read-only while the app runs so they can't be changed.
+        FileLocks.Release(path);
+        try
+        {
             ClearReadOnly(path); // our own earlier copy; replacing a read-only file would fail
-        File.Move(tempPath, path, overwrite: true);
-        if (readOnly)
+            File.Move(tempPath, path, overwrite: true);
             File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.ReadOnly);
+        }
+        finally
+        {
+            FileLocks.Hold(path);
+        }
     }
 
     private static void ClearReadOnly(string path)
