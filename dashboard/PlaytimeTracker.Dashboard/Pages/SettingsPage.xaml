@@ -25,7 +25,9 @@
     </Page.Resources>
 
     <ScrollViewer>
-        <StackPanel x:Name="Body" Padding="24,16,24,32" MaxWidth="1000" HorizontalAlignment="Stretch" Spacing="4" IsEnabled="False">
+        <!-- A ContentControl so the whole page can be disabled until the settings have loaded. -->
+        <ContentControl x:Name="Body" IsEnabled="False" HorizontalContentAlignment="Stretch" IsTabStop="False">
+        <StackPanel Padding="24,16,24,32" MaxWidth="1000" HorizontalAlignment="Stretch" Spacing="4">
             <TextBlock Text="Settings" Style="{StaticResource PageTitleStyle}" />
 
             <!-- Appearance -->
@@ -162,5 +164,6 @@
                 <TextBlock x:Name="About" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
             </Border>
         </StackPanel>
+        </ContentControl>
     </ScrollViewer>
 </Page>
