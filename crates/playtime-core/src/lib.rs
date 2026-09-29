@@ -12,6 +12,7 @@ pub mod discovery;
 pub mod engine;
 pub mod ipc;
 pub mod launchers;
+pub mod migration;
 pub mod model;
 pub mod paths;
 pub mod protected;

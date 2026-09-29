@@ -106,6 +106,22 @@ reconnects its event stream if the tracker restarts, and keeps settings fields i
 `dashboard/fixtures/responses.jsonl` is written by the Rust tests and parsed by the C# tests, so both sides
 must agree on every message. One dashboard window at a time: a second launch brings the first forward.
 
+## Migrations (phase 9)
+
+`playtime_core::migration` runs before the tracker opens the data folder. Every step is *verify, then switch*:
+nothing old is removed until its replacement has been written and read back, anything unreadable is kept under a
+new name, and every step is appended to `migration.log` in the data folder.
+
+- `Documents\Game Session Tracker` (1.x) is moved to `Documents\Playtime Tracker`; if it can't be moved yet (a file
+  is open, OneDrive is syncing), the old folder is used as is and the move is retried next start.
+- 1.x plain-text `sessions.json` / `settings.json` are imported into the protected files, read back, compared, and
+  only then deleted. An unreadable one is kept as `sessions.unreadable-<date>.json`. Existing protected data always
+  wins; a stray JSON next to it is left alone, never merged over newer data.
+- Before the first run of the Rust tracker and before every version change, `sessions.dat` / `settings.dat` (and
+  their `.bak`) are copied to `Backups\<date> before <version>\` and compared byte for byte. The newest ten
+  automatic backups are kept; other folders in `Backups` are never touched.
+- The running version is recorded in the settings (`lastRunVersion`, the same field the C# app uses).
+
 ## Phases
 
 | # | Phase | Status |
@@ -118,8 +134,8 @@ must agree on every message. One dashboard window at a time: a second launch bri
 | 6 | Artwork service | Done: see *Artwork* below |
 | 7 | Tray/background tracker in Rust | Done: see *The tracker service* above (built and checked in CI; not installed yet) |
 | 8 | WinUI 3 dashboard | Built: see *The dashboard* above (checked in CI; not installed yet) |
-| 9 | Migrations (verify-then-switch, logs, backups) | Next |
-| 10 | Replace the C# entry point | Planned |
+| 9 | Migrations (verify-then-switch, logs, backups) | Done: see *Migrations* above |
+| 10 | Replace the C# entry point | Next |
 | 11 | Installer and CI for the Rust build | CI checks added (`.github/workflows/rust.yml`) |
 | 12 | Remove C# after parity is verified | Planned |
 

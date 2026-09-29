@@ -14,11 +14,15 @@ use playtime_core::ipc::{
     DashboardSnapshot, Event, GameIdentity, Request, Response, PROTOCOL_VERSION,
 };
 use playtime_core::launchers::GameId;
+use playtime_core::migration;
+use playtime_core::protected::{self, Purpose};
 use playtime_core::reports::{self, format_duration};
 use playtime_core::{paths, SessionRecord, Settings, Timestamp};
 use playtime_windows::discovery::WindowsHost;
+use playtime_windows::dpapi::Dpapi;
 use playtime_windows::http::WinHttpClient;
 use playtime_windows::icons::ExeIconProvider;
+use playtime_windows::registry::RegistryGenerations;
 use playtime_windows::store::{self, Store};
 use playtime_windows::{credentials, folders, processes};
 use std::path::PathBuf;
@@ -117,10 +121,42 @@ impl Service {
     /// Opens the data folder and starts tracking. Returns warnings to show the user.
     pub fn start(events: EventHub) -> (Self, Vec<Notification>) {
         let now = Timestamp::now();
-        let data_folder = folders::documents()
-            .map(|d| folders::data_folder(&d))
-            .unwrap_or_else(|| PathBuf::from(folders::DATA_FOLDER_NAME));
         let mut notifications = Vec::new();
+
+        // One-time migrations first (folder move, 1.x import, verified backup before a new version), so the store
+        // only ever opens data in the current format.
+        let documents = folders::documents().unwrap_or_else(|| PathBuf::from("."));
+        let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+        let report = migration::run(
+            &Dpapi,
+            &RegistryGenerations,
+            &documents,
+            VERSION,
+            |folder| {
+                let (json, _) = protected::read_file(
+                    &Dpapi,
+                    Purpose::Settings,
+                    &folder.join(folders::SETTINGS_FILE),
+                )
+                .ok()?;
+                Settings::from_json(&json).ok().map(|s| s.last_run_version)
+            },
+            &stamp,
+        );
+        let data_folder = report.data_folder.clone();
+        if let Err(e) = migration::write_log(&data_folder, &stamp, &report.log) {
+            store::log_to(
+                &data_folder,
+                &format!("Could not write the migration log: {e}"),
+            );
+        }
+        for notice in report.notices {
+            notifications.push(Notification {
+                title: "Playtime Tracker".into(),
+                body: notice,
+                warning: true,
+            });
+        }
 
         let (store, data, settings) = match Store::open(&data_folder) {
             Ok(opened) => {
@@ -131,7 +167,18 @@ impl Service {
                         warning: true,
                     });
                 }
-                (Some(opened.store), opened.data, opened.settings)
+                let mut store = opened.store;
+                let mut settings = opened.settings;
+                // Remember which version ran, as the C# app does (the next version change triggers a backup).
+                if settings.last_run_version != VERSION {
+                    settings.last_run_version = VERSION.into();
+                    if let Err(e) = store.save_settings(&settings) {
+                        store.log(&format!(
+                            "Could not record the version in the settings: {e}"
+                        ));
+                    }
+                }
+                (Some(store), opened.data, settings)
             }
             Err(e) => {
                 store::log_to(
