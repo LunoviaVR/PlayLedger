@@ -130,6 +130,8 @@ internal sealed class DemoHost : ITrackerHost
     public void ExportCsv(string path) { }
     public void OpenDataFolder() { }
     public void OpenTextReport() { }
+    public Updater Updater { get; } = new(); // never asked to check in the screenshots
+    public Task<bool> InstallUpdateAsync() => Task.FromResult(false);
 
     /// <summary>A believable month of play (fixed seed, so every run looks the same relative to today).</summary>
     private static (List<SessionRecord>, List<ActiveSession>) SampleData(DateTimeOffset now)

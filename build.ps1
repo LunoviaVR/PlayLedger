@@ -6,7 +6,7 @@
 param(
     # Plain x.y.z only: the value ends up in the exe's metadata and the installer's version resource.
     [ValidatePattern('^\d{1,5}\.\d{1,5}\.\d{1,5}$')]
-    [string]$Version = "2.0.0"
+    [string]$Version = "2.1.0"
 )
 $ErrorActionPreference = 'Stop'
 $project = "$PSScriptRoot\src\GameSessionTracker"

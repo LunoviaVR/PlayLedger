@@ -21,8 +21,14 @@ you'll be credited in the release notes unless you'd rather not be.
 ## Scope and design notes
 
 - The app runs entirely on your PC as your Windows user. It has no server, account or network
-  service, and it makes no network requests. (The *online* installer downloads the .NET runtime
+  service. Its only network requests are update checks to GitHub's API for this repository's latest
+  release (can be turned off in Settings), and downloading that release's installer. An update is
+  installed only if it comes from this repository's release over HTTPS and matches the size and
+  SHA-256 checksum GitHub recorded for the file. (The *online* installer downloads the .NET runtime
   from Microsoft over HTTPS and only runs it if it is validly signed by Microsoft.)
+- Because updates install automatically by default, access to this repository's releases is
+  effectively access to every installed copy: protect the GitHub account with 2FA and the `v*` tags
+  with a ruleset. Code-signing the installers would add a second, independent check.
 - Play history and settings are stored with Windows DPAPI for the current user, which encrypts them
   and detects any change made outside the app. This prevents editing by hand; it is not designed to
   stop other software running as the same Windows user.

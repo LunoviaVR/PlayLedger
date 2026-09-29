@@ -10,8 +10,11 @@ how many times you've played each game and how long every session lasted.
 - **Starts with Windows** automatically. You can turn this off in **Settings**.
 - **Close it any time** with **Exit** in the tray menu. A game that's running when you exit is logged up to that moment.
 - **Finds games on its own** from Steam, Epic Games, GOG, Ubisoft Connect, EA app/Origin, Xbox app/Game Pass (`XboxGames`),
-  Riot Games, any `X:\Games` folder, and every program Windows' Xbox Game Bar recognises as a game.
+  Riot Games, any `X:\Games` folder, and every program Windows' Xbox Game Bar recognises as a game (even after the game
+  updates itself into a new folder). It also knows popular games that install on their own: Roblox, Minecraft (Java and
+  Bedrock), Genshin Impact, Honkai: Star Rail, Zenless Zone Zero, osu!, League of Legends, VALORANT and Fortnite.
   You can add anything else yourself (see [Settings](#settings)).
+- **Updates itself** from this repository's GitHub releases (see [Updates](#updates)).
 
 ## The dashboard
 
@@ -127,7 +130,7 @@ Beat Saber
 
 - The app checks running programs every 5 seconds. A session starts when a game's process appears and ends when it's gone.
 - If a game closes and reopens within 20 seconds (e.g. a launcher handing off to the game) it stays one session.
-- Sessions under 30 seconds aren't recorded (updaters, crashes on launch).
+- Every session is recorded, however short. (You can set a minimum length in **Settings → Tracking** if you'd rather skip very short ones.)
 - Time the PC spends asleep isn't counted. A game still open when the PC wakes starts a new session.
 - If the PC crashes or loses power mid-game, the session is recovered on next start, ending at the last time the game was seen (at most about a minute lost).
 
@@ -140,7 +143,8 @@ Everything is in the dashboard's **Settings** tab (or tray menu → **Settings**
 - **Appearance**: **Theme** (follow Windows' light/dark setting, or always dark or light) and **Accent colour**
   (blue, violet, teal, green, amber, rose, or **+** to pick any colour). Changes apply instantly to the dashboard, its dialogs and the tray menu.
 - **General**: start with Windows, notifications when a session is logged, and whether to use the Xbox Game Bar's list of games.
-- **Tracking**: how often to check for games (default 5 seconds), the shortest session worth keeping (30 seconds),
+- **Updates**: check for new versions, install them automatically, or check and install by hand (see [Updates](#updates)).
+- **Tracking**: how often to check for games (default 5 seconds), the shortest session worth keeping (off: every session counts),
   and how long a game can be closed before a reopen counts as a new session (20 seconds).
 - **Custom games**: pick any game's `.exe` to track something the app doesn't find on its own (e.g. Minecraft's `javaw.exe`).
 - **Game folders**: add a folder where every sub-folder is a game, e.g. `D:\Games`.
@@ -149,6 +153,23 @@ Everything is in the dashboard's **Settings** tab (or tray menu → **Settings**
 - **Your data**: rescan installed games, export all sessions to a spreadsheet (`.csv`), open the plain-text report, open the data folder.
 
 Settings are stored in the protected `settings.dat` (see [Your files](#your-files)), so they're changed only through this tab.
+
+## Updates
+
+Playtime Tracker checks this repository's [GitHub releases](https://github.com/LunoviaVR/PlaytimeTracker/releases)
+a minute after it starts and every 6 hours after that.
+
+- **Automatic** (the default): when a new version is out and **no game is running**, it downloads, installs and restarts
+  by itself, then shows a "Playtime Tracker updated" notification. It never updates in the middle of a session.
+- **By hand**: turn off **Install updates automatically** and you'll get a notification (and an **Update to …** item in the
+  tray menu) instead. Install from **Settings → Updates**.
+- Before running anything, the app checks that the installer comes from this repository's release on GitHub over HTTPS,
+  and that its size and SHA-256 checksum match what GitHub recorded when the file was uploaded. If any check fails, nothing
+  is installed.
+- Copies that weren't installed with the installer (e.g. run from Downloads) are never replaced; they just get a link to the
+  download page.
+- The only thing sent is a normal request to GitHub's API for the latest release (your IP address and the app's version, as
+  with any web request). Turn off **Check for updates** to stop it.
 
 ## Uninstall
 

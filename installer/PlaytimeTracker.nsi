@@ -12,7 +12,7 @@ Unicode true
 !include "FileFunc.nsh"
 
 !ifndef VERSION
-  !define VERSION "2.0.0"
+  !define VERSION "2.1.0"
 !endif
 !ifndef EXE_PATH
   !define EXE_PATH "..\publish\PlaytimeTracker.exe"
@@ -171,6 +171,17 @@ Section "${APP_NAME}" SecApp
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" "$0"
 SectionEnd
+
+; The app's own updater runs this installer silently with /relaunch; start the updated app again afterwards.
+; --updated keeps it in the tray (like a sign-in start) and it shows an "updated" notification.
+Function .onInstSuccess
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/relaunch" $R1
+  IfErrors relaunch_done
+  Exec '"$INSTDIR\${APP_EXE}" --updated'
+relaunch_done:
+FunctionEnd
 
 Section /o "Desktop shortcut" SecDesktop
   CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0

@@ -45,7 +45,7 @@ jobs:
           GIT_REF: ${{ github.ref }}
           GIT_REF_NAME: ${{ github.ref_name }}
         run: |
-          $version = if ($env:GIT_REF -like 'refs/tags/v*') { $env:GIT_REF_NAME.Substring(1) } else { '2.0.0' }
+          $version = if ($env:GIT_REF -like 'refs/tags/v*') { $env:GIT_REF_NAME.Substring(1) } else { '2.1.0' }
           ./build.ps1 -Version $version
 
       - name: Upload installers
