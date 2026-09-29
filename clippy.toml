@@ -1,0 +1,3 @@
+# unwrap/expect are warned about in production code (see Cargo.toml) but are the normal way to fail a test.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

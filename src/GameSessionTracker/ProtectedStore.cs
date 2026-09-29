@@ -148,7 +148,8 @@ internal static class ProtectedStore
             warning += ".";
         }
 
-        if (recorded is { } expected && chosen.Value.Generation < expected)
+        // Restoring the backup already explains a one-save gap, so only report missing data when nothing else happened.
+        if (recorded is { } expected && chosen.Value.Generation < expected && warning is null)
         {
             ErrorLog.Write($"{name} is generation {chosen.Value.Generation} but generation {expected} was saved last; newer data is missing.");
             warning = $"An older copy of {name} was put back, and the newer data couldn't be found. The older copy is in use.";
