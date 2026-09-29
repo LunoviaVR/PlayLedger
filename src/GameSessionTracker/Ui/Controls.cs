@@ -99,12 +99,19 @@ internal sealed class StatTile : PaintedControl
     }
 }
 
-/// <summary>Header: page title on the left, what's playing now on the right.</summary>
+/// <summary>Header: page title on the left, what's playing now and the page switcher on the right.</summary>
 internal sealed class HeaderBar : PaintedControl
 {
+    private readonly List<Rectangle> _tabBounds = new();
+    private int _hotTab = -1;
+
     public string Title { get; set; } = "";
     public string Status { get; set; } = "";
     public bool IsLive { get; set; }
+    public string[] Tabs { get; set; } = Array.Empty<string>();
+    public int SelectedTab { get; set; }
+
+    public event Action<int>? TabClicked;
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -112,19 +119,79 @@ internal sealed class HeaderBar : PaintedControl
         g.Clear(Theme.Window);
         if (Fonts is null)
             return;
-        DrawLabel(g, Title, Fonts.Title, Theme.TextPrimary, new Rectangle(0, 0, Width / 2, Height), TextFormatFlags.VerticalCenter);
-
-        var statusSize = TextRenderer.MeasureText(g, Status, Fonts.Body, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
-        var maxStatus = Width / 2 - S(24);
-        var statusWidth = Math.Min(statusSize.Width, maxStatus);
-        var statusRect = new Rectangle(Width - statusWidth, 0, statusWidth, Height);
-        DrawLabel(g, Status, Fonts.Body, IsLive ? Theme.TextPrimary : Theme.TextMuted, statusRect, TextFormatFlags.VerticalCenter);
-
-        // The dot is decoration beside the text, never the only signal.
-        var dot = S(8);
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        using var brush = new SolidBrush(IsLive ? Theme.Live : Theme.Track);
-        g.FillEllipse(brush, statusRect.X - dot - S(8), (Height - dot) / 2f, dot, dot);
+        const TextFormatFlags measure = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+
+        // Segmented page switcher, right-aligned.
+        _tabBounds.Clear();
+        var tabHeight = S(34);
+        var widths = Tabs.Select(t => TextRenderer.MeasureText(g, t, Fonts.BodyStrong, Size.Empty, measure).Width + S(28)).ToList();
+        var total = widths.Sum() + S(6);
+        var outer = new Rectangle(Width - total, (Height - tabHeight) / 2, total, tabHeight);
+        using (var path = Theme.RoundedRect(new RectangleF(outer.X + 0.5f, outer.Y + 0.5f, outer.Width - 1, outer.Height - 1), S(8)))
+        using (var fill = new SolidBrush(Theme.Track))
+            g.FillPath(fill, path);
+        var x = outer.X + S(3);
+        for (var i = 0; i < Tabs.Length; i++)
+        {
+            var r = new Rectangle(x, outer.Y + S(3), widths[i], tabHeight - S(6));
+            _tabBounds.Add(r);
+            if (i == SelectedTab)
+            {
+                using var path = Theme.RoundedRect(new RectangleF(r.X + 0.5f, r.Y + 0.5f, r.Width - 1, r.Height - 1), S(6));
+                using var fill = new SolidBrush(Theme.Surface);
+                using var pen = new Pen(Theme.Border, 1);
+                g.FillPath(fill, path);
+                g.DrawPath(pen, path);
+            }
+            var color = i == SelectedTab || i == _hotTab ? Theme.TextPrimary : Theme.TextSecondary;
+            DrawLabel(g, Tabs[i], i == SelectedTab ? Fonts.BodyStrong : Fonts.Body, color, r, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            x += widths[i];
+        }
+
+        var titleSize = TextRenderer.MeasureText(g, Title, Fonts.Title, Size.Empty, measure);
+        var statusRight = outer.X - S(24);
+        var titleWidth = Math.Min(titleSize.Width + S(4), Math.Max(S(120), statusRight - S(200)));
+        DrawLabel(g, Title, Fonts.Title, Theme.TextPrimary, new Rectangle(0, 0, titleWidth, Height), TextFormatFlags.VerticalCenter);
+
+        // Live status, just left of the switcher. The dot is decoration beside the text, never the only signal.
+        var dot = S(8);
+        var statusLeftLimit = titleWidth + S(32) + dot;
+        var statusSize = TextRenderer.MeasureText(g, Status, Fonts.Body, Size.Empty, measure);
+        var statusWidth = Math.Min(statusSize.Width + S(4), statusRight - statusLeftLimit);
+        if (statusWidth > S(60))
+        {
+            var statusRect = new Rectangle(statusRight - statusWidth, 0, statusWidth, Height);
+            DrawLabel(g, Status, Fonts.Body, IsLive ? Theme.TextPrimary : Theme.TextMuted, statusRect, TextFormatFlags.VerticalCenter);
+            using var brush = new SolidBrush(IsLive ? Theme.Live : Theme.TextMuted);
+            g.FillEllipse(brush, statusRect.X - dot - S(8), (Height - dot) / 2f, dot, dot);
+        }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        var hot = _tabBounds.FindIndex(r => r.Contains(e.Location));
+        if (hot == _hotTab)
+            return;
+        _hotTab = hot;
+        Cursor = hot >= 0 ? Cursors.Hand : Cursors.Default;
+        Invalidate();
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _hotTab = -1;
+        Invalidate();
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        var index = _tabBounds.FindIndex(r => r.Contains(e.Location));
+        if (e.Button == MouseButtons.Left && index >= 0)
+            TabClicked?.Invoke(index);
     }
 }
 
@@ -346,6 +413,31 @@ internal sealed class DailyChart : PaintedControl
         minutes == 0 ? "0" : minutes % 60 == 0 ? $"{minutes / 60}h" : minutes < 60 ? $"{minutes}m" : $"{minutes / 60}h {minutes % 60}m";
 }
 
+/// <summary>Sends mouse-wheel messages on to the nearest scrollable ancestor (scroll chaining).</summary>
+internal static class WheelForwarding
+{
+    public const int WmMouseWheel = 0x020A;
+
+    public static bool TryForward(Control control, ref Message m)
+    {
+        for (var parent = control.Parent; parent is not null; parent = parent.Parent)
+        {
+            if (parent is ScrollableControl { AutoScroll: true } && parent.IsHandleCreated)
+            {
+                SendMessage(parent.Handle, m.Msg, m.WParam, m.LParam);
+                m.Result = IntPtr.Zero;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static int Delta(Message m) => (short)((m.WParam.ToInt64() >> 16) & 0xFFFF);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+}
+
 /// <summary>Owner-drawn list with hover highlighting; drawing is delegated to the dashboard.</summary>
 internal sealed class RowList : ListBox
 {
@@ -367,6 +459,21 @@ internal sealed class RowList : ListBox
     }
 
     public int HotIndex => _hot;
+
+    protected override void WndProc(ref Message m)
+    {
+        // At the top/bottom of the list (or when everything fits), let the page scroll instead.
+        if (m.Msg == WheelForwarding.WmMouseWheel)
+        {
+            var delta = WheelForwarding.Delta(m);
+            var visibleRows = Math.Max(1, ClientSize.Height / Math.Max(1, ItemHeight));
+            var atTop = TopIndex <= 0;
+            var atBottom = TopIndex + visibleRows >= Items.Count;
+            if (((delta > 0 && atTop) || (delta < 0 && atBottom)) && WheelForwarding.TryForward(this, ref m))
+                return;
+        }
+        base.WndProc(ref m);
+    }
 
     public string EmptyText { get; set; } = "";
 

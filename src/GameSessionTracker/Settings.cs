@@ -127,7 +127,8 @@ public sealed class Settings
 
     public void Save(string path) => FileUtil.WriteAllTextAtomic(path, JsonSerializer.Serialize(this, JsonOptions));
 
-    private void Normalize()
+    /// <summary>Clamps values into sensible ranges and replaces missing lists.</summary>
+    internal void Normalize()
     {
         PollIntervalSeconds = Math.Clamp(PollIntervalSeconds, 1, 300);
         MinimumSessionSeconds = Math.Max(0, MinimumSessionSeconds);

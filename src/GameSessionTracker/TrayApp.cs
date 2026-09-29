@@ -6,7 +6,7 @@ using Microsoft.Win32;
 namespace GameSessionTracker;
 
 /// <summary>The system-tray icon and the polling loop that drives everything.</summary>
-internal sealed class TrayApp : ApplicationContext
+internal sealed class TrayApp : ApplicationContext, ITrackerHost
 {
     private static readonly TimeSpan CatalogRefreshInterval = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan ActiveSaveInterval = TimeSpan.FromSeconds(60);
@@ -19,7 +19,6 @@ internal sealed class TrayApp : ApplicationContext
 
     private readonly NotifyIcon _trayIcon;
     private readonly ToolStripMenuItem _statusItem;
-    private readonly ToolStripMenuItem _startupItem;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly SynchronizationContext _ui;
     private readonly ProcessScanner _scanner = new();
@@ -35,6 +34,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly RegisteredWaitHandle _exitWait;
     private readonly RegisteredWaitHandle _showWait;
     private DashboardForm? _dashboard;
+    private long _dataVersion;
     private bool _shutDown;
 
     public TrayApp(bool launchedAtStartup, WaitHandle exitRequested, WaitHandle showRequested)
@@ -58,7 +58,6 @@ internal sealed class TrayApp : ApplicationContext
 
         // ---- Tray icon & menu ----
         _statusItem = new ToolStripMenuItem("Not playing anything") { Enabled = false };
-        _startupItem = new ToolStripMenuItem("Start with Windows", null, (_, _) => ToggleStartup());
         var openDashboard = new ToolStripMenuItem("Open dashboard", null, (_, _) => ShowDashboard()) { Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold) };
 
         var menu = new ContextMenuStrip();
@@ -67,17 +66,10 @@ internal sealed class TrayApp : ApplicationContext
             _statusItem,
             new ToolStripSeparator(),
             openDashboard,
-            new ToolStripMenuItem("Open game stats (text file)", null, (_, _) => OpenStats()),
-            new ToolStripMenuItem("Open sessions spreadsheet (CSV)", null, (_, _) => Open(_csvPath)),
-            new ToolStripMenuItem("Open data folder", null, (_, _) => Open(_dataFolder)),
-            new ToolStripSeparator(),
-            new ToolStripMenuItem("Edit settings...", null, (_, _) => EditSettings()),
-            new ToolStripMenuItem("Rescan installed games", null, (_, _) => Rescan()),
-            _startupItem,
+            new ToolStripMenuItem("Settings", null, (_, _) => ShowDashboard(DashboardForm.SettingsTab)),
             new ToolStripSeparator(),
             new ToolStripMenuItem("Exit", null, (_, _) => ExitApp()),
         });
-        menu.Opening += (_, _) => _startupItem.Checked = SafeIsStartupEnabled();
 
         _trayIcon = new NotifyIcon
         {
@@ -225,10 +217,19 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
+        ApplySettings(rebuildCatalog: true);
+        _dashboard?.ReloadSettings();
+    }
+
+    private void ApplySettings(bool rebuildCatalog)
+    {
         _tracker.Settings = _settings;
         _timer.Interval = _settings.PollIntervalSeconds * 1000;
-        _catalog = BuildCatalog();
-        _scanner.Invalidate();
+        if (rebuildCatalog)
+        {
+            _catalog = BuildCatalog();
+            _scanner.Invalidate();
+        }
     }
 
     private GameCatalog BuildCatalog()
@@ -237,13 +238,74 @@ internal sealed class TrayApp : ApplicationContext
         return GameCatalog.Build(_settings);
     }
 
-    private void Rescan()
+    // ---------- ITrackerHost (used by the dashboard) ----------
+
+    public DashboardModel GetModel() => new(_data.Sessions, _tracker.Active, DateTimeOffset.Now, _dataVersion);
+
+    public Settings Settings => _settings;
+
+    public string DataFolder => _dataFolder;
+
+    public void UpdateSettings(Action<Settings> change, bool affectsGameDetection = false)
+    {
+        change(_settings);
+        _settings.Normalize();
+        try
+        {
+            _settings.Save(_settingsPath);
+            _settingsWriteTime = SafeWriteTime(_settingsPath);
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("Could not save settings.json", ex);
+        }
+        ApplySettings(affectsGameDetection);
+        if (affectsGameDetection)
+            Poll();
+    }
+
+    public bool StartWithWindows
+    {
+        get => SafeIsStartupEnabled();
+        set
+        {
+            try
+            {
+                StartupManager.SetEnabled(value);
+            }
+            catch (Exception ex)
+            {
+                ErrorLog.Write("Could not change start with Windows", ex);
+                MessageBox.Show($"Couldn't change the startup setting:\n{ex.Message}", "Game Session Tracker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+    }
+
+    public int DeleteSessions(IReadOnlyCollection<SessionRecord> sessions)
+    {
+        var toDelete = new HashSet<SessionRecord>(sessions, ReferenceEqualityComparer.Instance);
+        var removed = _data.Sessions.RemoveAll(toDelete.Contains);
+        if (removed > 0)
+        {
+            _dataVersion++;
+            SaveAll();
+        }
+        return removed;
+    }
+
+    public string Rescan()
     {
         _catalog = BuildCatalog();
         _scanner.Invalidate();
         Poll();
-        Notify("Rescan complete", $"Found {_catalog.LocationCount} installed games and {_catalog.RootCount} game library folders.", ToolTipIcon.Info);
+        return $"Found {_catalog.LocationCount} installed games in {_catalog.RootCount} library folders.";
     }
+
+    public void ExportCsv(string path) => ReportWriter.WriteCsv(path, _data.Sessions);
+
+    public void OpenDataFolder() => Open(_dataFolder);
+
+    public void OpenTextReport() => OpenStats();
 
     private void ConfigureStartupOnFirstRun()
     {
@@ -264,19 +326,6 @@ internal sealed class TrayApp : ApplicationContext
         catch (Exception ex)
         {
             ErrorLog.Write("Could not configure start with Windows", ex);
-        }
-    }
-
-    private void ToggleStartup()
-    {
-        try
-        {
-            StartupManager.SetEnabled(!SafeIsStartupEnabled());
-        }
-        catch (Exception ex)
-        {
-            ErrorLog.Write("Could not change start with Windows", ex);
-            MessageBox.Show($"Couldn't change the startup setting:\n{ex.Message}", "Game Session Tracker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -319,16 +368,20 @@ internal sealed class TrayApp : ApplicationContext
 
     // ---------- Actions ----------
 
-    private void ShowDashboard()
+    private void ShowDashboard() => ShowDashboard(tab: null);
+
+    private void ShowDashboard(int? tab)
     {
         if (_shutDown)
             return;
         if (_dashboard is null || _dashboard.IsDisposed)
         {
-            _dashboard = new DashboardForm(() => new DashboardModel(_data.Sessions, _tracker.Active, DateTimeOffset.Now), () => Open(_dataFolder));
+            _dashboard = new DashboardForm(this);
             _dashboard.FormClosed += (_, _) => _dashboard = null;
             _dashboard.Show();
         }
+        if (tab is { } t)
+            _dashboard.ShowTab(t);
         if (_dashboard.WindowState == FormWindowState.Minimized)
             _dashboard.WindowState = FormWindowState.Normal;
         _dashboard.Activate();
@@ -339,18 +392,6 @@ internal sealed class TrayApp : ApplicationContext
     {
         SaveAll(); // so "now playing" times are current
         Open(_statsPath);
-    }
-
-    private void EditSettings()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo("notepad.exe", $"\"{_settingsPath}\"") { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            ErrorLog.Write("Could not open settings", ex);
-        }
     }
 
     private static void Open(string path)

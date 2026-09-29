@@ -12,7 +12,7 @@ Unicode true
 !include "FileFunc.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.1.0"
+  !define VERSION "1.2.0"
 !endif
 !ifndef EXE_PATH
   !define EXE_PATH "..\publish\GameSessionTracker.exe"

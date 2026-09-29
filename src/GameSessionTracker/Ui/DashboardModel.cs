@@ -1,7 +1,7 @@
 namespace GameSessionTracker.Ui;
 
 /// <summary>A session as shown in the dashboard; in-progress sessions run up to "now".</summary>
-internal sealed record SessionView(string Game, DateTimeOffset Start, DateTimeOffset End, bool IsLive)
+internal sealed record SessionView(string Game, DateTimeOffset Start, DateTimeOffset End, bool IsLive, SessionRecord? Source = null)
 {
     public TimeSpan Duration => End - Start;
 }
@@ -23,7 +23,7 @@ internal sealed class DashboardModel
     /// <summary>Changes whenever a session starts or ends; used to avoid rebuilding lists needlessly.</summary>
     public string Signature { get; }
 
-    public DashboardModel(IEnumerable<SessionRecord> finished, IEnumerable<ActiveSession> active, DateTimeOffset now)
+    public DashboardModel(IEnumerable<SessionRecord> finished, IEnumerable<ActiveSession> active, DateTimeOffset now, long dataVersion = 0)
     {
         Now = now;
         var finishedList = finished.ToList();
@@ -35,7 +35,7 @@ internal sealed class DashboardModel
             .ToList();
 
         Sessions = finishedList
-            .Select(s => new SessionView(s.Game, s.Start, s.End, IsLive: false))
+            .Select(s => new SessionView(s.Game, s.Start, s.End, IsLive: false, s))
             .Concat(Live)
             .OrderByDescending(s => s.Start)
             .ToList();
@@ -52,7 +52,7 @@ internal sealed class DashboardModel
             .ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        Signature = $"{finishedList.Count}|{string.Join(",", activeList.Select(a => a.Game + a.Start.Ticks))}";
+        Signature = $"{dataVersion}|{finishedList.Count}|{string.Join(",", activeList.Select(a => a.Game + a.Start.Ticks))}";
     }
 
     public IEnumerable<SessionView> SessionsFor(string? game) =>

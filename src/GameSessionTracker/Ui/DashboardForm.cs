@@ -9,11 +9,14 @@ internal sealed class DashboardForm : Form
 {
     private const string AllGames = "\0all"; // sentinel item for the "All games" row
 
-    private readonly Func<DashboardModel> _getModel;
-    private readonly Action _openDataFolder;
+    private const int OverviewTab = 0;
+    public const int SettingsTab = 1;
+
+    private readonly ITrackerHost _host;
+    private readonly SettingsView _settingsView;
     private readonly System.Windows.Forms.Timer _refreshTimer;
 
-    private readonly HeaderBar _header = new();
+    private readonly HeaderBar _header = new() { Tabs = new[] { "Overview", "Settings" } };
     private readonly StatTile[] _tiles = { new(), new(), new(), new() };
     private readonly DailyChart _chart = new();
     private readonly Card _gamesCard = new() { Title = "Games" };
@@ -33,18 +36,17 @@ internal sealed class DashboardForm : Form
     private bool _sized;
     private List<SessionView> _visibleSessions = new();
 
-    public DashboardForm(Func<DashboardModel> getModel, Action openDataFolder)
+    public DashboardForm(ITrackerHost host)
     {
-        _getModel = getModel;
-        _openDataFolder = openDataFolder;
-        _model = getModel();
+        _host = host;
+        _model = host.GetModel();
         _fonts = new Fonts(DeviceDpi / 96f);
+        _settingsView = new SettingsView(host, () => (_theme, _fonts)) { Visible = false };
 
         Text = "Game Session Tracker";
         AutoScaleMode = AutoScaleMode.None; // layout and fonts are scaled by hand in ApplyMetrics
         StartPosition = FormStartPosition.CenterScreen;
         DoubleBuffered = true;
-        KeyPreview = true;
         using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("GameSessionTracker.app.ico"))
         {
             if (stream is not null)
@@ -61,15 +63,20 @@ internal sealed class DashboardForm : Form
         Controls.Add(_gamesCard);
         Controls.Add(_sessionsCard);
         Controls.Add(_footer);
+        Controls.Add(_settingsView);
 
         _gamesList.DrawRow += DrawGameRow;
         _sessionsList.DrawRow += DrawSessionRow;
         _sessionsList.EmptyText = "Your sessions will appear here after you play a game.";
         _gamesList.SelectedIndexChanged += (_, _) => OnGameSelected();
 
-        _footer.LinkClicked += () => _openDataFolder();
+        _footer.LinkClicked += () => _host.OpenDataFolder();
+        _header.TabClicked += ShowTab;
+        _gamesList.ContextMenuStrip = new ContextMenuStrip();
+        _gamesList.ContextMenuStrip.Opening += OnGamesMenuOpening;
+        _sessionsList.ContextMenuStrip = new ContextMenuStrip();
+        _sessionsList.ContextMenuStrip.Opening += OnSessionsMenuOpening;
 
-        KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) Close(); };
         DpiChanged += (_, _) => ApplyMetrics();
 
         ApplyTheme();
@@ -108,7 +115,7 @@ internal sealed class DashboardForm : Form
     /// <summary>Called by the tray when something changed, and by the timer.</summary>
     public void RefreshData()
     {
-        var model = _getModel();
+        var model = _host.GetModel();
         var structureChanged = model.Signature != _model.Signature;
         _model = model;
 
@@ -146,6 +153,7 @@ internal sealed class DashboardForm : Form
         _fonts = new Fonts(DeviceDpi / 96f);
         foreach (var c in AllPainted())
             c.Fonts = _fonts;
+        _settingsView.ApplyStyle();
         _gamesCard.Fonts = _fonts;
         _sessionsCard.Fonts = _fonts;
         _gamesCard.ApplyPadding();
@@ -176,6 +184,7 @@ internal sealed class DashboardForm : Form
         _gamesList.BackColor = _theme.Surface;
         _sessionsList.BackColor = _theme.Surface;
         _sessionsList.ForeColor = _theme.TextMuted;
+        _settingsView.ApplyStyle();
         Invalidate(true);
     }
 
@@ -213,6 +222,107 @@ internal sealed class DashboardForm : Form
         _gamesCard.Bounds = new Rectangle(pad, y, gamesWidth, listsHeight);
         _sessionsCard.Bounds = new Rectangle(pad + gamesWidth + gap, y, width - gamesWidth - gap, listsHeight);
         _footer.Bounds = new Rectangle(pad, _gamesCard.Bottom, width, footerHeight);
+
+        var contentTop = _header.Bottom + S(8);
+        _settingsView.Bounds = new Rectangle(0, contentTop, ClientSize.Width, Math.Max(0, _footer.Top - contentTop));
+    }
+
+    // ---------- Pages ----------
+
+    public void ShowTab(int tab)
+    {
+        _header.SelectedTab = tab;
+        var overview = tab == OverviewTab;
+        SuspendLayout();
+        foreach (var c in new Control[] { _chart, _gamesCard, _sessionsCard }.Concat(_tiles))
+            c.Visible = overview;
+        _settingsView.Visible = !overview;
+        if (!overview)
+        {
+            _settingsView.Reload();
+            _settingsView.BringToFront();
+        }
+        ResumeLayout(true);
+        UpdateSummary();
+    }
+
+    /// <summary>Called when settings changed outside the window (e.g. settings.json edited by hand).</summary>
+    public void ReloadSettings()
+    {
+        if (_settingsView.Visible)
+            _settingsView.Reload();
+    }
+
+    // ---------- Right-click actions ----------
+
+    private void OnGamesMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        var menu = (ContextMenuStrip)sender!;
+        var index = _gamesList.IndexFromPoint(_gamesList.PointToClient(Cursor.Position));
+        var game = index > 0 ? _model.Games.ElementAtOrDefault(index - 1) : null; // "All games" has no actions
+        if (game is null)
+        {
+            e.Cancel = true;
+            return;
+        }
+        _gamesList.SelectedIndex = index;
+        PrepareMenu(menu, e);
+
+        var ignored = _host.Settings.IgnoredGames.Contains(game.Name, StringComparer.OrdinalIgnoreCase);
+        menu.Items.Add(ignored
+            ? ThemedMenu.Item("Track this game again", _theme, () => SetIgnored(game.Name, false))
+            : ThemedMenu.Item("Stop tracking this game", _theme, () => SetIgnored(game.Name, true)));
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(ThemedMenu.Item("Delete this game's history...", _theme, () =>
+        {
+            var records = _model.SessionsFor(game.Name).Where(s => s.Source is not null).Select(s => s.Source!).ToList();
+            if (records.Count == 0)
+                return;
+            if (MessageBox.Show(this, $"Delete all {Plural(records.Count, "session")} of {game.Name}? This can't be undone.",
+                    "Delete history", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.OK)
+                return;
+            _host.DeleteSessions(records);
+            RefreshData();
+        }));
+    }
+
+    private void OnSessionsMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        var menu = (ContextMenuStrip)sender!;
+        var index = _sessionsList.IndexFromPoint(_sessionsList.PointToClient(Cursor.Position));
+        if (index < 0 || index >= _visibleSessions.Count || _visibleSessions[index].Source is not { } record)
+        {
+            e.Cancel = true; // nothing there, or a session still in progress
+            return;
+        }
+        PrepareMenu(menu, e);
+        menu.Items.Add(ThemedMenu.Item("Delete this session", _theme, () =>
+        {
+            var when = $"{FormatDay(record.Start)}, {record.Start.ToLocalTime().ToString("h:mm tt", CultureInfo.CurrentCulture)}";
+            if (MessageBox.Show(this, $"Delete the {ReportWriter.FormatDuration(record.Duration)} session of {record.Game} from {when}?",
+                    "Delete session", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.OK)
+                return;
+            _host.DeleteSessions(new[] { record });
+            RefreshData();
+        }));
+    }
+
+    private void PrepareMenu(ContextMenuStrip menu, System.ComponentModel.CancelEventArgs e)
+    {
+        e.Cancel = false; // WinForms pre-cancels opening a menu that was empty; we fill it here
+        menu.Items.Clear();
+        ThemedMenu.Apply(menu, _theme, _fonts.Body);
+    }
+
+    private void SetIgnored(string game, bool ignore)
+    {
+        _host.UpdateSettings(s =>
+        {
+            s.IgnoredGames.RemoveAll(n => string.Equals(n, game, StringComparison.OrdinalIgnoreCase));
+            if (ignore)
+                s.IgnoredGames.Add(game);
+        }, affectsGameDetection: true);
+        _gamesList.Invalidate();
     }
 
     // ---------- Data ----------
@@ -226,6 +336,8 @@ internal sealed class DashboardForm : Form
         foreach (var game in _model.Games)
             _gamesList.Items.Add(game.Name);
         var index = keepGame is null ? 0 : _gamesList.Items.IndexOf(keepGame);
+        if (index < 0)
+            _selectedGame = null; // the selected game's history was deleted
         _gamesList.SelectedIndex = index < 0 ? 0 : index;
         _gamesList.EndUpdate();
         RebuildSessions(keepScroll: true);
@@ -263,7 +375,7 @@ internal sealed class DashboardForm : Form
         var now = _model.Now;
         var live = _model.Live;
 
-        _header.Title = SelectedGameView?.Name ?? "Your playtime";
+        _header.Title = _header.SelectedTab == SettingsTab ? "Settings" : SelectedGameView?.Name ?? "Your playtime";
         _header.IsLive = live.Count > 0;
         _header.Status = live.Count == 0
             ? "Not playing right now"
@@ -278,14 +390,16 @@ internal sealed class DashboardForm : Form
 
         SetTile(0, "Total playtime", ReportWriter.FormatDuration(total),
             _selectedGame is null ? Plural(_model.Games.Count, "game") : $"{Share(total)} of all your playtime");
+        var longest = sessions.Count == 0 ? TimeSpan.Zero : sessions.Max(s => s.Duration);
         SetTile(1, "Sessions", sessions.Count.ToString("N0", CultureInfo.CurrentCulture),
-            sessions.Count == 0 ? "—" : $"{ReportWriter.FormatDuration(average)} on average");
+            sessions.Count == 0 ? "—" : $"{ReportWriter.FormatDuration(average)} avg · {ReportWriter.FormatDuration(longest)} longest");
         SetTile(2, "Past 7 days", ReportWriter.FormatDuration(week), today > TimeSpan.Zero ? $"{ReportWriter.FormatDuration(today)} today" : "Nothing today");
 
         if (SelectedGameView is { } game)
         {
+            var first = sessions.Min(s => s.Start);
             SetTile(3, "Last played", game.IsLive ? "Now" : FormatDay(game.LastPlayed),
-                game.IsLive ? "Session in progress" : game.LastPlayed.ToLocalTime().ToString("h:mm tt", CultureInfo.CurrentCulture));
+                $"First played {FormatDay(first).Replace("Today", "today").Replace("Yesterday", "yesterday")}");
         }
         else
         {
@@ -352,7 +466,8 @@ internal sealed class DashboardForm : Form
                 return;
             live = game.IsLive;
             name = game.Name;
-            sub = (live ? "Playing now · " : "") + $"{Plural(game.SessionCount, "session")} · last {FormatDay(game.LastPlayed)}";
+            var ignored = _host.Settings.IgnoredGames.Contains(game.Name, StringComparer.OrdinalIgnoreCase);
+            sub = (live ? "Playing now · " : ignored ? "Not tracked · " : "") + $"{Plural(game.SessionCount, "session")} · last {FormatDay(game.LastPlayed)}";
             total = ReportWriter.FormatDuration(game.Total);
             var max = _model.Games[0].Total.Ticks;
             share = max == 0 ? 0 : game.Total.Ticks / (double)max;
