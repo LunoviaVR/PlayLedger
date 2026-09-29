@@ -35,14 +35,20 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
     private readonly RegisteredWaitHandle _showWait;
     private DashboardForm? _dashboard;
     private long _dataVersion;
+
+    // Set when a protected file couldn't be opened for an unexpected reason (e.g. locked by another program). The file
+    // on disk may still hold good data, so it isn't overwritten during this run.
+    private bool _dataReadOnly;
+    private bool _settingsReadOnly;
     private bool _shutDown;
 
     public TrayApp(bool launchedAtStartup, WaitHandle exitRequested, WaitHandle showRequested)
     {
         _dataFolder = DataFolderMigration.Resolve(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
         Directory.CreateDirectory(_dataFolder);
-        _settingsPath = Path.Combine(_dataFolder, "settings.json");
-        _dataPath = Path.Combine(_dataFolder, "sessions.json");
+        // Protected (DPAPI) files, so playtimes and settings can't be edited by hand; see ProtectedStore.
+        _settingsPath = Path.Combine(_dataFolder, "settings.dat");
+        _dataPath = Path.Combine(_dataFolder, "sessions.dat");
         _statsPath = Path.Combine(_dataFolder, "Game Stats.txt");
         _csvPath = Path.Combine(_dataFolder, "Sessions.csv");
         ErrorLog.Initialize(Path.Combine(_dataFolder, "errors.log"));
@@ -51,7 +57,21 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
         _settingsWriteTime = SafeWriteTime(_settingsPath);
         ConfigureStartupOnFirstRun();
 
-        _data = TrackerData.Load(_dataPath);
+        string? dataWarning;
+        try
+        {
+            _data = TrackerData.Load(_dataPath, Path.Combine(_dataFolder, "sessions.json"), out dataWarning);
+        }
+        catch (Exception ex)
+        {
+            // Couldn't read or protect the history (e.g. the folder is read-only). Start with an empty history in
+            // memory; the files on disk are left as they are.
+            ErrorLog.Write("Could not load the play history", ex);
+            _data = new TrackerData();
+            _dataReadOnly = true;
+            dataWarning = "Your play history couldn't be opened, so this session won't be saved (your existing history is untouched). " +
+                          "Restart Playtime Tracker to try again; details are in errors.log.";
+        }
         _tracker = new SessionTracker(_data, _settings);
         _tracker.SessionEnded += OnSessionEnded;
         _catalog = BuildCatalog();
@@ -103,9 +123,11 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
         _timer.Start();
         Poll();
 
+        if (dataWarning is not null)
+            Notify("Playtime Tracker history", dataWarning, ToolTipIcon.Warning);
         if (settingsError is not null)
-            Notify("settings.json has a problem", $"Using default settings until it's fixed. {settingsError}", ToolTipIcon.Warning);
-        else if (!launchedAtStartup)
+            Notify("Playtime Tracker settings", settingsError, ToolTipIcon.Warning);
+        else if (dataWarning is null && !launchedAtStartup)
             ShowDashboard();
     }
 
@@ -154,9 +176,12 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
         var now = DateTimeOffset.Now;
         try
         {
+            if (_dataReadOnly)
+                return; // never replace a history we couldn't read with an empty one
             _data.Save(_dataPath);
-            ReportWriter.WriteStats(_statsPath, _data.Sessions, _tracker.Active, now);
-            ReportWriter.WriteCsv(_csvPath, _data.Sessions);
+            // The readable reports are regenerated on every save; they're read-only so it's clear editing them changes nothing.
+            ReportWriter.WriteStats(_statsPath, _data.Sessions, _tracker.Active, now, readOnly: true);
+            ReportWriter.WriteCsv(_csvPath, _data.Sessions, readOnly: true);
         }
         catch (Exception ex)
         {
@@ -188,39 +213,60 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
 
     private Settings LoadSettingsOrDefaults(out string? error)
     {
-        error = null;
         try
         {
-            return Settings.Load(_settingsPath);
+            return Settings.Load(_settingsPath, Path.Combine(_dataFolder, "settings.json"), out error);
         }
         catch (Exception ex)
         {
-            ErrorLog.Write("Could not read settings.json", ex);
-            error = ex.Message;
+            ErrorLog.Write("Could not load settings", ex);
+            error = "Your settings couldn't be opened, so defaults are in use until the next start. Details are in errors.log.";
+            _settingsReadOnly = true;
             return new Settings();
         }
     }
 
+    /// <summary>
+    /// The settings file only changes through the app. If it changed on disk anyway, accept it only if it verifies (e.g.
+    /// a restored copy); otherwise set it aside and write the current settings back.
+    /// </summary>
     private void ReloadSettingsIfChanged()
     {
         var writeTime = SafeWriteTime(_settingsPath);
         if (writeTime == _settingsWriteTime)
             return;
-        _settingsWriteTime = writeTime;
 
         try
         {
-            _settings = Settings.Load(_settingsPath);
+            _settings = Settings.LoadVerified(_settingsPath);
+            _settingsWriteTime = writeTime;
         }
         catch (Exception ex)
         {
-            ErrorLog.Write("Could not read settings.json", ex);
-            Notify("settings.json has a problem", $"Your changes weren't applied. {ex.Message}", ToolTipIcon.Warning);
+            ErrorLog.Write("The settings file was changed outside the app and didn't verify", ex);
+            try
+            {
+                if (File.Exists(_settingsPath))
+                    ProtectedStore.SetAside(_settingsPath);
+                SaveSettings();
+            }
+            catch (Exception saveEx)
+            {
+                ErrorLog.Write("Could not restore the settings file", saveEx);
+            }
+            _settingsWriteTime = SafeWriteTime(_settingsPath);
+            Notify("Settings restored", "The settings file was changed outside Playtime Tracker, so your settings were written back.", ToolTipIcon.Warning);
             return;
         }
 
         ApplySettings(rebuildCatalog: true);
         _dashboard?.ReloadSettings();
+    }
+
+    private void SaveSettings()
+    {
+        if (!_settingsReadOnly)
+            _settings.Save(_settingsPath);
     }
 
     private void ApplySettings(bool rebuildCatalog)
@@ -254,12 +300,12 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
         _settings.Normalize();
         try
         {
-            _settings.Save(_settingsPath);
+            SaveSettings();
             _settingsWriteTime = SafeWriteTime(_settingsPath);
         }
         catch (Exception ex)
         {
-            ErrorLog.Write("Could not save settings.json", ex);
+            ErrorLog.Write("Could not save settings", ex);
         }
         ApplySettings(affectsGameDetection);
         if (affectsGameDetection)
@@ -318,7 +364,7 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
             {
                 StartupManager.SetEnabled(true);
                 _settings.StartupConfigured = true;
-                _settings.Save(_settingsPath);
+                SaveSettings();
                 _settingsWriteTime = SafeWriteTime(_settingsPath);
             }
             else

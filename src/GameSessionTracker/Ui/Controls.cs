@@ -503,7 +503,11 @@ internal static class WheelForwarding
 }
 
 /// <summary>Owner-drawn list with hover highlighting; drawing is delegated to the dashboard.</summary>
-/// <remarks>Rows are drawn over the parent's painting (the glass card and the backdrop behind it), not a flat colour.</remarks>
+/// <remarks>
+/// The list is transparent: WinForms paints the parent (the glass card and the backdrop behind it) under the rows, the
+/// same way as for the other glass controls. It must go through WinForms rather than a Graphics transform, because GDI
+/// text (TextRenderer) ignores Graphics transforms and would land in the wrong place.
+/// </remarks>
 internal sealed class RowList : ListBox
 {
     private const int WmVScroll = 0x0115;
@@ -518,8 +522,14 @@ internal sealed class RowList : ListBox
         BorderStyle = BorderStyle.None;
         IntegralHeight = false;
         // UserPaint routes all painting through OnPaint (double-buffered), avoiding owner-draw flicker.
-        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw, true);
+        SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw |
+                 ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
     }
+
+    /// <summary>Font for <see cref="EmptyText"/>. Kept separate from <see cref="Control.Font"/>: WinForms ignores assigning an
+    /// equal-looking font there, which could leave the list holding a font that has since been disposed.</summary>
+    public Font? EmptyFont { get; set; }
 
     protected override void OnSelectedIndexChanged(EventArgs e)
     {
@@ -563,10 +573,10 @@ internal sealed class RowList : ListBox
     {
         // With AllPaintingInWmPaint we paint everything, so paint what's behind us and draw visible rows ourselves.
         _paintedTop = TopIndex;
-        PaintParent(e.Graphics, e.ClipRectangle);
+        OnPaintBackground(e); // transparent BackColor: WinForms paints the parent chain here
         if (Items.Count == 0 && EmptyText.Length > 0)
         {
-            TextRenderer.DrawText(e.Graphics, EmptyText, Font, ClientRectangle, ForeColor,
+            TextRenderer.DrawText(e.Graphics, EmptyText, EmptyFont ?? Font, ClientRectangle, ForeColor,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
             return;
         }
@@ -578,27 +588,6 @@ internal sealed class RowList : ListBox
             if (bounds.IntersectsWith(e.ClipRectangle))
                 DrawRow?.Invoke(e.Graphics, bounds, i, SelectionMode != SelectionMode.None && GetSelected(i), i == _hot);
         }
-    }
-
-    private void PaintParent(Graphics g, Rectangle clip)
-    {
-        if (Parent is null)
-        {
-            using var bg = new SolidBrush(BackColor);
-            g.FillRectangle(bg, clip);
-            return;
-        }
-        var state = g.Save();
-        g.SetClip(clip);
-        g.TranslateTransform(-Left, -Top);
-        var shifted = clip;
-        shifted.Offset(Left, Top);
-        using (var args = new PaintEventArgs(g, shifted))
-        {
-            InvokePaintBackground(Parent, args);
-            InvokePaint(Parent, args);
-        }
-        g.Restore(state);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)

@@ -6,10 +6,10 @@ namespace GameSessionTracker;
 /// <summary>Writes the human-readable stats file and a spreadsheet-friendly CSV of every session.</summary>
 internal static class ReportWriter
 {
-    public static void WriteStats(string path, IReadOnlyList<SessionRecord> sessions, IReadOnlyCollection<ActiveSession> active, DateTimeOffset now)
+    public static void WriteStats(string path, IReadOnlyList<SessionRecord> sessions, IReadOnlyCollection<ActiveSession> active, DateTimeOffset now, bool readOnly = false)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("GAME SESSION TRACKER");
+        sb.AppendLine("PLAYTIME TRACKER");
         sb.AppendLine($"Last updated: {FormatDateTime(now)}");
         sb.AppendLine();
 
@@ -36,7 +36,7 @@ internal static class ReportWriter
         if (games.Count == 0)
         {
             sb.AppendLine("No sessions recorded yet. Launch a game and it will show up here once you close it.");
-            FileUtil.WriteAllTextAtomicWithBom(path, sb.ToString());
+            FileUtil.WriteAllTextAtomicWithBom(path, sb.ToString(), readOnly);
             return;
         }
 
@@ -66,10 +66,10 @@ internal static class ReportWriter
             }
         }
 
-        FileUtil.WriteAllTextAtomicWithBom(path, sb.ToString());
+        FileUtil.WriteAllTextAtomicWithBom(path, sb.ToString(), readOnly);
     }
 
-    public static void WriteCsv(string path, IReadOnlyList<SessionRecord> sessions)
+    public static void WriteCsv(string path, IReadOnlyList<SessionRecord> sessions, bool readOnly = false)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Game,Start,End,Duration (minutes),Duration,Executable");
@@ -82,7 +82,7 @@ internal static class ReportWriter
               .Append(Csv(FormatDuration(s.Duration))).Append(',')
               .AppendLine(Csv(s.Executable ?? ""));
         }
-        FileUtil.WriteAllTextAtomicWithBom(path, sb.ToString());
+        FileUtil.WriteAllTextAtomicWithBom(path, sb.ToString(), readOnly);
     }
 
     public static string FormatDuration(TimeSpan duration)
@@ -108,6 +108,12 @@ internal static class ReportWriter
     private static string Pad(string text, int width) =>
         text.Length > width ? text[..(width - 1)] + "~" : text.PadRight(width);
 
-    private static string Csv(string value) =>
-        value.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0 ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
+    private static string Csv(string value)
+    {
+        // Game names come from folder names, the Xbox Game Bar list and other programs' files. A cell starting with
+        // = + - @ (or a tab/CR) is run as a formula by Excel ("CSV injection"), so it's prefixed with ' to stay text.
+        if (value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+            value = "'" + value;
+        return value.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0 ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
+    }
 }

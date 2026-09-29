@@ -1,21 +1,28 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+Only the latest release of Playtime Tracker receives security fixes.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| 2.x     | Yes       |
+| < 2.0 (Game Session Tracker) | No; please update |
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Please **don't open a public issue** for security problems. Instead, report them privately through
+GitHub: go to this repository's **Security** tab → **Report a vulnerability**.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Include what you found, how to reproduce it, and which version you tested. You can expect an
+acknowledgement within a week. If the report is confirmed, a fix is released as soon as practical and
+you'll be credited in the release notes unless you'd rather not be.
+
+## Scope and design notes
+
+- The app runs entirely on your PC as your Windows user. It has no server, account or network
+  service, and it makes no network requests. (The *online* installer downloads the .NET runtime
+  from Microsoft over HTTPS and only runs it if it is validly signed by Microsoft.)
+- Play history and settings are stored with Windows DPAPI for the current user, which encrypts them
+  and detects any change made outside the app. This prevents editing by hand; it is not designed to
+  stop other software running as the same Windows user.

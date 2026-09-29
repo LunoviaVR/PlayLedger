@@ -45,6 +45,7 @@ internal sealed class DashboardForm : Form
 
     private Theme _theme;
     private Fonts _fonts;
+    private readonly List<Fonts> _retiredFonts = new(); // replaced on DPI change; disposed with the window, never while in use
     private DashboardModel _model;
     private string? _selectedGame; // null = all games
     private bool _sized;
@@ -186,6 +187,8 @@ internal sealed class DashboardForm : Form
         if (disposing)
         {
             _fonts.Dispose();
+            foreach (var fonts in _retiredFonts)
+                fonts.Dispose();
             _backdrop.Dispose();
         }
         base.Dispose(disposing);
@@ -225,7 +228,9 @@ internal sealed class DashboardForm : Form
 
     private void ApplyMetrics()
     {
-        _fonts.Dispose();
+        // Old fonts may still be referenced by controls or an open dialog until everything is repainted, so they're
+        // retired rather than disposed here.
+        _retiredFonts.Add(_fonts);
         _fonts = new Fonts(DeviceDpi / 96f);
         foreach (var c in AllPainted())
             c.Fonts = _fonts;
@@ -234,9 +239,9 @@ internal sealed class DashboardForm : Form
         {
             card.Fonts = _fonts;
             card.ApplyPadding();
-            list.Font = _fonts.Body;
+            list.EmptyFont = _fonts.Body;
         }
-        _gamesList.ItemHeight = S(60);
+        _gamesList.ItemHeight = S(64);
         _sessionsList.ItemHeight = S(44);
         _libraryList.ItemHeight = S(64);
         _historyList.ItemHeight = S(64);
@@ -261,7 +266,6 @@ internal sealed class DashboardForm : Form
         foreach (var (card, list) in Pairs())
         {
             card.Theme = _theme;
-            list.BackColor = _theme.Base;
             list.ForeColor = _theme.TextMuted;
         }
         _settingsView.ApplyStyle();
@@ -338,7 +342,7 @@ internal sealed class DashboardForm : Form
         Invalidate(true);
     }
 
-    /// <summary>Called when settings changed outside the window (e.g. settings.json edited by hand).</summary>
+    /// <summary>Called when settings changed outside the window (e.g. a verified settings file restored on disk).</summary>
     public void ReloadSettings()
     {
         if (_settingsView.Visible)
@@ -644,20 +648,20 @@ internal sealed class DashboardForm : Form
 
         var totalSize = TextRenderer.MeasureText(g, total, _fonts.BodyStrong, Size.Empty, RowPainter.MeasureFlags);
         var totalWidth = totalSize.Width + S(4);
-        TextRenderer.DrawText(g, total, _fonts.BodyStrong, new Rectangle(x + w - totalWidth, bounds.Y + S(11), totalWidth, S(22)), _theme.TextPrimary, TextFlags | TextFormatFlags.Right);
+        TextRenderer.DrawText(g, total, _fonts.BodyStrong, new Rectangle(x + w - totalWidth, bounds.Y + S(10), totalWidth, S(22)), _theme.TextPrimary, TextFlags | TextFormatFlags.Right);
 
         var nameX = x;
         if (live)
         {
             using var dot = new SolidBrush(_theme.Success);
-            g.FillEllipse(dot, x, bounds.Y + S(18), S(7), S(7));
+            g.FillEllipse(dot, x, bounds.Y + S(17), S(7), S(7));
             nameX += S(13);
         }
-        TextRenderer.DrawText(g, name, _fonts.BodyStrong, new Rectangle(nameX, bounds.Y + S(11), w - totalWidth - S(12) - (nameX - x), S(22)), _theme.TextPrimary, TextFlags);
+        TextRenderer.DrawText(g, name, _fonts.BodyStrong, new Rectangle(nameX, bounds.Y + S(10), w - totalWidth - S(12) - (nameX - x), S(22)), _theme.TextPrimary, TextFlags);
         TextRenderer.DrawText(g, sub, _fonts.Small, new Rectangle(x, bounds.Y + S(32), w, S(18)), live ? _theme.SuccessText : _theme.TextSecondary, TextFlags);
 
         if (index > 0)
-            RowPainter.ShareBar(g, new RectangleF(x, bounds.Bottom - S(9), w, S(3)), share, _theme); // relative to the most-played game
+            RowPainter.ShareBar(g, new RectangleF(x, bounds.Bottom - S(11), w, S(3)), share, _theme); // relative to the most-played game
     }
 
     private void DrawSessionRow(Graphics g, Rectangle bounds, int index, bool selected, bool hot)
@@ -746,13 +750,16 @@ internal sealed class DashboardForm : Form
 
         TextRenderer.DrawText(g, Format.Day(day.Day), _fonts.BodyStrong, new Rectangle(x, bounds.Y + S(11), dateWidth, S(22)),
             played ? _theme.TextPrimary : _theme.TextMuted, TextFlags);
-        TextRenderer.DrawText(g, day.Day.ToString("MMM d", CultureInfo.CurrentCulture), _fonts.Small, new Rectangle(x, bounds.Y + S(33), dateWidth, S(18)), _theme.TextMuted, TextFlags);
+        // Second line adds what the first doesn't say: the date for "Today"/"Yesterday", otherwise how long ago.
+        var daysAgo = (_model.Now.ToLocalTime().Date - day.Day).Days;
+        var dateDetail = daysAgo <= 1 ? day.Day.ToString("ddd, MMM d", CultureInfo.CurrentCulture) : $"{daysAgo} days ago";
+        TextRenderer.DrawText(g, dateDetail, _fonts.Small, new Rectangle(x, bounds.Y + S(34), dateWidth, S(18)), _theme.TextMuted, TextFlags);
 
         var total = played ? ReportWriter.FormatDuration(day.Total) : "—";
         TextRenderer.DrawText(g, total, _fonts.BodyStrong, new Rectangle(right - S(100), bounds.Y + S(11), S(100), S(22)),
             played ? _theme.TextPrimary : _theme.TextMuted, TextFlags | TextFormatFlags.Right);
         if (played)
-            TextRenderer.DrawText(g, Format.Plural(day.SessionCount, "session"), _fonts.Small, new Rectangle(right - S(100), bounds.Y + S(33), S(100), S(18)), _theme.TextMuted, TextFlags | TextFormatFlags.Right);
+            TextRenderer.DrawText(g, Format.Plural(day.SessionCount, "session"), _fonts.Small, new Rectangle(right - S(100), bounds.Y + S(34), S(100), S(18)), _theme.TextMuted, TextFlags | TextFormatFlags.Right);
 
         var gamesX = x + dateWidth + S(12);
         var gamesWidth = right - S(112) - gamesX;

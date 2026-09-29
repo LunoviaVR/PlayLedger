@@ -8,7 +8,7 @@ internal interface ITrackerHost
     /// <summary>The live settings. Change them only through <see cref="UpdateSettings"/>.</summary>
     Settings Settings { get; }
 
-    /// <summary>Applies a change, saves settings.json and puts it into effect immediately.</summary>
+    /// <summary>Applies a change, saves the (protected) settings file and puts it into effect immediately.</summary>
     void UpdateSettings(Action<Settings> change, bool affectsGameDetection = false);
 
     bool StartWithWindows { get; set; }

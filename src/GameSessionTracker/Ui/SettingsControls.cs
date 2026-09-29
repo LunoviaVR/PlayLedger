@@ -814,11 +814,9 @@ internal sealed class ListEditor : PaintedControl, IGlassSurface
 
     public void ApplyTheme()
     {
-        _list.BackColor = Theme.Base;
         _list.ForeColor = Theme.TextMuted;
         _list.ItemHeight = RowHeight;
-        if (Fonts is not null)
-            _list.Font = Fonts.Body;
+        _list.EmptyFont = Fonts?.Body;
         foreach (var b in _buttons)
         {
             b.Theme = Theme;

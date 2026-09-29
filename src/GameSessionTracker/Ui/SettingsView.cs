@@ -127,7 +127,7 @@ internal sealed class SettingsView : Panel
         Reload();
     }
 
-    /// <summary>Re-reads every value from the tracker's settings (e.g. after settings.json was edited by hand).</summary>
+    /// <summary>Re-reads every value from the tracker's settings (e.g. after a verified settings file was restored on disk).</summary>
     public void Reload()
     {
         _loading = true;

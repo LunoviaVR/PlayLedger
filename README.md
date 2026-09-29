@@ -78,11 +78,23 @@ Everything lives in `Documents\Playtime Tracker\` (dashboard → **Settings** �
 
 | File | What it is |
 | --- | --- |
-| `Game Stats.txt` | A plain-text version of the dashboard: times played, total and average time per game, and every session with start/end time and length. |
-| `Sessions.csv` | Every session, one per row. Opens in Excel / Google Sheets. |
-| `sessions.json` | The tracker's own data. Don't edit it while the app is running. |
-| `settings.json` | Your settings (see below). |
+| `Game Stats.txt` | A plain-text version of the dashboard: times played, total and average time per game, and every session with start/end time and length. Read-only; regenerated on every save. |
+| `Sessions.csv` | Every session, one per row. Opens in Excel / Google Sheets. Read-only; regenerated on every save (use **Export sessions** for a copy you can edit). |
+| `sessions.dat` | Your play history, protected (see below). |
+| `settings.dat` | Your settings, protected (see below). |
+| `*.bak` | The previous saved copy of each protected file, used to recover if a file is damaged or changed. |
 | `errors.log` | Only written if something goes wrong. |
+
+**Your history and settings can't be edited by hand.** `sessions.dat` and `settings.dat` are encrypted and
+integrity-checked with Windows' built-in data protection (DPAPI) for your Windows account, so playtimes can't be
+changed outside the app. Change settings in the dashboard, and remove sessions with right-click → **Delete**.
+If a protected file is changed anyway, the app notices, keeps the changed file as `….unverified-<date>`, and
+goes back to the last saved copy. Older versions' `sessions.json` and `settings.json` are converted automatically
+the first time the app starts, then removed.
+
+Because the protection is tied to your Windows account on this PC, copying the data folder to another PC or
+account won't carry your history across; it will be set aside there and a new history started. Use
+**Settings → Your data → Export sessions** if you want your own copy of every session.
 
 Example `Game Stats.txt`:
 
@@ -126,7 +138,7 @@ Everything is in the dashboard's **Settings** tab (or tray menu → **Settings**
   anti-cheat, SteamVR, Wallpaper Engine and the Unity/Unreal editors are there by default; hover a row and click **Remove** to un-ignore one.
 - **Your data**: rescan installed games, export all sessions to a spreadsheet (`.csv`), open the plain-text report, open the data folder.
 
-Settings are stored in `settings.json`, which you can still edit by hand if you like; the app picks up changes within a few seconds.
+Settings are stored in the protected `settings.dat` (see [Your files](#your-files)), so they're changed only through this tab.
 
 ## Uninstall
 
