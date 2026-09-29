@@ -1,6 +1,6 @@
 [package]
 name = "playtime-windows"
-description = "Windows integrations for Playtime Tracker: DPAPI data protection, registry, file locks and process enumeration."
+description = "Windows integrations for Playtime Tracker: DPAPI data protection, registry, file locks, game discovery, HTTPS, credentials and icons."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,8 +11,10 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+playtime-artwork = { path = "../playtime-artwork" }
 playtime-core = { path = "../playtime-core" }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
 thiserror = "2.0.21"
 
 [target."cfg(windows)".dependencies]
-windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Registry", "Win32_System_Threading", "Win32_System_ProcessStatus", "Win32_System_Memory", "Win32_Storage_FileSystem"] }
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Registry", "Win32_System_Threading", "Win32_System_ProcessStatus", "Win32_System_Memory", "Win32_Storage_FileSystem", "Win32_System_Environment", "Win32_Networking_WinHttp", "Win32_Security_Credentials", "Win32_Graphics_Gdi", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Com"] }

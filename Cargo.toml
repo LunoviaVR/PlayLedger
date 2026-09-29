@@ -9,7 +9,7 @@ version = "2.2.0"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/LunoviaVR/PlaytimeTracker"
-rust-version = "1.80"
+rust-version = "1.85"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
