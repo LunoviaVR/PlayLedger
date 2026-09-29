@@ -9,6 +9,8 @@
 //! - [`http::WinHttpClient`]: HTTPS for online artwork (allow-listed hosts, system certificate validation).
 //! - [`credentials`]: API keys in Windows Credential Manager.
 //! - [`icons::ExeIconProvider`]: a game's own icon as artwork.
+//! - [`processes`]: running processes and their exe paths.
+//! - [`store::Store`]: the data folder (protected files, read-only reports, error log).
 //! - [`folders`]: where the data lives.
 //!
 //! On other platforms the crate compiles to stubs so the workspace builds and tests everywhere.
@@ -28,6 +30,10 @@ pub mod icons;
 #[cfg(windows)]
 pub mod locks;
 #[cfg(windows)]
+pub mod processes;
+#[cfg(windows)]
 mod reg;
 #[cfg(windows)]
 pub mod registry;
+#[cfg(windows)]
+pub mod store;

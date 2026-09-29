@@ -1,0 +1,24 @@
+[package]
+name = "playtime-tracker"
+description = "Playtime Tracker's background service: tray icon, game tracking, storage, artwork and the dashboard's named-pipe API."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "playtime-tracker"
+path = "src/main.rs"
+
+[dependencies]
+playtime-artwork = { path = "../playtime-artwork" }
+playtime-core = { path = "../playtime-core" }
+playtime-windows = { path = "../playtime-windows" }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
+
+[target."cfg(windows)".dependencies]
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_Pipes", "Win32_System_Power", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

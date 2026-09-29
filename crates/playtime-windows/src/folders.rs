@@ -26,6 +26,31 @@ pub fn artwork_cache(local_app_data: &std::path::Path) -> PathBuf {
         .join("Artwork")
 }
 
+/// The user's Documents folder (wherever they've moved it, e.g. into OneDrive).
+#[cfg(windows)]
+pub fn documents() -> Option<PathBuf> {
+    known_folder(&windows::Win32::UI::Shell::FOLDERID_Documents)
+}
+
+/// `%LocalAppData%`.
+#[cfg(windows)]
+pub fn local_app_data() -> Option<PathBuf> {
+    known_folder(&windows::Win32::UI::Shell::FOLDERID_LocalAppData)
+}
+
+#[cfg(windows)]
+fn known_folder(id: &windows::core::GUID) -> Option<PathBuf> {
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::{SHGetKnownFolderPath, KF_FLAG_DEFAULT};
+    // SAFETY: on success the shell allocates the string; we copy it and free it with CoTaskMemFree.
+    unsafe {
+        let raw = SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None).ok()?;
+        let path = raw.to_string().ok();
+        CoTaskMemFree(Some(raw.0 as *const _));
+        path.map(PathBuf::from)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

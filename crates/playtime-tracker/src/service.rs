@@ -1,0 +1,490 @@
+//! Everything the tracker does, independent of the tray window: polling, saving, settings, artwork and answering
+//! the dashboard. Shared between the tray (main thread) and pipe clients behind a mutex; slow work (artwork
+//! downloads, catalog rebuilds) runs on worker threads without holding it.
+
+use playtime_artwork::cache::ArtworkCache;
+use playtime_artwork::providers::{SteamCdnProvider, SteamGridDbProvider, SteamLocalProvider};
+use playtime_artwork::service::ArtworkService;
+use playtime_artwork::{ArtworkKind, ArtworkProvider, ArtworkRequest};
+use playtime_core::catalog::GameCatalog;
+use playtime_core::dashboard::DashboardModel;
+use playtime_core::discovery;
+use playtime_core::engine::{Engine, ProcessInfo};
+use playtime_core::ipc::{
+    DashboardSnapshot, Event, GameIdentity, Request, Response, PROTOCOL_VERSION,
+};
+use playtime_core::launchers::GameId;
+use playtime_core::reports::{self, format_duration};
+use playtime_core::{paths, SessionRecord, Settings, Timestamp};
+use playtime_windows::discovery::WindowsHost;
+use playtime_windows::http::WinHttpClient;
+use playtime_windows::icons::ExeIconProvider;
+use playtime_windows::store::{self, Store};
+use playtime_windows::{credentials, folders, processes};
+use std::path::PathBuf;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
+
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Subscribers to change events (pipe connections that sent `subscribe`).
+#[derive(Clone, Default)]
+pub struct EventHub(Arc<Mutex<Vec<Sender<Event>>>>);
+
+impl EventHub {
+    pub fn subscribe(&self) -> Receiver<Event> {
+        let (sender, receiver) = mpsc::channel();
+        if let Ok(mut subscribers) = self.0.lock() {
+            subscribers.push(sender);
+        }
+        receiver
+    }
+
+    pub fn publish(&self, event: Event) {
+        if let Ok(mut subscribers) = self.0.lock() {
+            subscribers.retain(|s| s.send(event.clone()).is_ok());
+        }
+    }
+}
+
+/// A tray notification to show.
+pub struct Notification {
+    pub title: String,
+    pub body: String,
+    pub warning: bool,
+}
+
+/// Artwork to look up on the worker thread.
+struct ArtworkJob {
+    service: Arc<ArtworkService>,
+    request: ArtworkRequest,
+    kind: ArtworkKind,
+    game: String,
+}
+
+pub struct Service {
+    engine: Engine,
+    /// `None` if the data folder couldn't be opened: tracking continues in memory but nothing is written, so an
+    /// unreadable history is never replaced.
+    store: Option<Store>,
+    data_folder: PathBuf,
+    processes: Vec<ProcessInfo>,
+    artwork: Arc<ArtworkService>,
+    artwork_jobs: Sender<ArtworkJob>,
+    events: EventHub,
+    notifications: Vec<Notification>,
+    shut_down: bool,
+}
+
+fn build_catalog(settings: &Settings) -> (GameCatalog, Vec<String>) {
+    let found = discovery::discover(&WindowsHost, settings);
+    let issues = found
+        .issues
+        .into_iter()
+        .map(|i| format!("Could not read games from {}: {}", i.source, i.message))
+        .collect();
+    (found.builder.build(settings), issues)
+}
+
+fn build_artwork(online: bool) -> Arc<ArtworkService> {
+    let cache_root = folders::local_app_data()
+        .map(|p| folders::artwork_cache(&p))
+        .unwrap_or_else(|| std::env::temp_dir().join("Playtime Tracker Artwork"));
+    let mut providers: Vec<Arc<dyn ArtworkProvider>> = Vec::new();
+    if let Some(steam) = discovery::steam_install_dir(&WindowsHost) {
+        providers.push(Arc::new(SteamLocalProvider::new(steam)));
+    }
+    providers.push(Arc::new(ExeIconProvider));
+    if let Ok(http) = WinHttpClient::new(&format!("PlaytimeTracker/{VERSION}")) {
+        let http: Arc<WinHttpClient> = Arc::new(http);
+        providers.push(Arc::new(SteamCdnProvider::new(http.clone())));
+        if let Some(key) = credentials::read(credentials::STEAMGRIDDB_TARGET) {
+            if let Some(provider) = SteamGridDbProvider::new(http, key.expose()) {
+                providers.push(Arc::new(provider));
+            }
+        }
+    }
+    let service = ArtworkService::new(ArtworkCache::new(cache_root), providers);
+    service.set_online_allowed(online);
+    Arc::new(service)
+}
+
+fn artwork_kind(kind: &str) -> Option<ArtworkKind> {
+    ArtworkKind::ALL.into_iter().find(|k| k.as_str() == kind)
+}
+
+impl Service {
+    /// Opens the data folder and starts tracking. Returns warnings to show the user.
+    pub fn start(events: EventHub) -> (Self, Vec<Notification>) {
+        let now = Timestamp::now();
+        let data_folder = folders::documents()
+            .map(|d| folders::data_folder(&d))
+            .unwrap_or_else(|| PathBuf::from(folders::DATA_FOLDER_NAME));
+        let mut notifications = Vec::new();
+
+        let (store, data, settings) = match Store::open(&data_folder) {
+            Ok(opened) => {
+                for warning in opened.warnings {
+                    notifications.push(Notification {
+                        title: "Playtime Tracker".into(),
+                        body: warning,
+                        warning: true,
+                    });
+                }
+                (Some(opened.store), opened.data, opened.settings)
+            }
+            Err(e) => {
+                store::log_to(
+                    &data_folder,
+                    &format!("Could not open the data folder: {e}"),
+                );
+                notifications.push(Notification {
+                    title: "Playtime Tracker history".into(),
+                    body: "Your play history couldn't be opened, so this session won't be saved (your existing \
+                           history is untouched). Restart Playtime Tracker to try again; details are in errors.log."
+                        .into(),
+                    warning: true,
+                });
+                (None, Default::default(), Settings::default())
+            }
+        };
+
+        let (catalog, issues) = build_catalog(&settings);
+        for issue in issues {
+            store::log_to(&data_folder, &issue);
+        }
+        let artwork = build_artwork(settings.online_artwork);
+        let (jobs, receiver) = mpsc::channel::<ArtworkJob>();
+        let hub = events.clone();
+        std::thread::Builder::new()
+            .name("artwork".into())
+            .spawn(move || artwork_worker(receiver, hub))
+            .ok();
+
+        let mut service = Self {
+            engine: Engine::new(data, settings, catalog, now),
+            store,
+            data_folder,
+            processes: Vec::new(),
+            artwork,
+            artwork_jobs: jobs,
+            events,
+            notifications,
+            shut_down: false,
+        };
+        service.save(now);
+        let notifications = std::mem::take(&mut service.notifications);
+        (service, notifications)
+    }
+
+    pub fn data_folder(&self) -> &PathBuf {
+        &self.data_folder
+    }
+
+    pub fn poll_interval_ms(&self) -> u32 {
+        u32::try_from(self.engine.settings().poll_interval_seconds.clamp(1, 300)).unwrap_or(5)
+            * 1000
+    }
+
+    fn log(&self, message: &str) {
+        store::log_to(&self.data_folder, message);
+    }
+
+    fn save(&mut self, now: Timestamp) {
+        let Some(store) = self.store.as_mut() else {
+            return;
+        };
+        match store.save_sessions(self.engine.data(), now) {
+            Ok(()) => self.engine.saved(now),
+            Err(e) => store.log(&format!("Could not save the play history: {e}")),
+        }
+    }
+
+    /// One poll. Returns notifications to show (sessions logged).
+    pub fn tick(&mut self) -> Vec<Notification> {
+        if self.shut_down {
+            return Vec::new();
+        }
+        let now = Timestamp::now();
+        if self.engine.catalog_due(now) {
+            let (catalog, issues) = build_catalog(self.engine.settings());
+            for issue in issues {
+                self.log(&issue);
+            }
+            self.engine.set_catalog(catalog, now);
+        }
+        self.processes = processes::snapshot(&self.processes);
+        let outcome = self.engine.tick(now, &self.processes);
+        if outcome.save {
+            self.save(now);
+        }
+        for game in &outcome.changes.started {
+            self.events
+                .publish(Event::SessionStarted { game: game.clone() });
+        }
+        let ended: Vec<SessionRecord> = outcome
+            .slept
+            .into_iter()
+            .chain(outcome.changes.ended)
+            .collect();
+        let changed = !ended.is_empty() || !outcome.changes.started.is_empty();
+        let mut notifications = Vec::new();
+        for session in ended {
+            if self.engine.settings().show_notifications {
+                notifications.push(Notification {
+                    title: "Session logged".into(),
+                    body: format!("{}: {}", session.game, format_duration(session.duration())),
+                    warning: false,
+                });
+            }
+            self.events.publish(Event::SessionEnded { session });
+        }
+        if changed {
+            self.publish_changed();
+        }
+        notifications
+    }
+
+    fn publish_changed(&self) {
+        self.events.publish(Event::DataChanged {
+            revision: self.engine.revision(),
+        });
+    }
+
+    /// "Playing: Hades (1h 02m)" or "Not playing anything", for the tray tooltip and menu.
+    pub fn status(&self) -> String {
+        let now = Timestamp::now();
+        let active = &self.engine.data().active;
+        if active.is_empty() {
+            return "Not playing anything".into();
+        }
+        let mut running: Vec<_> = active.iter().collect();
+        running.sort_by_key(|a| a.start);
+        let list: Vec<String> = running
+            .iter()
+            .map(|a| format!("{} ({})", a.game, format_duration(now.since(a.start))))
+            .collect();
+        format!("Playing: {}", list.join(", "))
+    }
+
+    /// The PC is going to sleep.
+    pub fn suspend(&mut self) {
+        let ended = self.engine.suspend();
+        self.save(Timestamp::now());
+        if !ended.is_empty() {
+            self.publish_changed();
+        }
+    }
+
+    /// Exiting or Windows is shutting down: end sessions now and save.
+    pub fn shutdown(&mut self) {
+        if self.shut_down {
+            return;
+        }
+        self.shut_down = true;
+        let now = Timestamp::now();
+        self.engine.shutdown(now);
+        self.save(now);
+    }
+
+    fn snapshot(&self) -> DashboardSnapshot {
+        let data = self.engine.data();
+        let now = Timestamp::now();
+        let model = DashboardModel::new(&data.sessions, &data.active, now);
+        let tz = chrono::Local;
+        let today_start = now
+            .as_datetime()
+            .with_timezone(&tz)
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .and_then(|midnight| midnight.and_local_timezone(tz).earliest())
+            .map(|t| Timestamp::from_datetime(t.fixed_offset()));
+        let past_week_seconds = today_start
+            .and_then(|t| t.checked_add(chrono::Duration::days(-6)))
+            .map(|since| model.total_since(None, since).num_seconds())
+            .unwrap_or(0);
+        let identities = model
+            .games
+            .iter()
+            .filter_map(|g| {
+                let m = self.engine.identity(&g.name)?;
+                Some(GameIdentity {
+                    game: g.name.clone(),
+                    source: m.source.display_name().into(),
+                    artwork_key: m.id.as_ref().map(GameId::cache_key),
+                })
+            })
+            .collect();
+        DashboardSnapshot {
+            revision: self.engine.revision(),
+            daily: model.daily_totals(None, &tz),
+            history: model.history(&tz),
+            past_week_seconds,
+            identities,
+            model,
+        }
+    }
+
+    fn update_settings(&mut self, mut settings: Settings) -> Response {
+        settings.normalize();
+        // Fields the dashboard doesn't own keep their current values.
+        let current = self.engine.settings();
+        settings.last_run_version = current.last_run_version.clone();
+        settings.settings_version = current.settings_version;
+        settings.startup_configured = current.startup_configured;
+
+        let detection_changed = settings.use_windows_game_list != current.use_windows_game_list
+            || settings.extra_game_folders != current.extra_game_folders
+            || settings.custom_games != current.custom_games
+            || settings.ignored_games != current.ignored_games
+            || settings.ignored_executables != current.ignored_executables;
+        if let Some(store) = self.store.as_mut() {
+            if let Err(e) = store.save_settings(&settings) {
+                return Response::Error {
+                    message: format!("Your settings couldn't be saved: {e}"),
+                };
+            }
+        }
+        self.artwork.set_online_allowed(settings.online_artwork);
+        let now = Timestamp::now();
+        if detection_changed {
+            let (catalog, _) = build_catalog(&settings);
+            self.engine.set_catalog(catalog, now);
+        }
+        self.engine.set_settings(settings);
+        self.publish_changed();
+        Response::Ok
+    }
+
+    fn artwork(&mut self, game: &str, kind: &str) -> Response {
+        let Some(kind) = artwork_kind(kind) else {
+            return Response::Error {
+                message: format!("unknown artwork kind {kind:?}"),
+            };
+        };
+        let exe_path = self.engine.executable_of(game);
+        let Some(found) = self.engine.identify(game) else {
+            return Response::Artwork { path: None };
+        };
+        let id = found.id.unwrap_or_else(|| GameId::Path {
+            normalized: paths::key(exe_path.as_deref().unwrap_or(game)),
+        });
+        let request = ArtworkRequest {
+            id,
+            name: game.to_string(),
+            exe_path,
+        };
+        if let Some(cached) = self.artwork.cached(&request, kind) {
+            return Response::Artwork {
+                path: Some(cached.path.to_string_lossy().into_owned()),
+            };
+        }
+        let _ = self.artwork_jobs.send(ArtworkJob {
+            service: self.artwork.clone(),
+            request,
+            kind,
+            game: game.to_string(),
+        });
+        Response::Artwork { path: None }
+    }
+
+    fn set_ignored(&mut self, game: &str, ignored: bool) -> Response {
+        let mut settings = self.engine.settings().clone();
+        let key = paths::key(game);
+        settings.ignored_games.retain(|g| paths::key(g) != key);
+        if ignored {
+            settings.ignored_games.push(game.to_string());
+        }
+        self.update_settings(settings)
+    }
+
+    pub fn handle(&mut self, request: Request) -> Response {
+        match request {
+            Request::Hello { .. } => Response::Hello {
+                protocol: PROTOCOL_VERSION,
+                version: VERSION.into(),
+            },
+            Request::GetDashboard => Response::Dashboard {
+                snapshot: Box::new(self.snapshot()),
+            },
+            Request::GetSettings => Response::Settings {
+                settings: Box::new(self.engine.settings().clone()),
+                has_steam_grid_db_key: credentials::read(credentials::STEAMGRIDDB_TARGET).is_some(),
+            },
+            Request::UpdateSettings { settings } => self.update_settings(*settings),
+            Request::DeleteSession { game, start } => {
+                if self.engine.delete_session(&game, start) {
+                    self.save(Timestamp::now());
+                    self.publish_changed();
+                    Response::Ok
+                } else {
+                    Response::Error {
+                        message: "That session wasn't found (it may still be running).".into(),
+                    }
+                }
+            }
+            Request::DeleteGameHistory { game } => {
+                self.engine.delete_game_history(&game);
+                self.save(Timestamp::now());
+                self.publish_changed();
+                Response::Ok
+            }
+            Request::SetGameIgnored { game, ignored } => self.set_ignored(&game, ignored),
+            Request::RescanGames => {
+                let (catalog, issues) = build_catalog(self.engine.settings());
+                for issue in issues {
+                    self.log(&issue);
+                }
+                self.engine.set_catalog(catalog, Timestamp::now());
+                Response::Ok
+            }
+            Request::GetArtwork { game, kind } => self.artwork(&game, &kind),
+            Request::ExportCsv => {
+                let now = Timestamp::now();
+                let offset = *now.as_datetime().with_timezone(&chrono::Local).offset();
+                Response::Csv {
+                    text: reports::sessions_csv(&self.engine.data().sessions, offset),
+                }
+            }
+            Request::SetSteamGridDbKey { key } => {
+                match key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
+                    Some(key) if !playtime_artwork::providers::steamgriddb::is_plausible_key(key) => {
+                        return Response::Error {
+                            message: "That doesn't look like a SteamGridDB API key (32 letters and digits).".into(),
+                        };
+                    }
+                    Some(key) => {
+                        if credentials::write(credentials::STEAMGRIDDB_TARGET, key).is_err() {
+                            return Response::Error {
+                                message: "The key couldn't be saved to Windows Credential Manager.".into(),
+                            };
+                        }
+                    }
+                    None => credentials::delete(credentials::STEAMGRIDDB_TARGET),
+                }
+                self.artwork = build_artwork(self.engine.settings().online_artwork);
+                Response::Ok
+            }
+            Request::CheckForUpdates => Response::Error {
+                message: "Updates are installed by the current Playtime Tracker app until this version replaces it."
+                    .into(),
+            },
+            // Handled by the pipe connection itself.
+            Request::Subscribe => Response::Ok,
+        }
+    }
+}
+
+fn artwork_worker(jobs: Receiver<ArtworkJob>, events: EventHub) {
+    for job in jobs {
+        let lookup = job.service.get(&job.request, job.kind);
+        if lookup.image.is_some() {
+            events.publish(Event::ArtworkReady {
+                game: job.game,
+                kind: job.kind.as_str().into(),
+            });
+        }
+        // Issues are expected (no artwork, offline); they aren't logged to keep errors.log meaningful.
+        let _ = lookup.issues;
+    }
+}
