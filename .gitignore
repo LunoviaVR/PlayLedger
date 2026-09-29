@@ -34,3 +34,5 @@ errors.log*
 
 # Rust
 /target/
+/dashboard/**/bin/
+/dashboard/**/obj/

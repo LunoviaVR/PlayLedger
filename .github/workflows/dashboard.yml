@@ -1,0 +1,45 @@
+name: Dashboard
+
+# Builds the WinUI 3 dashboard (dashboard/) and tests its protocol library. The XAML compiler only runs on Windows.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "dashboard/**"
+      - "src/GameSessionTracker/app.ico"
+      - ".github/workflows/dashboard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test protocol library
+        run: dotnet test dashboard/PlaytimeTracker.Dashboard.Tests --configuration Release
+
+      - name: Build dashboard (x64)
+        run: dotnet build dashboard/PlaytimeTracker.Dashboard --configuration Release --runtime win-x64 -p:Platform=x64
+
+      - name: Check for vulnerable NuGet packages
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($project in 'dashboard/PlaytimeTracker.Dashboard', 'dashboard/PlaytimeTracker.Dashboard.Core') {
+            $report = dotnet list $project package --vulnerable --include-transitive
+            $report
+            if ($report -match 'has the following vulnerable packages') { $failed = $true }
+          }
+          if ($failed) { exit 1 }

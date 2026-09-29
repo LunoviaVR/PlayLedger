@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="PlaytimeTracker.Dashboard.Pages.HistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:PlaytimeTracker.Dashboard.ViewModels">
+
+    <ScrollViewer>
+        <StackPanel Padding="24,16,24,32" MaxWidth="1200" HorizontalAlignment="Stretch">
+            <TextBlock Text="History" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="The last 30 days. Expand a day to see its sessions; select a session for its details."
+                       Style="{StaticResource CaptionStyle}" Margin="0,-8,0,16" TextWrapping="Wrap" />
+            <ItemsControl x:Name="Days" AutomationProperties.Name="Days">
+                <ItemsControl.ItemContainerTransitions>
+                    <TransitionCollection />
+                </ItemsControl.ItemContainerTransitions>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DayItem">
+                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,0,0,4"
+                                  IsEnabled="{x:Bind HasSessions}" AutomationProperties.Name="{x:Bind AutomationName}">
+                            <Expander.Header>
+                                <Grid ColumnSpacing="16" Padding="0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="230" />
+                                        <ColumnDefinition Width="90" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Bind DayText}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{x:Bind GamesText}" Style="{StaticResource CaptionStyle}"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <Rectangle Grid.Column="2" Width="{x:Bind BarWidth}" Height="8" RadiusX="4" RadiusY="4"
+                                               HorizontalAlignment="Left" VerticalAlignment="Center"
+                                               Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                                    <TextBlock Grid.Column="3" Text="{x:Bind TotalText}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                            </Expander.Header>
+                            <ListView ItemsSource="{x:Bind Sessions}" SelectionMode="None" IsItemClickEnabled="True"
+                                      ItemClick="Session_Click" AutomationProperties.Name="Sessions">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SessionItem">
+                                        <Grid Padding="0,8" ColumnSpacing="16" AutomationProperties.Name="{x:Bind AutomationName}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="{x:Bind Game}" />
+                                                <TextBlock Text="{x:Bind Range}" Style="{StaticResource CaptionStyle}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{x:Bind DurationText}" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Expander>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

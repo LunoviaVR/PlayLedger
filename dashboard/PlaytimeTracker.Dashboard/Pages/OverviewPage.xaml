@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="PlaytimeTracker.Dashboard.Pages.OverviewPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:PlaytimeTracker.Dashboard.ViewModels">
+
+    <Page.Resources>
+        <DataTemplate x:Key="SessionTemplate" x:DataType="vm:SessionItem">
+            <Grid Padding="0,10" ColumnSpacing="16" AutomationProperties.Name="{x:Bind AutomationName}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{x:Bind Game}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <Ellipse Width="8" Height="8" Visibility="{x:Bind LiveVisibility}" Fill="{ThemeResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource CaptionStyle}">
+                        <Run Text="{x:Bind Day}" /><Run Text=" · " /><Run Text="{x:Bind Range}" />
+                    </TextBlock>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{x:Bind DurationText}" VerticalAlignment="Center" />
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
+    <ScrollViewer>
+        <StackPanel Padding="24,16,24,32" MaxWidth="1200" HorizontalAlignment="Stretch">
+            <TextBlock Text="Overview" Style="{StaticResource PageTitleStyle}" />
+
+            <!-- Summary tiles -->
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Total playtime" Style="{StaticResource CaptionStyle}" />
+                        <TextBlock x:Name="TotalText" Text="–" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock x:Name="TotalDetail" Style="{StaticResource CaptionStyle}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource CardStyle}">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Sessions" Style="{StaticResource CaptionStyle}" />
+                        <TextBlock x:Name="SessionsText" Text="–" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock x:Name="SessionsDetail" Style="{StaticResource CaptionStyle}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Past 7 days" Style="{StaticResource CaptionStyle}" />
+                        <TextBlock x:Name="WeekText" Text="–" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <TextBlock x:Name="WeekDetail" Style="{StaticResource CaptionStyle}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="3" Style="{StaticResource CardStyle}">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Most played" Style="{StaticResource CaptionStyle}" />
+                        <TextBlock x:Name="TopText" Text="–" Style="{StaticResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="TopDetail" Style="{StaticResource CaptionStyle}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Playing now -->
+            <StackPanel x:Name="LivePanel" Visibility="Collapsed">
+                <TextBlock Text="Playing now" Style="{StaticResource SectionHeaderStyle}" />
+                <Border Style="{StaticResource CardStyle}" Padding="16,4">
+                    <ListView x:Name="LiveList" SelectionMode="None" IsItemClickEnabled="True"
+                              ItemClick="Session_Click" ItemTemplate="{StaticResource SessionTemplate}"
+                              AutomationProperties.Name="Playing now" />
+                </Border>
+            </StackPanel>
+
+            <!-- Daily chart -->
+            <TextBlock Text="Daily playtime (last 30 days)" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <ItemsControl x:Name="Bars" AutomationProperties.Name="Daily playtime for the last 30 days">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DayBar">
+                            <StackPanel Width="22" Spacing="6" ToolTipService.ToolTip="{x:Bind Tooltip}"
+                                        AutomationProperties.Name="{x:Bind AutomationName}">
+                                <Grid Height="140">
+                                    <Rectangle Height="{x:Bind Height}" VerticalAlignment="Bottom" RadiusX="3" RadiusY="3"
+                                               Opacity="{x:Bind Opacity}" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
+                                </Grid>
+                                <TextBlock Text="{x:Bind Label}" HorizontalAlignment="Center" FontSize="10"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+
+            <!-- Recent sessions -->
+            <TextBlock Text="Recent sessions" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}" Padding="16,4">
+                <StackPanel>
+                    <ListView x:Name="SessionsList" SelectionMode="None" IsItemClickEnabled="True"
+                              ItemClick="Session_Click" ItemTemplate="{StaticResource SessionTemplate}"
+                              AutomationProperties.Name="Recent sessions" />
+                    <TextBlock x:Name="EmptyText" Visibility="Collapsed" Margin="0,12" TextWrapping="Wrap"
+                               Text="No sessions yet. Open a game and it will show up here." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

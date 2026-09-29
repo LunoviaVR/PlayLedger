@@ -11,7 +11,7 @@ pub struct Timestamp(DateTime<FixedOffset>);
 
 impl Timestamp {
     pub fn now() -> Self {
-        Self(Local::now().fixed_offset())
+        Self::from_datetime(Local::now().fixed_offset())
     }
 
     pub fn from_datetime(value: DateTime<FixedOffset>) -> Self {
@@ -83,6 +83,16 @@ impl<'de> Deserialize<'de> for Timestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn now_round_trips_through_dotnet_precision() {
+        let now = Timestamp::now();
+        assert_eq!(now.as_datetime().timestamp_subsec_nanos() % 100, 0);
+        assert_eq!(
+            Timestamp::parse(&now.to_dotnet_string()).expect("valid"),
+            now
+        );
+    }
 
     #[test]
     fn round_trips_dotnet_format() {

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="PlaytimeTracker.Dashboard.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:PlaytimeTracker.Dashboard.Pages">
+
+    <Page.Resources>
+        <!-- A removable entry in one of the settings lists. -->
+        <DataTemplate x:Key="EntryTemplate" x:DataType="local:ListEntry">
+            <Grid ColumnSpacing="12" Padding="0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Text}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionStyle}" TextTrimming="CharacterEllipsis"
+                               Visibility="{x:Bind DetailVisibility}" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="Remove" Tag="{x:Bind}" Click="RemoveEntry_Click"
+                        AutomationProperties.Name="{x:Bind RemoveName}" />
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
+    <ScrollViewer>
+        <StackPanel x:Name="Body" Padding="24,16,24,32" MaxWidth="1000" HorizontalAlignment="Stretch" Spacing="4" IsEnabled="False">
+            <TextBlock Text="Settings" Style="{StaticResource PageTitleStyle}" />
+
+            <!-- Appearance -->
+            <TextBlock Text="Appearance" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
+            <Border Style="{StaticResource CardStyle}">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Theme" />
+                        <TextBlock Text="Follow Windows, or always use light or dark." Style="{StaticResource CaptionStyle}" />
+                    </StackPanel>
+                    <ComboBox x:Name="Theme" Grid.Column="1" MinWidth="160" SelectionChanged="Theme_SelectionChanged"
+                              AutomationProperties.Name="Theme">
+                        <x:String>Use Windows setting</x:String>
+                        <x:String>Light</x:String>
+                        <x:String>Dark</x:String>
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!-- General -->
+            <TextBlock Text="General" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="12">
+                    <ToggleSwitch x:Name="Notifications" Header="Notify me when a session is logged" Toggled="Toggle_Changed" />
+                    <ToggleSwitch x:Name="WindowsGameList" Header="Also count programs Windows (Xbox Game Bar) recognises as games" Toggled="Toggle_Changed" />
+                </StackPanel>
+            </Border>
+
+            <!-- Tracking -->
+            <TextBlock Text="Tracking" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="12">
+                    <NumberBox x:Name="PollInterval" Header="Check for running games every (seconds)" Minimum="1" Maximum="300"
+                               SpinButtonPlacementMode="Inline" SmallChange="1" ValueChanged="Number_Changed" MaxWidth="360" HorizontalAlignment="Left" />
+                    <NumberBox x:Name="MinimumSession" Header="Skip sessions shorter than (seconds, 0 keeps every session)" Minimum="0" Maximum="3600"
+                               SpinButtonPlacementMode="Inline" SmallChange="10" ValueChanged="Number_Changed" MaxWidth="360" HorizontalAlignment="Left" />
+                    <NumberBox x:Name="GracePeriod" Header="A game closed and reopened within this many seconds stays one session" Minimum="0" Maximum="600"
+                               SpinButtonPlacementMode="Inline" SmallChange="5" ValueChanged="Number_Changed" MaxWidth="360" HorizontalAlignment="Left" />
+                </StackPanel>
+            </Border>
+
+            <!-- Artwork -->
+            <TextBlock Text="Artwork" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionStyle}"
+                               Text="Box art comes from Steam's own image cache and each game's icon, without going online." />
+                    <ToggleSwitch x:Name="OnlineArtwork" Header="Download missing artwork" Toggled="Toggle_Changed" />
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionStyle}"
+                               Text="When on, Steam games' pictures are fetched from the Steam store using only the game's Steam ID. Your play history is never sent." />
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="SteamGridDB API key (optional)" />
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionStyle}"
+                                   Text="With your own free key from steamgriddb.com, artwork is also found for games outside Steam (by the game's name). The key is kept in Windows Credential Manager on this PC." />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <PasswordBox x:Name="SteamGridDbKey" Width="320" PlaceholderText="32 letters and digits"
+                                         AutomationProperties.Name="SteamGridDB API key" />
+                            <Button Content="Save key" Click="SaveKey_Click" />
+                            <Button x:Name="RemoveKey" Content="Remove key" Click="RemoveKey_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="KeyStatus" Style="{StaticResource CaptionStyle}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Games -->
+            <TextBlock Text="Custom games" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="8">
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionStyle}"
+                               Text="Pick a game's .exe to track something Playtime Tracker doesn't find on its own." />
+                    <ItemsControl x:Name="CustomGames" ItemTemplate="{StaticResource EntryTemplate}" />
+                    <Button Content="Add a game…" Click="AddCustomGame_Click" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Game folders" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="8">
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionStyle}"
+                               Text="Folders where every sub-folder is a game, e.g. D:\Games." />
+                    <ItemsControl x:Name="Folders" ItemTemplate="{StaticResource EntryTemplate}" />
+                    <Button Content="Add a folder…" Click="AddFolder_Click" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Ignored games" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="8">
+                    <ItemsControl x:Name="IgnoredGames" ItemTemplate="{StaticResource EntryTemplate}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox x:Name="NewIgnoredGame" Width="320" PlaceholderText="Game or folder name"
+                                 AutomationProperties.Name="Game to ignore" />
+                        <Button Content="Ignore" Click="AddIgnoredGame_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Ignored programs" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="8">
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionStyle}"
+                               Text="Launchers, crash reporters and anti-cheat that should never count as playing." />
+                    <ItemsControl x:Name="IgnoredPrograms" ItemTemplate="{StaticResource EntryTemplate}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox x:Name="NewIgnoredProgram" Width="320" PlaceholderText="e.g. launcher.exe"
+                                 AutomationProperties.Name="Program to ignore" />
+                        <Button Content="Ignore" Click="AddIgnoredProgram_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Your data -->
+            <TextBlock Text="Your data" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="12">
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionStyle}"
+                               Text="Your play history stays on this PC, protected so it can't be edited by hand." />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Rescan installed games" Click="Rescan_Click" />
+                        <Button Content="Export sessions…" Click="Export_Click" />
+                        <Button Content="Open data folder" Click="OpenFolder_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- About -->
+            <TextBlock Text="About" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <TextBlock x:Name="About" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -26,7 +26,7 @@ UI Automation (screen readers), virtualised lists and Windows motion. So:
 | `playtime-windows` | DPAPI `DataProtector`, HKCU generation store, read-only file locks, data folders, the data store, process list, discovery host, WinHTTP client, Credential Manager, exe icon provider | **Done** (phases 3–7) |
 | `playtime-tracker` | The background service binary: single instance, tray icon and menu, poll timer, power/shutdown handling, notifications, named-pipe server | **Done** (phase 7), not installed yet |
 | `playtime-artwork` | `ArtworkProvider` trait, image validation, on-disk cache with remembered misses, Steam local library art, Steam store CDN and SteamGridDB (online, opt-in), PNG encoder | **Done** (phase 6) |
-| dashboard (WinUI 3) | Presentation only | Phase 8 |
+| `dashboard/` (C#, WinUI 3) | Presentation only: `PlaytimeTracker.Dashboard` (the app) and `PlaytimeTracker.Dashboard.Core` (pipe client, protocol, formatting; plain .NET, unit-tested) | **Built** (phase 8), not installed yet |
 
 The core never calls Windows APIs, so it builds and is tested on any OS; Windows specifics sit behind traits
 (`DataProtector`, `GenerationStore`, later process enumeration and discovery).
@@ -89,6 +89,23 @@ Play history is never sent anywhere.
 Not yet: "Start with Windows" and updates stay with the C# app until the Rust build replaces it (phase 10), so the
 two never fight over the Run key or the installer.
 
+## The dashboard (phase 8)
+
+`dashboard/PlaytimeTracker.Dashboard` is an unpackaged, self-contained WinUI 3 app (Windows App SDK 1.8, .NET 8):
+Mica backdrop, a custom title bar, and a Task Manager-style left navigation with **Overview** (totals, playing
+now, 30-day chart, recent sessions), **Games** (cover art or icon tiles, search and sort, details with Stop
+tracking and Delete history), **History** (the last 30 days, each expandable into its sessions), **Statistics**
+(days played, longest session, most played, by weekday and time of day) and **Settings** (theme, notifications,
+detection, tracking timings, online artwork and the SteamGridDB key, custom games, game folders, ignored games and
+programs, rescan, CSV export). Every control has an accessible name; deletions ask for confirmation.
+
+It holds no data of its own. Everything comes from the tracker over the pipe through
+`PlaytimeTracker.Dashboard.Core`, which checks that the pipe's server runs as the current user
+(`PipeOptions.CurrentUserOnly`) and is `playtime-tracker.exe` (the copy next to the dashboard when installed),
+reconnects its event stream if the tracker restarts, and keeps settings fields it doesn't know about.
+`dashboard/fixtures/responses.jsonl` is written by the Rust tests and parsed by the C# tests, so both sides
+must agree on every message. One dashboard window at a time: a second launch brings the first forward.
+
 ## Phases
 
 | # | Phase | Status |
@@ -100,8 +117,8 @@ two never fight over the Run key or the installer.
 | 5 | Launcher integrations (discovery on disk/registry) | Done: `playtime_core::discovery` (Steam, Epic, GOG, Ubisoft, EA/Origin, Xbox, Riot, `X:\Games`, extra folders, Windows game list) over a `DiscoveryHost` trait; `playtime_windows::discovery::WindowsHost` |
 | 6 | Artwork service | Done: see *Artwork* below |
 | 7 | Tray/background tracker in Rust | Done: see *The tracker service* above (built and checked in CI; not installed yet) |
-| 8 | WinUI 3 dashboard | Next |
-| 9 | Migrations (verify-then-switch, logs, backups) | Planned |
+| 8 | WinUI 3 dashboard | Built: see *The dashboard* above (checked in CI; not installed yet) |
+| 9 | Migrations (verify-then-switch, logs, backups) | Next |
 | 10 | Replace the C# entry point | Planned |
 | 11 | Installer and CI for the Rust build | CI checks added (`.github/workflows/rust.yml`) |
 | 12 | Remove C# after parity is verified | Planned |
