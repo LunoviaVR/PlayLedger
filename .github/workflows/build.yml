@@ -1,0 +1,47 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { choco install nsis -y --no-progress }
+
+      - name: Build app and installers
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.ref }}" -like "refs/tags/v*") { "${{ github.ref_name }}".TrimStart('v') } else { "1.0.0" }
+          ./build.ps1 -Version $version
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameSessionTracker-Installers
+          path: |
+            publish/GameSessionTrackerSetup.exe
+            publish/GameSessionTrackerSetup-Online.exe
+
+      - name: Attach installers to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            publish/GameSessionTrackerSetup.exe
+            publish/GameSessionTrackerSetup-Online.exe
