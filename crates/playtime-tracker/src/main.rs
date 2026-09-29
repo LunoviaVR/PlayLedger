@@ -17,6 +17,8 @@ mod pipe;
 mod service;
 #[cfg(windows)]
 mod tray;
+#[cfg(windows)]
+mod updater;
 
 #[cfg(windows)]
 fn main() {

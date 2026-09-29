@@ -63,7 +63,15 @@ public sealed record UnknownEvent(string Type) : TrackerEvent;
 public abstract record TrackerResponse;
 public sealed record HelloResponse(int Protocol, string Version) : TrackerResponse;
 public sealed record DashboardResponse(DashboardSnapshot Snapshot) : TrackerResponse;
-public sealed record SettingsResponse(TrackerSettings Settings, bool HasSteamGridDbKey) : TrackerResponse;
+public sealed record SettingsResponse(TrackerSettings Settings, bool HasSteamGridDbKey, bool StartWithWindows, bool IsInstalledCopy)
+    : TrackerResponse;
+public sealed record UpdateStatusResponse(
+    string CurrentVersion,
+    string? AvailableVersion,
+    bool CanInstall,
+    bool Busy,
+    string? LastError,
+    DateTimeOffset? LastChecked) : TrackerResponse;
 public sealed record OkResponse : TrackerResponse;
 public sealed record CsvResponse(string Text) : TrackerResponse;
 public sealed record ArtworkResponse(string? Path) : TrackerResponse;
@@ -109,6 +117,9 @@ public static class Protocol
     public static JsonObject ExportCsv() => Request("exportCsv");
     public static JsonObject SetSteamGridDbKey(string? key) => new() { ["type"] = "setSteamGridDbKey", ["key"] = key };
     public static JsonObject CheckForUpdates() => Request("checkForUpdates");
+    public static JsonObject GetUpdateStatus() => Request("getUpdateStatus");
+    public static JsonObject InstallUpdate() => Request("installUpdate");
+    public static JsonObject SetStartWithWindows(bool enabled) => new() { ["type"] = "setStartWithWindows", ["enabled"] = enabled };
     public static JsonObject Subscribe() => Request("subscribe");
 
     /// <summary>Parses one response line. Throws <see cref="JsonException"/> on malformed input.</summary>
@@ -122,7 +133,10 @@ public static class Protocol
             "dashboard" => new DashboardResponse(Deserialize<DashboardSnapshot>(node["snapshot"])),
             "settings" => new SettingsResponse(
                 new TrackerSettings(node["settings"]?.AsObject() ?? throw new JsonException("settings missing")),
-                node["hasSteamGridDbKey"]?.GetValue<bool>() ?? false),
+                node["hasSteamGridDbKey"]?.GetValue<bool>() ?? false,
+                node["startWithWindows"]?.GetValue<bool>() ?? false,
+                node["isInstalledCopy"]?.GetValue<bool>() ?? false),
+            "updateStatus" => Deserialize<UpdateStatusResponse>(node),
             "ok" => new OkResponse(),
             "csv" => new CsvResponse(node["text"]!.GetValue<string>()),
             "artwork" => new ArtworkResponse(node["path"]?.GetValue<string>()),

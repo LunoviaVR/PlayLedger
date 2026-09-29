@@ -2,6 +2,7 @@
 //! the dashboard. Shared between the tray (main thread) and pipe clients behind a mutex; slow work (artwork
 //! downloads, catalog rebuilds) runs on worker threads without holding it.
 
+use crate::updater::UpdateState;
 use playtime_artwork::cache::ArtworkCache;
 use playtime_artwork::providers::{SteamCdnProvider, SteamGridDbProvider, SteamLocalProvider};
 use playtime_artwork::service::ArtworkService;
@@ -24,10 +25,17 @@ use playtime_windows::http::WinHttpClient;
 use playtime_windows::icons::ExeIconProvider;
 use playtime_windows::registry::RegistryGenerations;
 use playtime_windows::store::{self, Store};
-use playtime_windows::{credentials, folders, processes};
+use playtime_windows::{credentials, folders, processes, startup};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
+
+/// Things the update thread is asked to do right away.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateCommand {
+    CheckNow,
+    InstallNow,
+}
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -78,6 +86,10 @@ pub struct Service {
     events: EventHub,
     notifications: Vec<Notification>,
     shut_down: bool,
+    /// Only the installed copy manages "Start with Windows" and installs updates.
+    installed: bool,
+    pub update: UpdateState,
+    update_commands: Option<Sender<UpdateCommand>>,
 }
 
 fn build_catalog(settings: &Settings) -> (GameCatalog, Vec<String>) {
@@ -171,6 +183,16 @@ impl Service {
                 let mut settings = opened.settings;
                 // Remember which version ran, as the C# app does (the next version change triggers a backup).
                 if settings.last_run_version != VERSION {
+                    if !settings.last_run_version.is_empty() {
+                        notifications.push(Notification {
+                            title: "Playtime Tracker updated".into(),
+                            body: format!(
+                                "You're now on version {VERSION} (was {}).",
+                                settings.last_run_version
+                            ),
+                            warning: false,
+                        });
+                    }
                     settings.last_run_version = VERSION.into();
                     if let Err(e) = store.save_settings(&settings) {
                         store.log(&format!(
@@ -196,6 +218,24 @@ impl Service {
             }
         };
 
+        // "Start with Windows", as the C# app: on by default the first time, the pre-rename entry moved over, and
+        // the entry pointed at this exe. Only for the installed copy, so a copy run from elsewhere never takes over.
+        let installed = startup::is_installed_copy();
+        let (mut store, mut settings) = (store, settings);
+        if installed {
+            startup::migrate_legacy_entry();
+            if !settings.startup_configured {
+                startup::set_enabled(true);
+                settings.startup_configured = true;
+                if let Some(store) = store.as_mut() {
+                    if let Err(e) = store.save_settings(&settings) {
+                        store.log(&format!("Could not save the settings: {e}"));
+                    }
+                }
+            }
+            startup::refresh_path_if_enabled();
+        }
+
         let (catalog, issues) = build_catalog(&settings);
         for issue in issues {
             store::log_to(&data_folder, &issue);
@@ -218,10 +258,60 @@ impl Service {
             events,
             notifications,
             shut_down: false,
+            installed,
+            update: UpdateState::default(),
+            update_commands: None,
         };
         service.save(now);
         let notifications = std::mem::take(&mut service.notifications);
         (service, notifications)
+    }
+
+    pub fn set_update_commands(&mut self, commands: Sender<UpdateCommand>) {
+        self.update_commands = Some(commands);
+    }
+
+    pub fn settings_snapshot(&self) -> Settings {
+        self.engine.settings().clone()
+    }
+
+    pub fn is_installed(&self) -> bool {
+        self.installed
+    }
+
+    /// True if any game is running (automatic updates wait until none is).
+    pub fn is_playing(&self) -> bool {
+        !self.engine.data().active.is_empty()
+    }
+
+    pub fn queue_notification(&mut self, notification: Notification) {
+        self.notifications.push(notification);
+    }
+
+    pub fn take_notifications(&mut self) -> Vec<Notification> {
+        std::mem::take(&mut self.notifications)
+    }
+
+    pub fn publish(&self, event: Event) {
+        self.events.publish(event);
+    }
+
+    pub fn request_update(&self, command: UpdateCommand) {
+        if let Some(commands) = &self.update_commands {
+            let _ = commands.send(command);
+        }
+    }
+
+    fn update_status(&self) -> Response {
+        let available = self.update.available.as_ref();
+        Response::UpdateStatus {
+            current_version: VERSION.into(),
+            available_version: available.map(|u| u.version.to_string()),
+            can_install: self.installed && available.is_some_and(|u| u.can_install()),
+            busy: self.update.busy,
+            last_error: self.update.last_error.clone(),
+            last_checked: self.update.last_checked.map(|t| t.to_rfc3339()),
+        }
     }
 
     pub fn data_folder(&self) -> &PathBuf {
@@ -457,6 +547,8 @@ impl Service {
             Request::GetSettings => Response::Settings {
                 settings: Box::new(self.engine.settings().clone()),
                 has_steam_grid_db_key: credentials::read(credentials::STEAMGRIDDB_TARGET).is_some(),
+                start_with_windows: startup::is_enabled(),
+                is_installed_copy: self.installed,
             },
             Request::UpdateSettings { settings } => self.update_settings(*settings),
             Request::DeleteSession { game, start } => {
@@ -495,7 +587,9 @@ impl Service {
             }
             Request::SetSteamGridDbKey { key } => {
                 match key.as_deref().map(str::trim).filter(|k| !k.is_empty()) {
-                    Some(key) if !playtime_artwork::providers::steamgriddb::is_plausible_key(key) => {
+                    Some(key)
+                        if !playtime_artwork::providers::steamgriddb::is_plausible_key(key) =>
+                    {
                         return Response::Error {
                             message: "That doesn't look like a SteamGridDB API key (32 letters and digits).".into(),
                         };
@@ -503,7 +597,8 @@ impl Service {
                     Some(key) => {
                         if credentials::write(credentials::STEAMGRIDDB_TARGET, key).is_err() {
                             return Response::Error {
-                                message: "The key couldn't be saved to Windows Credential Manager.".into(),
+                                message: "The key couldn't be saved to Windows Credential Manager."
+                                    .into(),
                             };
                         }
                     }
@@ -512,10 +607,37 @@ impl Service {
                 self.artwork = build_artwork(self.engine.settings().online_artwork);
                 Response::Ok
             }
-            Request::CheckForUpdates => Response::Error {
-                message: "Updates are installed by the current Playtime Tracker app until this version replaces it."
-                    .into(),
-            },
+            Request::CheckForUpdates => {
+                self.request_update(UpdateCommand::CheckNow);
+                self.update_status()
+            }
+            Request::GetUpdateStatus => self.update_status(),
+            Request::InstallUpdate => {
+                if !self.installed {
+                    return Response::Error {
+                        message: "Only an installed copy of Playtime Tracker updates itself."
+                            .into(),
+                    };
+                }
+                self.request_update(UpdateCommand::InstallNow);
+                self.update_status()
+            }
+            Request::SetStartWithWindows { enabled } => {
+                if !self.installed {
+                    return Response::Error {
+                        message:
+                            "Only an installed copy of Playtime Tracker can start with Windows."
+                                .into(),
+                    };
+                }
+                if startup::set_enabled(enabled) {
+                    Response::Ok
+                } else {
+                    Response::Error {
+                        message: "Windows didn't accept the change.".into(),
+                    }
+                }
+            }
             // Handled by the pipe connection itself.
             Request::Subscribe => Response::Ok,
         }

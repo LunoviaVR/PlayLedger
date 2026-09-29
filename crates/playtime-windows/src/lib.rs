@@ -11,6 +11,7 @@
 //! - [`icons::ExeIconProvider`]: a game's own icon as artwork.
 //! - [`processes`]: running processes and their exe paths.
 //! - [`store::Store`]: the data folder (protected files, read-only reports, error log).
+//! - [`startup`]: "Start with Windows" and whether this is the installed copy.
 //! - [`folders`]: where the data lives.
 //!
 //! On other platforms the crate compiles to stubs so the workspace builds and tests everywhere.
@@ -35,5 +36,7 @@ pub mod processes;
 mod reg;
 #[cfg(windows)]
 pub mod registry;
+#[cfg(windows)]
+pub mod startup;
 #[cfg(windows)]
 pub mod store;

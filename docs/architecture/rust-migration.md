@@ -86,8 +86,20 @@ Play history is never sent anywhere.
   `exportCsv`, `setSteamGridDbKey` (write-only), and `subscribe`, which turns the connection into an event
   stream (`sessionStarted`, `sessionEnded`, `dataChanged`, `artworkReady`, `heartbeat`).
 
-Not yet: "Start with Windows" and updates stay with the C# app until the Rust build replaces it (phase 10), so the
-two never fight over the Run key or the installer.
+**Start with Windows and updates** (phase 10) behave as in the C# app, and only for the *installed* copy (the Apps
+entry's `InstallLocation` is the exe's folder), so a copy run from anywhere else never takes over the Run key or
+updates itself:
+
+- the `PlaytimeTracker` Run value (`"<exe>" --startup`), on by default the first time, respecting Task Manager's
+  on/off switch, moving the pre-rename `GameSessionTracker` entry over, and re-pointed at this exe if it moved;
+- updates from GitHub releases: checked a minute after start and every 6 hours (if enabled), announced once, and
+  installed automatically only when no game is running (or from the dashboard / tray menu). `Setup.exe` must come
+  from this repository's release URL over HTTPS, with every redirect limited to GitHub's hosts, and match GitHub's
+  recorded size and SHA-256 (streamed to disk, hashed with `sha2`); it runs silently with `/S /relaunch`;
+- after an update, "Playtime Tracker updated: you're now on version X (was Y)".
+
+The dashboard's Settings page gained Startup, Updates (check now, install, automatic) and the accent colour
+(Windows accent, the six presets, or any colour; applied to WinUI's accent shades).
 
 ## The dashboard (phase 8)
 

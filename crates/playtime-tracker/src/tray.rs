@@ -34,6 +34,7 @@ const POLL_TIMER: usize = 1;
 const CMD_OPEN: usize = 1;
 const CMD_SETTINGS: usize = 2;
 const CMD_EXIT: usize = 3;
+const CMD_UPDATE: usize = 4;
 const ICON_ID: u32 = 1;
 
 /// The dashboard executable, next to the tracker (phase 8).
@@ -220,7 +221,19 @@ fn open(tray: &Tray, page: Option<&str>) {
 }
 
 fn show_menu(tray: &Tray) {
-    let status = tray.service.lock().map(|s| s.status()).unwrap_or_default();
+    let (status, update) = tray
+        .service
+        .lock()
+        .map(|s| {
+            let update = s
+                .update
+                .available
+                .as_ref()
+                .filter(|u| s.is_installed() && u.can_install() && !s.update.busy)
+                .map(|u| format!("Install update {}", u.version));
+            (s.status(), update)
+        })
+        .unwrap_or_default();
     // SAFETY: builds, shows and destroys our own popup menu; strings outlive the calls.
     unsafe {
         let Ok(menu) = CreatePopupMenu() else {
@@ -232,6 +245,10 @@ fn show_menu(tray: &Tray) {
         let _ = AppendMenuW(menu, MF_STRING, CMD_OPEN, w!("Open dashboard"));
         let _ = AppendMenuW(menu, MF_STRING, CMD_SETTINGS, w!("Settings"));
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+        let update = update.map(HSTRING::from);
+        if let Some(update) = &update {
+            let _ = AppendMenuW(menu, MF_STRING, CMD_UPDATE, PCWSTR(update.as_ptr()));
+        }
         let _ = AppendMenuW(menu, MF_STRING, CMD_EXIT, w!("Exit"));
         let _ = SetMenuDefaultItem(menu, CMD_OPEN as u32, 0);
         let mut point = POINT::default();
@@ -255,7 +272,8 @@ fn poll(tray: &Tray) {
     let Ok(mut service) = tray.service.lock() else {
         return;
     };
-    let notifications = service.tick();
+    let mut notifications = service.tick();
+    notifications.extend(service.take_notifications());
     let tooltip = status_tooltip(&service);
     let poll_ms = service.poll_interval_ms();
     drop(service);
@@ -298,6 +316,11 @@ extern "system" fn window_proc(
                 CMD_OPEN => open(tray, None),
                 CMD_SETTINGS => open(tray, Some("settings")),
                 CMD_EXIT => exit(tray),
+                CMD_UPDATE => {
+                    if let Ok(service) = tray.service.lock() {
+                        service.request_update(crate::service::UpdateCommand::InstallNow);
+                    }
+                }
                 _ => {}
             },
             WM_POWERBROADCAST if wparam.0 as u32 == PBT_APMSUSPEND => {

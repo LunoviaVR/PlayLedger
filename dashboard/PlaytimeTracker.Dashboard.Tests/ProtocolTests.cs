@@ -38,6 +38,8 @@ public class ProtocolTests
         Assert.False(settings.Settings.OnlineArtwork);
         Assert.Contains("SteamVR", settings.Settings.IgnoredGames);
         Assert.False(settings.HasSteamGridDbKey);
+        Assert.True(settings.StartWithWindows);
+        Assert.True(settings.IsInstalledCopy);
 
         var events = responses.OfType<EventResponse>().Select(e => e.Event).ToList();
         Assert.Equal("Hades", Assert.IsType<SessionStartedEvent>(events[0]).Game);
@@ -52,6 +54,11 @@ public class ProtocolTests
         Assert.EndsWith("cover.jpg", responses.OfType<ArtworkResponse>().Single().Path);
         Assert.Equal("Game,Start\r\n", responses.OfType<CsvResponse>().Single().Text);
         Assert.Equal("nope", responses.OfType<ErrorResponse>().Single().Message);
+        var update = responses.OfType<UpdateStatusResponse>().Single();
+        Assert.Equal("2.3.0", update.AvailableVersion);
+        Assert.True(update.CanInstall);
+        Assert.Null(update.LastError);
+        Assert.Equal(new DateTimeOffset(2026, 9, 29, 9, 0, 0, TimeSpan.Zero), update.LastChecked);
     }
 
     [Fact]
@@ -87,6 +94,19 @@ public class ProtocolTests
         Assert.Equal("2026-09-29T09:00:00.0000000+02:00", delete["start"]!.GetValue<string>());
         Assert.Equal("""{"type":"setSteamGridDbKey","key":null}""", Protocol.SetSteamGridDbKey(null).ToJsonString());
         Assert.Equal("""{"type":"getArtwork","game":"Hades","kind":"cover"}""", Protocol.GetArtwork("Hades", ArtworkKinds.Cover).ToJsonString());
+    }
+
+    [Fact]
+    public void Accent_settings_resolve_like_the_existing_app()
+    {
+        Assert.Equal(new Rgb(0x3b, 0x82, 0xf6), Accent.Resolve("blue"));
+        Assert.Equal(new Rgb(0xf4, 0x3f, 0x5e), Accent.Resolve(" ROSE "));
+        Assert.Equal(new Rgb(0xff, 0x88, 0x00), Accent.Resolve("#ff8800"));
+        Assert.Null(Accent.Resolve("windows"));
+        Assert.Equal(Accent.Presets[0].Color, Accent.Resolve("nonsense"));
+        var shades = Accent.Shades(new Rgb(100, 100, 100));
+        Assert.True(shades.Light3.R > shades.Light1.R && shades.Dark3.R < shades.Dark1.R);
+        Assert.Equal("#646464", shades.Base.ToHex());
     }
 
     [Fact]

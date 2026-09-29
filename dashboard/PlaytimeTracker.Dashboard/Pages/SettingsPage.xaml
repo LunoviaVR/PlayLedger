@@ -50,6 +50,37 @@
                     </ComboBox>
                 </Grid>
             </Border>
+            <Border Style="{StaticResource CardStyle}" Margin="0,4,0,0">
+                <StackPanel Spacing="12">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Accent colour" />
+                            <TextBlock Text="Used for charts, selection and buttons." Style="{StaticResource CaptionStyle}" />
+                        </StackPanel>
+                        <ComboBox x:Name="AccentChoice" Grid.Column="1" MinWidth="160" SelectionChanged="Accent_SelectionChanged"
+                                  AutomationProperties.Name="Accent colour" />
+                    </Grid>
+                    <StackPanel x:Name="CustomAccentPanel" Visibility="Collapsed" Spacing="8">
+                        <ColorPicker x:Name="CustomAccent" IsAlphaEnabled="False" IsMoreButtonVisible="True"
+                                     IsColorChannelTextInputVisible="True" IsHexInputVisible="True"
+                                     AutomationProperties.Name="Custom accent colour" />
+                        <Button Content="Use this colour" Click="ApplyCustomAccent_Click" Style="{StaticResource AccentButtonStyle}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Startup -->
+            <TextBlock Text="Startup" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="4">
+                    <ToggleSwitch x:Name="StartWithWindows" Header="Start Playtime Tracker when I sign in to Windows" Toggled="StartWithWindows_Toggled" />
+                    <TextBlock x:Name="StartupNote" Style="{StaticResource CaptionStyle}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
 
             <!-- General -->
             <TextBlock Text="General" Style="{StaticResource SectionHeaderStyle}" />
@@ -141,6 +172,23 @@
                                  AutomationProperties.Name="Program to ignore" />
                         <Button Content="Ignore" Click="AddIgnoredProgram_Click" />
                     </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Updates -->
+            <TextBlock Text="Updates" Style="{StaticResource SectionHeaderStyle}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel Spacing="12">
+                    <ToggleSwitch x:Name="CheckUpdates" Header="Check for updates" Toggled="Toggle_Changed" />
+                    <ToggleSwitch x:Name="AutoUpdates" Header="Install updates automatically (never while a game is running)" Toggled="Toggle_Changed" />
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource CaptionStyle}"
+                               Text="Updates come from this project's GitHub releases and are installed only if their size and checksum match what GitHub recorded." />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="CheckNow" Content="Check now" Click="CheckNow_Click" />
+                        <Button x:Name="InstallNow" Content="Install update" Click="InstallNow_Click" Visibility="Collapsed"
+                                Style="{StaticResource AccentButtonStyle}" />
+                    </StackPanel>
+                    <TextBlock x:Name="UpdateStatus" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 

@@ -108,7 +108,7 @@ public sealed partial class MainWindow : Window
         await App.State.RefreshAsync();
     }
 
-    /// <summary>Follows Settings → Theme (system, light or dark).</summary>
+    /// <summary>Follows Settings → Theme (system, light or dark) and the accent colour.</summary>
     private async void ApplyTheme()
     {
         try
@@ -120,12 +120,17 @@ public sealed partial class MainWindow : Window
                 "light" => ElementTheme.Light,
                 _ => ElementTheme.Default,
             };
+            AccentTheme.Apply(settings.Settings.AccentColor, Root);
             App.State.SnapshotChanged -= ApplyTheme; // once is enough; the Settings page applies changes directly
         }
         catch (Exception ex) when (ex is TrackerUnavailableException or TrackerErrorException)
         {
         }
     }
+
+    /// <summary>The Settings page calls this when the accent changes.</summary>
+    public static void SetAccent(FrameworkElement anyElement, string accent) =>
+        AccentTheme.Apply(accent, anyElement.XamlRoot?.Content as FrameworkElement);
 
     /// <summary>The Settings page calls this when the theme changes.</summary>
     public static void SetTheme(FrameworkElement anyElement, string mode)

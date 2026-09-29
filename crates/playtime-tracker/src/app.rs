@@ -4,7 +4,7 @@
 //! save and quit (used by the installer); otherwise the dashboard opens.
 
 use crate::service::{EventHub, Service};
-use crate::{instance, pipe, tray};
+use crate::{instance, pipe, tray, updater};
 use std::sync::{Arc, Mutex};
 
 pub fn run(args: Vec<String>) -> i32 {
@@ -33,6 +33,8 @@ pub fn run(args: Vec<String>) -> i32 {
             &format!("The dashboard connection isn't available: {e}"),
         );
     }
+
+    updater::spawn(service.clone());
 
     let quiet = has("--startup") || has("--updated");
     if !quiet && notifications.is_empty() && tray::dashboard_path().is_some() {

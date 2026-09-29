@@ -61,6 +61,12 @@ pub enum Request {
         key: Option<String>,
     },
     CheckForUpdates,
+    GetUpdateStatus,
+    InstallUpdate,
+    #[serde(rename_all = "camelCase")]
+    SetStartWithWindows {
+        enabled: bool,
+    },
     Subscribe,
 }
 
@@ -120,6 +126,19 @@ pub enum Response {
     Settings {
         settings: Box<Settings>,
         has_steam_grid_db_key: bool,
+        start_with_windows: bool,
+        /// Only the installed copy manages "Start with Windows" and updates itself.
+        is_installed_copy: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    UpdateStatus {
+        current_version: String,
+        available_version: Option<String>,
+        can_install: bool,
+        busy: bool,
+        last_error: Option<String>,
+        /// Local time of the last check, ISO 8601.
+        last_checked: Option<String>,
     },
     Ok,
     Csv {
@@ -279,6 +298,8 @@ mod tests {
         let settings = Response::Settings {
             settings: Box::default(),
             has_steam_grid_db_key: false,
+            start_with_windows: true,
+            is_installed_copy: true,
         };
         let events: Vec<Response> = vec![
             Event::SessionStarted { game: "Hades".into() },
@@ -311,6 +332,14 @@ mod tests {
             },
             Response::Error {
                 message: "nope".into(),
+            },
+            Response::UpdateStatus {
+                current_version: "2.2.0".into(),
+                available_version: Some("2.3.0".into()),
+                can_install: true,
+                busy: false,
+                last_error: None,
+                last_checked: Some("2026-09-29T09:00:00+00:00".into()),
             },
         ])
         .collect();

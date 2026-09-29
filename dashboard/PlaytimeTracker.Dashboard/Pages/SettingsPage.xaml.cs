@@ -28,6 +28,15 @@ public sealed partial class SettingsPage : Page
 {
     private TrackerSettings? _settings;
     private bool _loading;
+    private bool _installed;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _updatePoll;
+
+    /// <summary>Accent choices: Windows' own accent, the presets, then a custom colour.</summary>
+    private static readonly List<(string Key, string Name)> AccentChoices =
+        new[] { (Accent.WindowsKey, "Windows accent") }
+            .Concat(Accent.Presets.Select(p => (p.Key, p.Name)))
+            .Append(("custom", "Custom…"))
+            .ToList();
     private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _saveSoon;
 
     public SettingsPage()
@@ -38,6 +47,11 @@ public sealed partial class SettingsPage : Page
         _saveSoon.Interval = TimeSpan.FromMilliseconds(600);
         _saveSoon.IsRepeating = false;
         _saveSoon.Tick += async (_, _) => await SaveAsync();
+        // While an update check or download runs, keep its status current.
+        _updatePoll = DispatcherQueue.CreateTimer();
+        _updatePoll.Interval = TimeSpan.FromSeconds(2);
+        _updatePoll.Tick += async (_, _) => await RefreshUpdateStatusAsync();
+        AccentChoice.ItemsSource = AccentChoices.Select(c => c.Name).ToList();
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -47,6 +61,7 @@ public sealed partial class SettingsPage : Page
 
     protected override async void OnNavigatedFrom(NavigationEventArgs e)
     {
+        _updatePoll.Stop();
         if (_saveSoon.IsRunning)
         {
             _saveSoon.Stop();
@@ -76,13 +91,135 @@ public sealed partial class SettingsPage : Page
         MinimumSession.Value = _settings.MinimumSessionSeconds;
         GracePeriod.Value = _settings.GracePeriodSeconds;
         OnlineArtwork.IsOn = _settings.OnlineArtwork;
+        CheckUpdates.IsOn = _settings.CheckForUpdates;
+        AutoUpdates.IsOn = _settings.InstallUpdatesAutomatically;
+        ShowAccent(_settings.AccentColor);
+        _installed = response.IsInstalledCopy;
+        StartWithWindows.IsOn = response.StartWithWindows;
+        StartWithWindows.IsEnabled = _installed;
+        StartupNote.Text = _installed
+            ? "You can also change this in Task Manager → Startup apps."
+            : "Available once Playtime Tracker is installed.";
         ShowKeyState(response.HasSteamGridDbKey);
         ShowLists();
         var tracker = App.State.Client.TrackerVersion ?? "unknown";
         var dashboard = typeof(SettingsPage).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-        About.Text = $"Playtime Tracker {tracker} (dashboard {dashboard}). Updates are installed by the Playtime Tracker app.";
+        About.Text = $"Playtime Tracker {tracker} (dashboard {dashboard}). Your play history stays on this PC.";
         Body.IsEnabled = true;
         _loading = false;
+        await RefreshUpdateStatusAsync();
+    }
+
+    private void ShowAccent(string accent)
+    {
+        var key = accent.Trim().ToLowerInvariant();
+        var index = AccentChoices.FindIndex(c => c.Key == key);
+        var custom = index < 0;
+        AccentChoice.SelectedIndex = custom ? AccentChoices.Count - 1 : index;
+        CustomAccentPanel.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
+        if (Accent.Resolve(key) is { } color)
+            CustomAccent.Color = Microsoft.UI.ColorHelper.FromArgb(255, color.R, color.G, color.B);
+    }
+
+    private async void Accent_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_settings is null || _loading || AccentChoice.SelectedIndex < 0)
+            return;
+        var key = AccentChoices[AccentChoice.SelectedIndex].Key;
+        if (key == "custom")
+        {
+            CustomAccentPanel.Visibility = Visibility.Visible;
+            return;
+        }
+        CustomAccentPanel.Visibility = Visibility.Collapsed;
+        _settings.AccentColor = key;
+        MainWindow.SetAccent(this, key);
+        await SaveAsync();
+    }
+
+    private async void ApplyCustomAccent_Click(object sender, RoutedEventArgs e)
+    {
+        if (_settings is null)
+            return;
+        var c = CustomAccent.Color;
+        var hex = new Rgb(c.R, c.G, c.B).ToHex();
+        _settings.AccentColor = hex;
+        MainWindow.SetAccent(this, hex);
+        await SaveAsync();
+    }
+
+    private async void StartWithWindows_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading || !_installed)
+            return;
+        if (!await App.State.RunAsync(c => c.SetStartWithWindowsAsync(StartWithWindows.IsOn)))
+        {
+            _loading = true;
+            StartWithWindows.IsOn = !StartWithWindows.IsOn;
+            _loading = false;
+        }
+    }
+
+    private async Task RefreshUpdateStatusAsync()
+    {
+        try
+        {
+            ShowUpdateStatus(await App.State.Client.GetUpdateStatusAsync());
+        }
+        catch (Exception ex) when (ex is TrackerUnavailableException or TrackerErrorException)
+        {
+            _updatePoll.Stop();
+        }
+    }
+
+    private void ShowUpdateStatus(UpdateStatusResponse status)
+    {
+        var lines = new List<string>();
+        if (status.Busy)
+            lines.Add("Working…");
+        else if (status.AvailableVersion is { } version)
+            lines.Add($"Version {version} is available (you have {status.CurrentVersion}).");
+        else if (status.LastChecked is not null)
+            lines.Add($"You're up to date ({status.CurrentVersion}).");
+        else
+            lines.Add($"Version {status.CurrentVersion}.");
+        if (status.LastChecked is { } checkedAt)
+            lines.Add($"Last checked {Format.Day(checkedAt, DateTimeOffset.Now)} at {Format.Time(checkedAt)}.");
+        if (status.LastError is { } error)
+            lines.Add(error);
+        UpdateStatus.Text = string.Join(" ", lines);
+        InstallNow.Visibility = status.CanInstall && !status.Busy ? Visibility.Visible : Visibility.Collapsed;
+        CheckNow.IsEnabled = !status.Busy;
+        if (status.Busy)
+            _updatePoll.Start();
+        else
+            _updatePoll.Stop();
+    }
+
+    private async void CheckNow_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ShowUpdateStatus(await App.State.Client.CheckForUpdatesAsync());
+            _updatePoll.Start();
+        }
+        catch (Exception ex) when (ex is TrackerUnavailableException or TrackerErrorException)
+        {
+            App.State.ReportError(ex.Message);
+        }
+    }
+
+    private async void InstallNow_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ShowUpdateStatus(await App.State.Client.InstallUpdateAsync());
+            _updatePoll.Start();
+        }
+        catch (Exception ex) when (ex is TrackerUnavailableException or TrackerErrorException)
+        {
+            App.State.ReportError(ex.Message);
+        }
     }
 
     private void ShowKeyState(bool hasKey)
@@ -125,6 +262,8 @@ public sealed partial class SettingsPage : Page
         _settings.ShowNotifications = Notifications.IsOn;
         _settings.UseWindowsGameList = WindowsGameList.IsOn;
         _settings.OnlineArtwork = OnlineArtwork.IsOn;
+        _settings.CheckForUpdates = CheckUpdates.IsOn;
+        _settings.InstallUpdatesAutomatically = AutoUpdates.IsOn;
         await SaveAsync();
     }
 

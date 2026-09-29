@@ -159,6 +159,19 @@ public sealed class TrackerClient : IAsyncDisposable
     public Task SetSteamGridDbKeyAsync(string? key, CancellationToken ct = default) =>
         SendAsync<OkResponse>(Protocol.SetSteamGridDbKey(key), ct);
 
+    /// <summary>Starts a check (the answer is the status right now; a new version is announced by an event).</summary>
+    public Task<UpdateStatusResponse> CheckForUpdatesAsync(CancellationToken ct = default) =>
+        SendAsync<UpdateStatusResponse>(Protocol.CheckForUpdates(), ct);
+
+    public Task<UpdateStatusResponse> GetUpdateStatusAsync(CancellationToken ct = default) =>
+        SendAsync<UpdateStatusResponse>(Protocol.GetUpdateStatus(), ct);
+
+    public Task<UpdateStatusResponse> InstallUpdateAsync(CancellationToken ct = default) =>
+        SendAsync<UpdateStatusResponse>(Protocol.InstallUpdate(), ct);
+
+    public Task SetStartWithWindowsAsync(bool enabled, CancellationToken ct = default) =>
+        SendAsync<OkResponse>(Protocol.SetStartWithWindows(enabled), ct);
+
     private async Task EventLoopAsync(CancellationToken cancellationToken)
     {
         var delay = TimeSpan.FromSeconds(1);

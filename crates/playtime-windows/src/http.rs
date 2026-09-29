@@ -1,8 +1,9 @@
-//! HTTPS GETs for online artwork over WinHTTP, Windows' own HTTP stack: the system proxy settings apply, and
-//! certificates are validated by Windows exactly as for any other app (nothing here relaxes that).
+//! HTTPS over WinHTTP, Windows' own HTTP stack: the system proxy settings apply, and certificates are validated by
+//! Windows exactly as for any other app (nothing here relaxes that). TLS 1.2 or newer only.
 //!
-//! Every URL, including each redirect target, must pass `playtime_artwork::http::check_url` (HTTPS to a known
-//! artwork host). WinHTTP's automatic redirects are turned off so that check can't be bypassed.
+//! Each client has a [`HostPolicy`]: every URL, including each redirect target, must pass it before a connection
+//! is made. WinHTTP's automatic redirects are turned off so the policy can't be bypassed, and headers (e.g. an API
+//! key) are never forwarded to a different host.
 
 use playtime_artwork::http::{
     check_url, redact, HttpClient, HttpError, Request, Response, MAX_RESPONSE_BYTES,
@@ -20,8 +21,31 @@ use windows::Win32::Networking::WinHttp::{
     WINHTTP_QUERY_STATUS_CODE,
 };
 
-const MAX_REDIRECTS: usize = 3;
-const TIMEOUT_MS: i32 = 15_000;
+const MAX_REDIRECTS: usize = 5;
+const TIMEOUT_MS: i32 = 30_000;
+
+/// Decides which URLs a client may request: returns the host for an allowed `https://` URL.
+pub type HostPolicy = fn(&str) -> Result<&str, HttpError>;
+
+/// GitHub hosts the updater may contact: the API, release pages, and the storage GitHub redirects downloads to.
+pub fn github_policy(url: &str) -> Result<&str, HttpError> {
+    let refuse = || HttpError::NotAllowed(redact(url));
+    let rest = url.strip_prefix("https://").ok_or_else(refuse)?;
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    if host.is_empty() || host.contains(['@', ':', '\\']) {
+        return Err(refuse());
+    }
+    let lower = host.to_ascii_lowercase();
+    let allowed = lower == "api.github.com"
+        || lower == "github.com"
+        || (lower.ends_with(".githubusercontent.com")
+            && lower.len() > ".githubusercontent.com".len());
+    if allowed {
+        Ok(host)
+    } else {
+        Err(refuse())
+    }
+}
 
 /// An owned WinHTTP handle, closed on drop.
 struct Handle(*mut c_void);
@@ -54,12 +78,27 @@ fn last_error() -> String {
     windows::core::Error::from_win32().message()
 }
 
+/// The response head of a finished request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Head {
+    pub status: u16,
+    pub content_type: Option<String>,
+    /// The final URL after redirects.
+    pub url: String,
+}
+
 pub struct WinHttpClient {
     session: Handle,
+    policy: HostPolicy,
 }
 
 impl WinHttpClient {
+    /// A client for online artwork (the artwork host allow-list).
     pub fn new(user_agent: &str) -> Result<Self, HttpError> {
+        Self::with_policy(user_agent, check_url)
+    }
+
+    pub fn with_policy(user_agent: &str, policy: HostPolicy) -> Result<Self, HttpError> {
         let agent = HSTRING::from(user_agent);
         // SAFETY: `agent` outlives the call; the returned handle is owned by `Handle`.
         let session = Handle::new(unsafe {
@@ -102,15 +141,18 @@ impl WinHttpClient {
             WinHttpSetTimeouts(session.0, TIMEOUT_MS, TIMEOUT_MS, TIMEOUT_MS, TIMEOUT_MS)
                 .map_err(|e| HttpError::Transport(e.message()))?;
         }
-        Ok(Self { session })
+        Ok(Self { session, policy })
     }
 
-    fn get_once(
+    /// One request without following redirects. The body is passed to `sink` in chunks (not for 3xx responses).
+    /// Returns the head and, for a redirect, its `Location`.
+    fn send_once(
         &self,
         url: &str,
         headers: &[(String, String)],
-    ) -> Result<(Response, Option<String>), HttpError> {
-        let host = check_url(url)?;
+        sink: &mut dyn FnMut(&[u8]) -> Result<(), HttpError>,
+    ) -> Result<(Head, Option<String>), HttpError> {
+        let host = (self.policy)(url)?;
         let path = &url["https://".len() + host.len()..];
         let path = if path.is_empty() { "/" } else { path };
         let transport = |e: windows::core::Error| {
@@ -153,18 +195,15 @@ impl WinHttpClient {
 
         let status = query_number(&request, WINHTTP_QUERY_STATUS_CODE).unwrap_or(0);
         let status = u16::try_from(status).unwrap_or(0);
+        let head = |content_type| Head {
+            status,
+            content_type,
+            url: url.to_string(),
+        };
         if (300..400).contains(&status) {
-            return Ok((
-                Response {
-                    status,
-                    content_type: None,
-                    body: Vec::new(),
-                },
-                query_string(&request, WINHTTP_QUERY_LOCATION),
-            ));
+            return Ok((head(None), query_string(&request, WINHTTP_QUERY_LOCATION)));
         }
         let content_type = query_string(&request, WINHTTP_QUERY_CONTENT_TYPE);
-        let mut body = Vec::new();
         let mut chunk = vec![0u8; 64 * 1024];
         loop {
             let mut read: u32 = 0;
@@ -181,34 +220,27 @@ impl WinHttpClient {
             if read == 0 {
                 break;
             }
-            if body.len() + read as usize > MAX_RESPONSE_BYTES {
-                return Err(HttpError::TooLarge);
-            }
-            body.extend_from_slice(&chunk[..read as usize]);
+            sink(&chunk[..read as usize])?;
         }
-        Ok((
-            Response {
-                status,
-                content_type,
-                body,
-            },
-            None,
-        ))
+        Ok((head(content_type), None))
     }
-}
 
-impl HttpClient for WinHttpClient {
-    fn get(&self, request: &Request) -> Result<Response, HttpError> {
+    /// GET with redirects (each checked against the policy); the body goes to `sink`.
+    pub fn get_streaming(
+        &self,
+        request: &Request,
+        sink: &mut dyn FnMut(&[u8]) -> Result<(), HttpError>,
+    ) -> Result<Head, HttpError> {
         let mut url = request.url.clone();
         let mut headers = request.headers.clone();
         for _ in 0..=MAX_REDIRECTS {
-            let original_host = check_url(&url)?.to_ascii_lowercase();
-            let (response, location) = self.get_once(&url, &headers)?;
+            let original_host = (self.policy)(&url)?.to_ascii_lowercase();
+            let (head, location) = self.send_once(&url, &headers, sink)?;
             let Some(location) = location else {
-                return Ok(response);
+                return Ok(head);
             };
-            // Only absolute HTTPS redirects to allowed hosts are followed.
-            let next_host = check_url(&location)?.to_ascii_lowercase();
+            // Only absolute HTTPS redirects the policy allows are followed.
+            let next_host = (self.policy)(&location)?.to_ascii_lowercase();
             if next_host != original_host {
                 headers.clear(); // never forward credentials to another host
             }
@@ -218,6 +250,24 @@ impl HttpClient for WinHttpClient {
             "too many redirects from {}",
             redact(&request.url)
         )))
+    }
+}
+
+impl HttpClient for WinHttpClient {
+    fn get(&self, request: &Request) -> Result<Response, HttpError> {
+        let mut body = Vec::new();
+        let head = self.get_streaming(request, &mut |chunk| {
+            if body.len() + chunk.len() > MAX_RESPONSE_BYTES {
+                return Err(HttpError::TooLarge);
+            }
+            body.extend_from_slice(chunk);
+            Ok(())
+        })?;
+        Ok(Response {
+            status: head.status,
+            content_type: head.content_type,
+            body,
+        })
     }
 }
 
@@ -241,7 +291,7 @@ fn query_number(request: &Handle, level: u32) -> Option<u32> {
 }
 
 fn query_string(request: &Handle, level: u32) -> Option<String> {
-    let mut buffer = vec![0u16; 2048];
+    let mut buffer = vec![0u16; 4096];
     let mut size = (buffer.len() * 2) as u32;
     let mut index = 0;
     // SAFETY: `buffer` has `size` bytes; WinHTTP writes at most that and updates `size`.
@@ -258,4 +308,32 @@ fn query_string(request: &Handle, level: u32) -> Option<String> {
     .ok()?;
     buffer.truncate(size as usize / 2);
     String::from_utf16(&buffer).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn github_policy_allows_only_github_over_https() {
+        for ok in [
+            "https://api.github.com/repos/LunoviaVR/PlaytimeTracker/releases/latest",
+            "https://github.com/LunoviaVR/PlaytimeTracker/releases/download/v3.0.0/Setup.exe",
+            "https://objects.githubusercontent.com/github-production-release-asset/1?x=y",
+            "https://release-assets.githubusercontent.com/github-production-release-asset/1",
+        ] {
+            assert!(github_policy(ok).is_ok(), "{ok}");
+        }
+        for bad in [
+            "http://github.com/x",
+            "https://github.com.evil.example/x",
+            "https://evilgithubusercontent.com/x",
+            "https://.githubusercontent.com/x",
+            "https://user@github.com/x",
+            "https://github.com:444/x",
+            "https://shared.steamstatic.com/x",
+        ] {
+            assert!(github_policy(bad).is_err(), "{bad}");
+        }
+    }
 }
