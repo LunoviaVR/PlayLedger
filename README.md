@@ -12,13 +12,27 @@ how many times you've played each game and how long every session lasted.
 
 ## Install
 
-1. Get `GameSessionTracker.exe`, either from the **Build** workflow's artifacts / a release on GitHub, or by building it yourself (below).
-2. Move it somewhere permanent, e.g. `C:\Users\<you>\AppData\Local\Programs\GameSessionTracker\` (it registers its current location to run at startup).
-3. Double-click it. A notification confirms it's running.
+1. Download one of the installers:
+   - **`GameSessionTrackerSetup.exe`** (about 48 MB) has everything built in and works offline.
+   - **`GameSessionTrackerSetup-Online.exe`** (under 1 MB) is the same app. If your PC doesn't already have
+     Microsoft's .NET 8 Desktop Runtime, setup downloads and installs it for you (Windows will ask for permission once).
+
+   Both are built automatically by the **Build** workflow on GitHub (Actions tab → latest run → *Artifacts*),
+   and attached to any release.
+2. Double-click it and click through **Next → Next → Install → Finish**. No admin rights, no command prompt.
+
+The installer:
+- installs to `%LocalAppData%\Programs\Game Session Tracker`
+- adds a Start menu shortcut (and a desktop shortcut if you tick the box)
+- sets it to start with Windows
+- adds it to **Settings → Apps → Installed apps** so you can uninstall it like any other app
+- starts the tracker when you click **Finish**
+
+Running the installer again upgrades in place and keeps your history.
 
 Windows 11 hides new tray icons behind the **^** arrow next to the clock. To keep it visible: *Settings → Personalization → Taskbar → Other system tray icons* → turn on **Game Session Tracker**.
 
-The first time you run it, Windows SmartScreen may warn about an unrecognised app because the exe isn't code-signed.
+The first time you run the installer, Windows SmartScreen may warn about an unrecognised app because it isn't code-signed.
 Click **More info → Run anyway**.
 
 ## Your files
@@ -92,15 +106,17 @@ If something is counted that shouldn't be, add its exe to `ignoredExecutables` o
 
 ## Uninstall
 
-1. Tray menu → uncheck **Start with Windows**, then **Exit**.
-2. Delete `GameSessionTracker.exe`. Your history stays in `Documents\Game Session Tracker\` until you delete it.
+*Settings → Apps → Installed apps → Game Session Tracker → Uninstall.* The tracker is closed (any game in progress is logged first)
+and removed along with its shortcuts and startup entry. Your history in `Documents\Game Session Tracker\` is kept unless you tick
+**Delete my play history and settings** in the uninstaller.
 
 ## Build it yourself
 
-Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), then in PowerShell from this folder:
+Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) and [NSIS](https://nsis.sourceforge.io)
+(`winget install NSIS.NSIS`), then in PowerShell from this folder:
 
 ```powershell
 ./build.ps1
 ```
 
-The exe is written to `publish\GameSessionTracker.exe`. It's self-contained, so it runs without installing .NET.
+The installers are written to `publish\`.

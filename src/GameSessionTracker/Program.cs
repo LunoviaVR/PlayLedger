@@ -2,10 +2,20 @@ namespace GameSessionTracker;
 
 internal static class Program
 {
+    private const string SingleInstanceMutexName = @"Local\GameSessionTracker.SingleInstance";
+    private const string ExitEventName = @"Local\GameSessionTracker.Exit";
+
     [STAThread]
     private static void Main(string[] args)
     {
-        using var mutex = new Mutex(initiallyOwned: true, @"Local\GameSessionTracker.SingleInstance", out var isFirstInstance);
+        // Used by the installer/uninstaller to close a running tracker cleanly (so the current session is logged).
+        if (args.Contains("--exit", StringComparer.OrdinalIgnoreCase))
+        {
+            RequestRunningInstanceExit();
+            return;
+        }
+
+        using var mutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var isFirstInstance);
         if (!isFirstInstance)
         {
             MessageBox.Show(
@@ -14,12 +24,32 @@ internal static class Program
             return;
         }
 
+        using var exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ExitEventName);
+
         ApplicationConfiguration.Initialize();
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) => ErrorLog.Write("Unexpected error", e.Exception);
 
         var launchedAtStartup = args.Contains("--startup", StringComparer.OrdinalIgnoreCase);
-        using var app = new TrayApp(launchedAtStartup);
+        using var app = new TrayApp(launchedAtStartup, exitEvent);
         Application.Run(app);
+    }
+
+    /// <summary>Signals a running tracker to exit and waits (up to 15 s) for it to finish saving.</summary>
+    private static void RequestRunningInstanceExit()
+    {
+        if (!EventWaitHandle.TryOpenExisting(ExitEventName, out var exitEvent))
+            return; // not running
+        using (exitEvent)
+            exitEvent.Set();
+
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (!Mutex.TryOpenExisting(SingleInstanceMutexName, out var mutex))
+                return; // the tracker has exited
+            mutex.Dispose();
+            Thread.Sleep(250);
+        }
     }
 }

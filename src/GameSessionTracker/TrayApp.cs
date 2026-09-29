@@ -31,9 +31,10 @@ internal sealed class TrayApp : ApplicationContext
     private DateTimeOffset _catalogBuiltAt;
     private DateTimeOffset _lastPoll;
     private DateTimeOffset _lastSave;
+    private readonly RegisteredWaitHandle _exitWait;
     private bool _shutDown;
 
-    public TrayApp(bool launchedAtStartup)
+    public TrayApp(bool launchedAtStartup, WaitHandle exitRequested)
     {
         _dataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Game Session Tracker");
         Directory.CreateDirectory(_dataFolder);
@@ -89,6 +90,10 @@ internal sealed class TrayApp : ApplicationContext
         SystemEvents.SessionEnding += OnSessionEnding;
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         Application.ApplicationExit += (_, _) => Shutdown();
+
+        // Another copy started with --exit (the installer/uninstaller) asked us to close.
+        _exitWait = ThreadPool.RegisterWaitForSingleObject(
+            exitRequested, (_, _) => _ui.Post(_ => ExitApp(), null), null, Timeout.Infinite, executeOnlyOnce: true);
 
         SaveAll();
 
@@ -374,6 +379,7 @@ internal sealed class TrayApp : ApplicationContext
         if (disposing)
         {
             Shutdown();
+            _exitWait.Unregister(null);
             _timer.Dispose();
             _trayIcon.Dispose();
         }
