@@ -15,6 +15,7 @@ internal sealed class DashboardForm : Form
     private readonly ITrackerHost _host;
     private readonly SettingsView _settingsView;
     private readonly System.Windows.Forms.Timer _refreshTimer;
+    private readonly Backdrop _backdrop = new();
 
     private readonly HeaderBar _header = new() { Tabs = new[] { "Overview", "Settings" } };
     private readonly StatTile[] _tiles = { new(), new(), new(), new() };
@@ -47,6 +48,7 @@ internal sealed class DashboardForm : Form
         AutoScaleMode = AutoScaleMode.None; // layout and fonts are scaled by hand in ApplyMetrics
         StartPosition = FormStartPosition.CenterScreen;
         DoubleBuffered = true;
+        ResizeRedraw = true;
         using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("GameSessionTracker.app.ico"))
         {
             if (stream is not null)
@@ -70,6 +72,7 @@ internal sealed class DashboardForm : Form
         _sessionsList.EmptyText = "Your sessions will appear here after you play a game.";
         _gamesList.SelectedIndexChanged += (_, _) => OnGameSelected();
 
+        _header.TabIndex = 100; // the games list keeps first focus; Tab reaches the page switcher afterwards
         _footer.LinkClicked += () => _host.OpenDataFolder();
         _header.TabClicked += ShowTab;
         _gamesList.ContextMenuStrip = new ContextMenuStrip();
@@ -93,9 +96,16 @@ internal sealed class DashboardForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        Theme.ApplyWindowChrome(this, _theme.IsDark);
+        Theme.ApplyWindowChrome(this, _theme);
         Theme.ApplyScrollbarTheme(_gamesList, _theme.IsDark);
         Theme.ApplyScrollbarTheme(_sessionsList, _theme.IsDark);
+    }
+
+    /// <summary>The atmospheric backdrop plus soft shadows under the glass cards; every glass surface shows through to this.</summary>
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        _backdrop.Paint(e.Graphics, e.ClipRectangle, ClientSize, _theme);
+        Glass.PaintChildShadows(e.Graphics, this, e.ClipRectangle, _theme);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -108,7 +118,10 @@ internal sealed class DashboardForm : Form
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             _fonts.Dispose();
+            _backdrop.Dispose();
+        }
         base.Dispose(disposing);
     }
 
@@ -126,7 +139,7 @@ internal sealed class DashboardForm : Form
             ApplyTheme();
             if (IsHandleCreated)
             {
-                Theme.ApplyWindowChrome(this, _theme.IsDark);
+                Theme.ApplyWindowChrome(this, _theme);
                 Theme.ApplyScrollbarTheme(_gamesList, _theme.IsDark);
                 Theme.ApplyScrollbarTheme(_sessionsList, _theme.IsDark);
             }
@@ -162,7 +175,7 @@ internal sealed class DashboardForm : Form
         _sessionsList.ItemHeight = S(44);
         _sessionsList.Font = _fonts.Body;
 
-        MinimumSize = new Size(S(860), S(640));
+        MinimumSize = new Size(S(760), S(640));
         if (!_sized)
         {
             // First show: a comfortable size, but never bigger than the screen.
@@ -176,13 +189,13 @@ internal sealed class DashboardForm : Form
 
     private void ApplyTheme()
     {
-        BackColor = _theme.Window;
+        BackColor = _theme.Base;
         foreach (var c in AllPainted())
             c.Theme = _theme;
         _gamesCard.Theme = _theme;
         _sessionsCard.Theme = _theme;
-        _gamesList.BackColor = _theme.Surface;
-        _sessionsList.BackColor = _theme.Surface;
+        _gamesList.BackColor = _theme.Base;
+        _sessionsList.BackColor = _theme.Base;
         _sessionsList.ForeColor = _theme.TextMuted;
         _settingsView.ApplyStyle();
         Invalidate(true);
@@ -194,31 +207,35 @@ internal sealed class DashboardForm : Form
     {
         base.OnResize(e);
         LayoutChildren();
+        Invalidate(true); // the backdrop is sized to the window, so everything glass shows a new part of it
     }
 
     private void LayoutChildren()
     {
         if (_tiles is null || ClientSize.Width == 0)
             return;
-        var pad = S(24);
-        var gap = S(16);
+        // Roomier gutters on large windows, tighter ones on small laptops.
+        var pad = ClientSize.Width >= S(1280) ? S(32) : ClientSize.Width >= S(960) ? S(24) : S(16);
+        var gap = ClientSize.Width >= S(960) ? S(16) : S(12);
         var width = ClientSize.Width - pad * 2;
         var y = S(12);
 
-        _header.Bounds = new Rectangle(pad, y, width, S(56));
+        _header.Bounds = new Rectangle(pad, y, width, S(64));
         y = _header.Bottom + S(8);
 
         var tileWidth = (width - gap * 3) / 4;
         for (var i = 0; i < _tiles.Length; i++)
-            _tiles[i].Bounds = new Rectangle(pad + i * (tileWidth + gap), y, i == 3 ? width - 3 * (tileWidth + gap) : tileWidth, S(96));
+            _tiles[i].Bounds = new Rectangle(pad + i * (tileWidth + gap), y, i == 3 ? width - 3 * (tileWidth + gap) : tileWidth, S(100));
         y = _tiles[0].Bottom + gap;
 
-        _chart.Bounds = new Rectangle(pad, y, width, S(210));
+        // The chart gives up some height on short windows so the lists stay usable.
+        var chartHeight = ClientSize.Height >= S(820) ? S(236) : ClientSize.Height >= S(700) ? S(210) : S(184);
+        _chart.Bounds = new Rectangle(pad, y, width, chartHeight);
         y = _chart.Bottom + gap;
 
-        var footerHeight = S(32);
-        var listsHeight = Math.Max(S(160), ClientSize.Height - y - footerHeight - S(8));
-        var gamesWidth = (int)(width * 0.38);
+        var footerHeight = S(36);
+        var listsHeight = Math.Max(S(160), ClientSize.Height - y - footerHeight - S(4));
+        var gamesWidth = (int)(width * (width < S(900) ? 0.42 : 0.38));
         _gamesCard.Bounds = new Rectangle(pad, y, gamesWidth, listsHeight);
         _sessionsCard.Bounds = new Rectangle(pad + gamesWidth + gap, y, width - gamesWidth - gap, listsHeight);
         _footer.Bounds = new Rectangle(pad, _gamesCard.Bottom, width, footerHeight);
@@ -278,12 +295,11 @@ internal sealed class DashboardForm : Form
             var records = _model.SessionsFor(game.Name).Where(s => s.Source is not null).Select(s => s.Source!).ToList();
             if (records.Count == 0)
                 return;
-            if (MessageBox.Show(this, $"Delete all {Plural(records.Count, "session")} of {game.Name}? This can't be undone.",
-                    "Delete history", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.OK)
+            if (Confirm($"Delete all {Plural(records.Count, "session")} of {game.Name}? This can't be undone.", "Delete history") != DialogResult.OK)
                 return;
             _host.DeleteSessions(records);
             RefreshData();
-        }));
+        }, destructive: true));
     }
 
     private void OnSessionsMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -299,13 +315,16 @@ internal sealed class DashboardForm : Form
         menu.Items.Add(ThemedMenu.Item("Delete this session", _theme, () =>
         {
             var when = $"{FormatDay(record.Start)}, {record.Start.ToLocalTime().ToString("h:mm tt", CultureInfo.CurrentCulture)}";
-            if (MessageBox.Show(this, $"Delete the {ReportWriter.FormatDuration(record.Duration)} session of {record.Game} from {when}?",
-                    "Delete session", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.OK)
+            if (Confirm($"Delete the {ReportWriter.FormatDuration(record.Duration)} session of {record.Game} from {when}?", "Delete session") != DialogResult.OK)
                 return;
             _host.DeleteSessions(new[] { record });
             RefreshData();
-        }));
+        }, destructive: true));
     }
+
+    private DialogResult Confirm(string text, string caption) =>
+        ModalScrim.Show(this, _theme, () =>
+            MessageBox.Show(this, text, caption, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2));
 
     private void PrepareMenu(ContextMenuStrip menu, System.ComponentModel.CancelEventArgs e)
     {
@@ -441,12 +460,10 @@ internal sealed class DashboardForm : Form
     private void DrawGameRow(Graphics g, Rectangle bounds, int index, bool selected, bool hot)
     {
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        using (var bg = new SolidBrush(_theme.Surface))
-            g.FillRectangle(bg, bounds);
         DrawRowHighlight(g, bounds, selected, hot);
 
-        var x = bounds.X + S(12);
-        var w = bounds.Width - S(24);
+        var x = bounds.X + S(14);
+        var w = bounds.Width - S(28);
         string name, sub, total;
         double share;
         var live = false;
@@ -481,24 +498,25 @@ internal sealed class DashboardForm : Form
         var nameX = x;
         if (live)
         {
-            using var dot = new SolidBrush(_theme.Live);
-            g.FillEllipse(dot, x, bounds.Y + S(17), S(7), S(7));
+            using var dot = new SolidBrush(_theme.Success);
+            g.FillEllipse(dot, x, bounds.Y + S(18), S(7), S(7));
             nameX += S(13);
         }
         TextRenderer.DrawText(g, name, _fonts.BodyStrong, new Rectangle(nameX, bounds.Y + S(11), w - totalWidth - S(12) - (nameX - x), S(22)), _theme.TextPrimary, flags);
-        TextRenderer.DrawText(g, sub, _fonts.Small, new Rectangle(x, bounds.Y + S(31), w, S(18)), _theme.TextSecondary, flags);
+        TextRenderer.DrawText(g, sub, _fonts.Small, new Rectangle(x, bounds.Y + S(32), w, S(18)), live ? _theme.SuccessText : _theme.TextSecondary, flags);
 
         if (index > 0)
         {
             // Thin share bar relative to the most-played game.
-            var barY = bounds.Bottom - S(8);
+            var barY = bounds.Bottom - S(9);
             var barH = S(3);
             using var track = new SolidBrush(_theme.Track);
-            using var fill = new SolidBrush(_theme.Accent);
             using (var trackPath = Theme.RoundedRect(new RectangleF(x, barY, w, barH), barH / 2f))
                 g.FillPath(track, trackPath);
             var fillWidth = Math.Max(barH, (float)(w * share));
-            using var fillPath = Theme.RoundedRect(new RectangleF(x, barY, fillWidth, barH), barH / 2f);
+            var fillRect = new RectangleF(x, barY, fillWidth, barH);
+            using var fill = new LinearGradientBrush(new RectangleF(x - 1, barY, w + 2, barH), _theme.Accent, _theme.AccentSecondary, LinearGradientMode.Horizontal);
+            using var fillPath = Theme.RoundedRect(fillRect, barH / 2f);
             g.FillPath(fill, fillPath);
         }
     }
@@ -506,8 +524,6 @@ internal sealed class DashboardForm : Form
     private void DrawSessionRow(Graphics g, Rectangle bounds, int index, bool selected, bool hot)
     {
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        using (var bg = new SolidBrush(_theme.Surface))
-            g.FillRectangle(bg, bounds);
         DrawRowHighlight(g, bounds, false, hot);
 
         if (index >= _visibleSessions.Count)
@@ -547,7 +563,7 @@ internal sealed class DashboardForm : Form
             var gameWidth = Math.Max(0, timeX - S(12) - gameX);
             if (s.IsLive)
             {
-                using var dot = new SolidBrush(_theme.Live);
+                using var dot = new SolidBrush(_theme.Success);
                 g.FillEllipse(dot, gameX, bounds.Y + (bounds.Height - S(7)) / 2f, S(7), S(7));
                 gameX += S(13);
                 gameWidth -= S(13);
@@ -562,9 +578,9 @@ internal sealed class DashboardForm : Form
         TextRenderer.DrawText(g, time, _fonts.Body, row with { X = timeX, Width = Math.Max(0, timeWidth) }, _theme.TextSecondary, flags);
 
         // Hairline separator between rows.
-        if (index < _visibleSessions.Count - 1)
+        if (index < _visibleSessions.Count - 1 && !hot)
         {
-            using var pen = new Pen(_theme.Track, 1);
+            using var pen = new Pen(_theme.Separator, 1);
             g.SmoothingMode = SmoothingMode.None;
             g.DrawLine(pen, x, bounds.Bottom - 1, right, bounds.Bottom - 1);
         }
@@ -575,9 +591,18 @@ internal sealed class DashboardForm : Form
         if (!selected && !hot)
             return;
         var rect = new RectangleF(bounds.X + S(2), bounds.Y + S(2), bounds.Width - S(4), bounds.Height - S(4));
-        using var path = Theme.RoundedRect(rect, S(6));
-        using var brush = new SolidBrush(selected ? _theme.Selection : _theme.Hover);
-        g.FillPath(brush, path);
+        using var path = Theme.RoundedRect(rect, S(Radius.Small));
+        using (var brush = new SolidBrush(selected ? _theme.AccentSoft : _theme.GlassControl))
+            g.FillPath(brush, path);
+        if (selected)
+        {
+            // Selected: a soft accent tint with a thin inner highlight and an accent marker on the leading edge.
+            Glass.PaintBorder(g, path, rect, Theme.WithAlpha(_theme.AccentBorder, _theme.AccentBorder.A * 2 / 3), Theme.WithAlpha(_theme.AccentBorder, _theme.AccentBorder.A / 4));
+            var markerHeight = rect.Height - S(24);
+            using var marker = Theme.RoundedRect(new RectangleF(rect.X + S(1), rect.Y + (rect.Height - markerHeight) / 2, S(3), markerHeight), S(1.5f));
+            using var markerBrush = new SolidBrush(_theme.Accent);
+            g.FillPath(markerBrush, marker);
+        }
     }
 
     private const TextFormatFlags MeasureFlags = TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;

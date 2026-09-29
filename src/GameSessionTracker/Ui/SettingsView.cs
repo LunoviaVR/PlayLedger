@@ -58,6 +58,8 @@ internal sealed class SettingsView : Panel
         _style = style;
         AutoScroll = true;
         DoubleBuffered = true;
+        SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        BackColor = Color.Transparent; // the window's backdrop shows through between the cards
 
         _general.AddRow("Start with Windows", "Start quietly in the system tray when you sign in.", _startWithWindows);
         _general.AddRow("Notifications", "Show a notification each time a session is logged.", _notifications);
@@ -142,12 +144,10 @@ internal sealed class SettingsView : Panel
     public void ApplyStyle()
     {
         var (theme, fonts) = _style();
-        BackColor = theme.Window;
         foreach (var control in AllPainted())
         {
             control.Theme = theme;
             control.Fonts = fonts;
-            control.BackColor = theme.Surface; // children clear to their parent's colour
             control.Invalidate();
         }
         foreach (var editor in new[] { _customGames, _gameFolders, _ignoredGames, _ignoredPrograms })
@@ -161,6 +161,31 @@ internal sealed class SettingsView : Panel
     {
         base.OnHandleCreated(e);
         Theme.ApplyScrollbarTheme(this, _style().Theme.IsDark);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        Glass.PaintChildShadows(e.Graphics, this, e.ClipRectangle, _style().Theme);
+    }
+
+    // Native scrolling moves pixels, including the backdrop behind the cards; repaint so the backdrop stays put.
+    protected override void OnScroll(ScrollEventArgs se)
+    {
+        base.OnScroll(se);
+        Invalidate(true);
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        Invalidate(true);
+    }
+
+    protected override void OnResize(EventArgs eventargs)
+    {
+        base.OnResize(eventargs);
+        Invalidate(true);
     }
 
     private IEnumerable<PaintedControl> AllPainted() =>
@@ -179,11 +204,13 @@ internal sealed class SettingsView : Panel
         int S(float v) => (int)Math.Round(v * scale);
 
         // Left-aligned with the header; very wide windows don't stretch the rows past a readable width.
-        var width = Math.Min(S(960), ClientSize.Width - S(48));
+        var windowWidth = Parent?.ClientSize.Width ?? ClientSize.Width; // same gutters as the dashboard
+        var gutter = windowWidth >= S(1280) ? S(32) : windowWidth >= S(960) ? S(24) : S(16);
+        var width = Math.Min(S(960), ClientSize.Width - gutter * 2);
         if (width <= 0)
             return;
-        var x = S(24);
-        var y = S(4) + AutoScrollPosition.Y;
+        var x = gutter;
+        var y = S(8) + AutoScrollPosition.Y;
         var gap = S(16);
 
         void Place(Control c, int height)
@@ -199,7 +226,7 @@ internal sealed class SettingsView : Panel
         Place(_ignoredGames, _ignoredGames.PreferredHeight);
         Place(_ignoredPrograms, _ignoredPrograms.PreferredHeight);
         Place(_data, _data.PreferredHeight);
-        AutoScrollMinSize = new Size(0, y - AutoScrollPosition.Y + S(8));
+        AutoScrollMinSize = new Size(0, y - AutoScrollPosition.Y + S(16));
     }
 
     // ---------- changes ----------
