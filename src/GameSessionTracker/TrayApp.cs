@@ -39,7 +39,7 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
 
     public TrayApp(bool launchedAtStartup, WaitHandle exitRequested, WaitHandle showRequested)
     {
-        _dataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Game Session Tracker");
+        _dataFolder = DataFolderMigration.Resolve(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
         Directory.CreateDirectory(_dataFolder);
         _settingsPath = Path.Combine(_dataFolder, "settings.json");
         _dataPath = Path.Combine(_dataFolder, "sessions.json");
@@ -71,12 +71,12 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
             new ToolStripMenuItem("Exit", null, (_, _) => ExitApp()),
         });
         // Same glass menu styling as the dashboard, following the current light/dark setting.
-        menu.Opening += (_, _) => ThemedMenu.Apply(menu, Ui.Theme.Current(), SystemFonts.MenuFont ?? Control.DefaultFont);
+        menu.Opening += (_, _) => ThemedMenu.Apply(menu, Ui.Theme.Resolve(_settings), SystemFonts.MenuFont ?? Control.DefaultFont);
 
         _trayIcon = new NotifyIcon
         {
             Icon = LoadIcon(),
-            Text = "Game Session Tracker",
+            Text = "Playtime Tracker",
             ContextMenuStrip = menu,
             Visible = true,
         };
@@ -174,7 +174,7 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
             : "Playing: " + string.Join(", ", active.Select(a => $"{a.Game} ({ReportWriter.FormatDuration(now - a.Start)})"));
 
         _statusItem.Text = status.Length > 100 ? status[..97] + "..." : status;
-        var tooltip = "Game Session Tracker\n" + status;
+        var tooltip = "Playtime Tracker\n" + status;
         _trayIcon.Text = tooltip.Length > 127 ? tooltip[..124] + "..." : tooltip; // Windows limit is 127 chars
     }
 
@@ -278,7 +278,7 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
             catch (Exception ex)
             {
                 ErrorLog.Write("Could not change start with Windows", ex);
-                MessageBox.Show($"Couldn't change the startup setting:\n{ex.Message}", "Game Session Tracker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show($"Couldn't change the startup setting:\n{ex.Message}", "Playtime Tracker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
     }
@@ -313,6 +313,7 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
     {
         try
         {
+            StartupManager.MigrateLegacyEntry(); // "GameSessionTracker" → "PlaytimeTracker", keeping on/off as it was
             if (!_settings.StartupConfigured)
             {
                 StartupManager.SetEnabled(true);

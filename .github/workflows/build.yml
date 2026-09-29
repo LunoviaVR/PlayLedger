@@ -27,21 +27,21 @@ jobs:
       - name: Build app and installers
         shell: pwsh
         run: |
-          $version = if ("${{ github.ref }}" -like "refs/tags/v*") { "${{ github.ref_name }}".TrimStart('v') } else { "1.2.0" }
+          $version = if ("${{ github.ref }}" -like "refs/tags/v*") { "${{ github.ref_name }}".TrimStart('v') } else { "2.0.0" }
           ./build.ps1 -Version $version
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: GameSessionTracker-Installers
+          name: PlaytimeTracker-Installers
           path: |
-            publish/GameSessionTrackerSetup.exe
-            publish/GameSessionTrackerSetup-Online.exe
+            publish/PlaytimeTrackerSetup.exe
+            publish/PlaytimeTrackerSetup-Online.exe
 
       - name: Attach installers to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            publish/GameSessionTrackerSetup.exe
-            publish/GameSessionTrackerSetup-Online.exe
+            publish/PlaytimeTrackerSetup.exe
+            publish/PlaytimeTrackerSetup-Online.exe

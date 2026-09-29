@@ -278,6 +278,9 @@ internal sealed class PillButton : PaintedControl
 
     public bool Primary { get; set; }
 
+    /// <summary>Deletes something: tinted in the error colour so it can't be mistaken for a normal action.</summary>
+    public bool Destructive { get; set; }
+
     /// <summary>Button body (text + padding, 34 px tall) plus the focus-ring margin.</summary>
     public Size PreferredButtonSize(Graphics? g = null)
     {
@@ -343,6 +346,14 @@ internal sealed class PillButton : PaintedControl
             Glass.PaintBorder(g, path, body, Color.FromArgb(70, 255, 255, 255), Color.FromArgb(10, 255, 255, 255));
             text = Theme.TextOnAccent;
         }
+        else if (Destructive)
+        {
+            var fill = _pressed ? Theme.WithAlpha(Theme.Error, Theme.ErrorSoft.A * 2) : Glass.Lerp(Theme.ErrorSoft, Theme.WithAlpha(Theme.Error, Theme.ErrorSoft.A * 3 / 2), hover);
+            using (var brush = new SolidBrush(fill))
+                g.FillPath(brush, path);
+            Glass.PaintBorder(g, path, body, Theme.WithAlpha(Theme.Error, 110), Theme.WithAlpha(Theme.Error, 60));
+            text = Theme.ErrorText;
+        }
         else
         {
             var fill = _pressed ? Theme.GlassPressed : Glass.Lerp(Theme.GlassControl, Theme.GlassHover, hover);
@@ -362,6 +373,305 @@ internal sealed class PillButton : PaintedControl
             Glass.PaintFocusRing(g, body, radius, Theme, UiScale);
         if (Fonts is not null)
             DrawLabel(g, Text, Fonts.BodyStrong, text, Rectangle.Round(body), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+    }
+}
+
+/// <summary>A small segmented control: pick one of a few options (Left/Right with the keyboard).</summary>
+internal sealed class ChoiceSegments : PaintedControl
+{
+    private readonly List<Rectangle> _bounds = new();
+    private int _selected;
+    private int _hot = -1;
+
+    public ChoiceSegments(params string[] options)
+    {
+        Options = options;
+        SetStyle(ControlStyles.Selectable, true);
+        TabStop = true;
+        AccessibleRole = AccessibleRole.PageTabList;
+    }
+
+    public string[] Options { get; }
+
+    public event EventHandler? SelectedIndexChanged;
+
+    public int SelectedIndex
+    {
+        get => _selected;
+        set
+        {
+            value = Math.Clamp(value, 0, Options.Length - 1);
+            if (value == _selected)
+                return;
+            _selected = value;
+            AccessibleDescription = Options[value];
+            Invalidate();
+        }
+    }
+
+    private int SegmentWidth(string text) =>
+        (Fonts is null ? S(56) : TextRenderer.MeasureText(text, Fonts.BodyStrong, Size.Empty, TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding).Width) + S(28);
+
+    public Size LogicalSize => new(Options.Sum(SegmentWidth) + S(8) + S(2 * Glass.FocusMargin), S(36 + 2 * Glass.FocusMargin));
+
+    private void Select(int index)
+    {
+        if (index == _selected || index < 0 || index >= Options.Length)
+            return;
+        SelectedIndex = index;
+        SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        var hot = _bounds.FindIndex(r => r.Contains(e.Location));
+        if (hot == _hot)
+            return;
+        _hot = hot;
+        Cursor = hot >= 0 ? Cursors.Hand : Cursors.Default;
+        Invalidate();
+    }
+
+    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _hot = -1; Invalidate(); }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        Focus();
+        if (e.Button == MouseButtons.Left)
+            Select(_bounds.FindIndex(r => r.Contains(e.Location)));
+    }
+
+    protected override bool IsInputKey(Keys keyData) => keyData is Keys.Left or Keys.Right || base.IsInputKey(keyData);
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.KeyCode == Keys.Left)
+            Select(_selected - 1);
+        else if (e.KeyCode == Keys.Right)
+            Select(_selected + 1);
+    }
+
+    protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+    protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        if (Fonts is null)
+            return;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        var body = BodyRect;
+        Glass.PaintSurface(g, body, S(Radius.Control), Theme.GlassControl, Theme, sheen: false);
+        _bounds.Clear();
+        var inset = S(4);
+        var x = (int)body.X + inset;
+        for (var i = 0; i < Options.Length; i++)
+        {
+            var r = new Rectangle(x, (int)body.Y + inset, SegmentWidth(Options[i]), (int)body.Height - inset * 2);
+            _bounds.Add(r);
+            var rf = new RectangleF(r.X + 0.5f, r.Y + 0.5f, r.Width - 1, r.Height - 1);
+            using var path = Theme.RoundedRect(rf, S(Radius.Small - 2));
+            if (i == _selected)
+            {
+                using (var fill = new SolidBrush(Theme.AccentSoft))
+                    g.FillPath(fill, path);
+                Glass.PaintBorder(g, path, rf, Theme.AccentBorder, Theme.WithAlpha(Theme.AccentBorder, Theme.AccentBorder.A / 3));
+                if (ShowFocusRing)
+                    Glass.PaintFocusRing(g, rf, S(Radius.Small - 2), Theme, UiScale);
+            }
+            else if (i == _hot)
+            {
+                using var fill = new SolidBrush(Theme.GlassHover);
+                g.FillPath(fill, path);
+            }
+            var color = i == _selected ? Theme.AccentText : i == _hot ? Theme.TextPrimary : Theme.TextSecondary;
+            DrawLabel(g, Options[i], i == _selected ? Fonts.BodyStrong : Fonts.Body, color, r, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            x += r.Width;
+        }
+    }
+}
+
+/// <summary>Accent colour swatches, plus a last swatch that opens a colour picker for any colour.</summary>
+internal sealed class SwatchPicker : PaintedControl
+{
+    private readonly ToolTip _tip = new();
+    private readonly List<RectangleF> _bounds = new();
+    private int _hot = -1;
+    private int _cursor; // keyboard position
+    private string _selectedKey = "blue";
+
+    public SwatchPicker()
+    {
+        SetStyle(ControlStyles.Selectable, true);
+        TabStop = true;
+        AccessibleRole = AccessibleRole.List;
+    }
+
+    public event Action<string>? SelectionChanged;
+    public event Action? CustomRequested;
+
+    private int Count => Accents.Presets.Count + 1; // + custom
+    private int CustomIndex => Accents.Presets.Count;
+    private float Diameter => S(24);
+    private float Step => S(36);
+
+    public Size LogicalSize => new((int)(Step * Count) + S(2 * Glass.FocusMargin), S(36 + 2 * Glass.FocusMargin));
+
+    /// <summary>A preset key or a custom "#rrggbb".</summary>
+    public string SelectedKey
+    {
+        get => _selectedKey;
+        set
+        {
+            _selectedKey = value;
+            _cursor = SelectedIndex;
+            AccessibleDescription = Accents.Parse(value).Name;
+            Invalidate();
+        }
+    }
+
+    private int SelectedIndex
+    {
+        get
+        {
+            var i = Accents.Presets.ToList().FindIndex(p => p.Key == _selectedKey);
+            return i >= 0 ? i : CustomIndex;
+        }
+    }
+
+    private void Activate(int index)
+    {
+        if (index < 0 || index >= Count)
+            return;
+        _cursor = index;
+        if (index == CustomIndex)
+        {
+            CustomRequested?.Invoke();
+            return;
+        }
+        var key = Accents.Presets[index].Key;
+        if (key == _selectedKey)
+            return;
+        SelectedKey = key;
+        SelectionChanged?.Invoke(key);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        var hot = _bounds.FindIndex(r => RectangleF.Inflate(r, S(4), S(4)).Contains(e.Location));
+        if (hot == _hot)
+            return;
+        _hot = hot;
+        Cursor = hot >= 0 ? Cursors.Hand : Cursors.Default;
+        _tip.SetToolTip(this, hot < 0 ? null : hot == CustomIndex ? "Custom colour..." : Accents.Presets[hot].Name);
+        Invalidate();
+    }
+
+    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); _hot = -1; Invalidate(); }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        Focus();
+        if (e.Button == MouseButtons.Left)
+            Activate(_bounds.FindIndex(r => RectangleF.Inflate(r, S(4), S(4)).Contains(e.Location)));
+    }
+
+    protected override bool IsInputKey(Keys keyData) => keyData is Keys.Left or Keys.Right || base.IsInputKey(keyData);
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        switch (e.KeyCode)
+        {
+            case Keys.Left when _cursor > 0:
+                _cursor--;
+                if (_cursor != CustomIndex) Activate(_cursor); else Invalidate();
+                break;
+            case Keys.Right when _cursor < Count - 1:
+                _cursor++;
+                if (_cursor != CustomIndex) Activate(_cursor); else Invalidate();
+                break;
+            case Keys.Space or Keys.Enter:
+                Activate(_cursor);
+                break;
+        }
+    }
+
+    protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+    protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _tip.Dispose();
+        base.Dispose(disposing);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        _bounds.Clear();
+        var body = BodyRect;
+        var d = Diameter;
+        var y = body.Y + (body.Height - d) / 2;
+        var selected = SelectedIndex;
+        for (var i = 0; i < Count; i++)
+        {
+            var x = body.X + (Step - d) / 2 + i * Step;
+            var r = new RectangleF(x, y, d, d);
+            _bounds.Add(r);
+            if (i == CustomIndex)
+            {
+                // Custom: the picked colour if one is active, otherwise a spectrum.
+                if (selected == CustomIndex)
+                {
+                    using var brush = new SolidBrush(Accents.Parse(_selectedKey).GradientStart);
+                    g.FillEllipse(brush, r);
+                }
+                else
+                {
+                    using var spectrum = new LinearGradientBrush(RectangleF.Inflate(r, 1, 1), Color.Red, Color.Blue, 45f)
+                    {
+                        InterpolationColors = new ColorBlend
+                        {
+                            Colors = new[] { Theme.Hex("#f43f5e"), Theme.Hex("#f59e0b"), Theme.Hex("#10b981"), Theme.Hex("#3b82f6"), Theme.Hex("#a855f7") },
+                            Positions = new[] { 0f, 0.25f, 0.5f, 0.75f, 1f },
+                        },
+                    };
+                    g.FillEllipse(spectrum, r);
+                }
+                if (Fonts is not null)
+                    DrawLabel(g, "+", Fonts.BodyStrong, Color.White, Rectangle.Round(r), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            }
+            else
+            {
+                var p = Accents.Presets[i];
+                using var brush = new LinearGradientBrush(RectangleF.Inflate(r, 1, 1), p.GradientStart, p.GradientEnd, LinearGradientMode.ForwardDiagonal);
+                g.FillEllipse(brush, r);
+            }
+            using (var edge = new Pen(Theme.GlassBorderStrong, 1))
+                g.DrawEllipse(edge, r);
+
+            if (i == selected || i == _hot)
+            {
+                // Selected: a ring with a gap around the swatch. Hover: a fainter one.
+                var ring = RectangleF.Inflate(r, S(4), S(4));
+                using var pen = new Pen(i == selected ? Theme.TextPrimary : Theme.GlassBorderStrong, i == selected ? 2 * UiScale : 1.5f * UiScale);
+                g.DrawEllipse(pen, ring);
+            }
+            if (i == _cursor && ShowFocusRing)
+            {
+                var ring = RectangleF.Inflate(r, S(7), S(7));
+                using var pen = new Pen(Theme.FocusRing, 2 * UiScale);
+                g.DrawEllipse(pen, ring);
+            }
+        }
     }
 }
 
@@ -408,6 +718,8 @@ internal sealed class SettingsCard : PaintedControl, IGlassSurface
                 ToggleSwitch t => t.LogicalSize,
                 Stepper s => s.LogicalSize,
                 PillButton b => b.PreferredButtonSize(),
+                ChoiceSegments c => c.LogicalSize,
+                SwatchPicker p => p.LogicalSize,
                 _ => control.Size,
             };
             var rowTop = HeaderHeight + i * RowHeight;
@@ -581,146 +893,6 @@ internal sealed class ListEditor : PaintedControl, IGlassSurface
         }
         if (hot)
             TextRenderer.DrawText(g, "Remove", Fonts.Body, new Rectangle(bounds.Right - S(12) - removeWidth, bounds.Y, removeWidth, bounds.Height), Theme.ErrorText, flags | TextFormatFlags.Right);
-    }
-}
-
-/// <summary>Themed modal asking for one line of text, shown over a darkened window.</summary>
-internal sealed class PromptDialog : Form
-{
-    private readonly Theme _theme;
-    private readonly Backdrop _backdrop = new();
-    private readonly InputField _field;
-
-    private TextBox Input => _field.TextBox;
-
-    private PromptDialog(Theme theme, Fonts fonts, string title, string label, string initial)
-    {
-        _theme = theme;
-        var s = DeviceDpi / 96f;
-        int S(float v) => (int)Math.Round(v * s);
-        var margin = S(Glass.FocusMargin);
-
-        Text = title;
-        AutoScaleMode = AutoScaleMode.None;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = MinimizeBox = false;
-        ShowInTaskbar = false;
-        StartPosition = FormStartPosition.CenterParent;
-        BackColor = theme.SurfaceStrong;
-        DoubleBuffered = true;
-        ClientSize = new Size(S(460), S(184));
-
-        var caption = new Label
-        {
-            Text = label, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = Color.Transparent,
-            AutoSize = false, Bounds = new Rectangle(S(24), S(24), S(412), S(22)),
-        };
-        _field = new InputField(theme, fonts) { Bounds = new Rectangle(S(24) - margin, S(52) - margin, S(412) + 2 * margin, S(40) + 2 * margin) };
-        Input.Text = initial;
-        Input.AccessibleName = label;
-
-        var ok = new PillButton("OK") { Theme = theme, Fonts = fonts, Primary = true };
-        var cancel = new PillButton("Cancel") { Theme = theme, Fonts = fonts };
-        var okSize = ok.PreferredButtonSize();
-        var cancelSize = cancel.PreferredButtonSize();
-        var buttonsTop = ClientSize.Height - S(24) - okSize.Height + margin;
-        cancel.Bounds = new Rectangle(ClientSize.Width - S(24) + margin - cancelSize.Width, buttonsTop, cancelSize.Width, cancelSize.Height);
-        ok.Bounds = new Rectangle(cancel.Left - S(8) + 2 * margin - okSize.Width, buttonsTop, okSize.Width, okSize.Height);
-        ok.Click += (_, _) => { DialogResult = DialogResult.OK; Close(); };
-        cancel.Click += (_, _) => { DialogResult = DialogResult.Cancel; Close(); };
-        Controls.AddRange(new Control[] { caption, _field, ok, cancel });
-        KeyPreview = true;
-        KeyDown += (_, e) =>
-        {
-            if (e.KeyCode == Keys.Enter) { DialogResult = DialogResult.OK; Close(); e.SuppressKeyPress = true; }
-            else if (e.KeyCode == Keys.Escape) { DialogResult = DialogResult.Cancel; Close(); }
-        };
-        HandleCreated += (_, _) => Theme.ApplyWindowChrome(this, theme);
-        Shown += (_, _) => { Input.Focus(); Input.SelectAll(); };
-    }
-
-    protected override void OnPaintBackground(PaintEventArgs e)
-    {
-        // The atmosphere shows faintly through a strong glass surface, so the modal reads as the top layer.
-        var g = e.Graphics;
-        _backdrop.Paint(g, e.ClipRectangle, ClientSize, _theme);
-        using (var veil = new SolidBrush(Theme.WithAlpha(_theme.SurfaceStrong, 215)))
-            g.FillRectangle(veil, e.ClipRectangle);
-        using var highlight = new Pen(_theme.GlassHighlight, 1);
-        g.DrawLine(highlight, 0, 0, ClientSize.Width, 0);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            _backdrop.Dispose();
-        base.Dispose(disposing);
-    }
-
-    /// <summary>Returns the trimmed text, or null if cancelled or left empty.</summary>
-    public static string? Ask(IWin32Window owner, Theme theme, Fonts fonts, string title, string label, string initial = "")
-    {
-        using var dialog = new PromptDialog(theme, fonts, title, label, initial);
-        return ModalScrim.Show(owner, theme, () => dialog.ShowDialog(owner)) == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.Input.Text)
-            ? dialog.Input.Text.Trim()
-            : null;
-    }
-
-    /// <summary>A rounded input surface around a borderless native text box, with an accent focus ring.</summary>
-    private sealed class InputField : PaintedControl
-    {
-        public InputField(Theme theme, Fonts fonts)
-        {
-            Theme = theme;
-            Fonts = fonts;
-            Cursor = Cursors.IBeam;
-            // Native edit controls can't be translucent, so the input surface is opaque and the text box matches it.
-            TextBox = new TextBox { BorderStyle = BorderStyle.None, Font = fonts.Body, ForeColor = theme.TextPrimary, BackColor = theme.InputSolid };
-            TextBox.GotFocus += (_, _) => Invalidate();
-            TextBox.LostFocus += (_, _) => Invalidate();
-            Controls.Add(TextBox);
-        }
-
-        public TextBox TextBox { get; }
-
-        protected override void OnMouseDown(MouseEventArgs e)
-        {
-            base.OnMouseDown(e);
-            TextBox.Focus();
-        }
-
-        protected override void OnLayout(LayoutEventArgs levent)
-        {
-            base.OnLayout(levent);
-            var body = Rectangle.Round(BodyRect);
-            var height = TextBox.PreferredHeight;
-            TextBox.Bounds = new Rectangle(body.X + S(12), body.Y + (body.Height - height) / 2, Math.Max(0, body.Width - S(24)), height);
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            var body = BodyRect;
-            var radius = S(Radius.Input);
-            var focused = TextBox.Focused;
-            using var path = Theme.RoundedRect(body, radius);
-            using (var fill = new SolidBrush(Theme.InputSolid))
-                g.FillPath(fill, path);
-            if (focused)
-            {
-                Glass.PaintBorder(g, path, body, Theme.AccentBorder, Theme.AccentBorder);
-                // Soft ring rather than a glow: visible, not loud.
-                var ring = RectangleF.Inflate(body, UiScale * 1.5f, UiScale * 1.5f);
-                using var ringPath = Theme.RoundedRect(ring, radius + UiScale * 1.5f);
-                using var ringPen = new Pen(Theme.WithAlpha(Theme.Accent, 70), 3 * UiScale);
-                g.DrawPath(ringPen, ringPath);
-            }
-            else
-            {
-                Glass.PaintBorder(g, path, body, Theme.GlassBorderStrong, Theme.GlassBorder);
-            }
-        }
     }
 }
 

@@ -1,9 +1,9 @@
 # Builds the app and both installers into .\publish
-#   publish\GameSessionTrackerSetup.exe          full installer, works offline
-#   publish\GameSessionTrackerSetup-Online.exe   small installer, downloads the .NET runtime if needed
+#   publish\PlaytimeTrackerSetup.exe          full installer, works offline
+#   publish\PlaytimeTrackerSetup-Online.exe   small installer, downloads the .NET runtime if needed
 # Requires the .NET 8 SDK (https://dotnet.microsoft.com/download/dotnet/8.0)
 # and NSIS for the installers (https://nsis.sourceforge.io, or: winget install NSIS.NSIS).
-param([string]$Version = "1.2.0")
+param([string]$Version = "2.0.0")
 $ErrorActionPreference = 'Stop'
 $project = "$PSScriptRoot\src\GameSessionTracker"
 $out = "$PSScriptRoot\publish"
@@ -21,17 +21,17 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
 if (-not $makensis) { $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
 if (-not (Test-Path $makensis)) {
-    Write-Warning "NSIS not found, skipping installers. The app is at $out\full\GameSessionTracker.exe"
+    Write-Warning "NSIS not found, skipping installers. The app is at $out\full\PlaytimeTracker.exe"
     exit 0
 }
 
 Push-Location "$PSScriptRoot\installer"
 try {
-    & $makensis /V2 "/DVERSION=$Version" "/DEXE_PATH=$out\full\GameSessionTracker.exe" "/DOUT_FILE=$out\GameSessionTrackerSetup.exe" GameSessionTracker.nsi
+    & $makensis /V2 "/DVERSION=$Version" "/DEXE_PATH=$out\full\PlaytimeTracker.exe" "/DOUT_FILE=$out\PlaytimeTrackerSetup.exe" PlaytimeTracker.nsi
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
-    & $makensis /V2 /DONLINE "/DVERSION=$Version" "/DEXE_PATH=$out\online\GameSessionTracker.exe" "/DOUT_FILE=$out\GameSessionTrackerSetup-Online.exe" GameSessionTracker.nsi
+    & $makensis /V2 /DONLINE "/DVERSION=$Version" "/DEXE_PATH=$out\online\PlaytimeTracker.exe" "/DOUT_FILE=$out\PlaytimeTrackerSetup-Online.exe" PlaytimeTracker.nsi
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 } finally {
     Pop-Location
 }
-Write-Host "`nDone:`n  $out\GameSessionTrackerSetup.exe`n  $out\GameSessionTrackerSetup-Online.exe"
+Write-Host "`nDone:`n  $out\PlaytimeTrackerSetup.exe`n  $out\PlaytimeTrackerSetup-Online.exe"

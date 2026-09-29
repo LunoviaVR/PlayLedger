@@ -8,7 +8,8 @@ internal static class StartupManager
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     // Where Task Manager's "Startup apps" page records apps you've disabled.
     private const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-    private const string ValueName = "GameSessionTracker";
+    private const string ValueName = "PlaytimeTracker";
+    private const string LegacyValueName = "GameSessionTracker"; // before the rename to Playtime Tracker
 
     private static string Command => $"\"{Environment.ProcessPath}\" --startup";
 
@@ -35,6 +36,24 @@ internal static class StartupManager
         else
         {
             run.DeleteValue(ValueName, throwOnMissingValue: false);
+        }
+    }
+
+    /// <summary>Moves a startup entry written under the old app name to the new one, keeping Task Manager's on/off state.</summary>
+    public static void MigrateLegacyEntry()
+    {
+        using var run = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
+        if (run?.GetValue(LegacyValueName) is not string)
+            return;
+        using var approved = Registry.CurrentUser.OpenSubKey(ApprovedKey, writable: true);
+        var state = approved?.GetValue(LegacyValueName) as byte[];
+        run.SetValue(ValueName, Command);
+        run.DeleteValue(LegacyValueName, throwOnMissingValue: false);
+        if (approved is not null)
+        {
+            if (state is not null)
+                approved.SetValue(ValueName, state, RegistryValueKind.Binary);
+            approved.DeleteValue(LegacyValueName, throwOnMissingValue: false);
         }
     }
 
