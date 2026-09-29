@@ -3,7 +3,7 @@
 A small Windows 11 app that runs in the system tray, notices when you open a game, and keeps track of
 how many times you've played each game and how long every session lasted.
 
-![Dashboard](docs/dashboard.png)
+![Overview](docs/dashboard.png)
 
 - **Dashboard**: all your data in one window. Left-click the tray icon (or open *Playtime Tracker* from the Start menu).
 - **Runs in the background** in the system tray (the controller icon). Right-click it for **Open dashboard**, **Settings** and **Exit**.
@@ -30,6 +30,16 @@ The window has four pages, switched at the top right (or with Tab then ←/→):
 - **History**: the **last 30 days**, one row per day: total playtime, which games you played and for how long, and a bar
   compared with your busiest day. Click a day to list its sessions, then click a session for its details.
 - **Settings**: see [Settings](#settings).
+
+In a light Windows theme (or with **Theme → Light**) it looks like this:
+
+![Overview in the light theme](docs/dashboard-light.png)
+
+| Games | History |
+| --- | --- |
+| ![Games](docs/games.png) | ![History](docs/history.png) |
+
+![Session details](docs/session-details.png)
 
 **Session details** (click any session, finished or still running) show when the game was **opened** and **closed**
 (to the second), how long it ran, the program that was tracked (with **Show program** to open its folder), which session
