@@ -37,8 +37,9 @@ const CMD_EXIT: usize = 3;
 const CMD_UPDATE: usize = 4;
 const ICON_ID: u32 = 1;
 
-/// The dashboard executable, next to the tracker (phase 8).
+/// The dashboard: installed in a `Dashboard` folder next to the tracker (or right next to it in a dev build).
 const DASHBOARD_EXE: &str = "PlaytimeTracker.Dashboard.exe";
+const DASHBOARD_FOLDER: &str = "Dashboard";
 
 static APP_ICON: &[u8] = include_bytes!("../../../src/GameSessionTracker/app.ico");
 
@@ -187,10 +188,14 @@ fn status_tooltip(service: &Service) -> String {
 
 /// The dashboard executable next to the tracker, if it's installed.
 pub fn dashboard_path() -> Option<PathBuf> {
-    std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join(DASHBOARD_EXE)))
-        .filter(|path| path.is_file())
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    [
+        dir.join(DASHBOARD_FOLDER).join(DASHBOARD_EXE),
+        dir.join(DASHBOARD_EXE),
+    ]
+    .into_iter()
+    .find(|path| path.is_file())
 }
 
 /// Opens the dashboard (optionally on a page), or the data folder if the dashboard isn't installed.

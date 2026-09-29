@@ -134,6 +134,22 @@ new name, and every step is appended to `migration.log` in the data folder.
   automatic backups are kept; other folders in `Backups` are never touched.
 - The running version is recorded in the settings (`lastRunVersion`, the same field the C# app uses).
 
+## Installer and the switch-over (phases 10–11)
+
+`build-next.ps1` builds `playtime-tracker.exe` (release) and the self-contained dashboard, then
+`installer/PlaytimeTracker-Next.nsi` packs them into `PlaytimeTrackerSetup-Preview.exe`. The Build workflow's
+`preview` job produces it on every push as the `PlaytimeTracker-Preview` artifact. It installs per user to the same
+place with the same Apps entry, Start menu shortcut and Run entry as the C# app, so it upgrades an existing install in
+place: it closes whichever tracker is running (both answer `--exit`), removes `PlaytimeTracker.exe`, and puts the
+dashboard in its own `Dashboard\` folder (the only folder it ever removes recursively). The data folder isn't
+touched by setup; the tracker's migrations back it up on first run. Uninstalling removes the artwork cache and,
+if "Delete my play history" is ticked, the saved SteamGridDB key too.
+
+**Releases still ship the C# app.** Switching them over (having the release job attach the preview installer as
+`Setup.exe`) is a one-line change, but it updates every existing user automatically, so it waits until the preview
+has been installed over a real 2.x install and checked: tracking, the tray, the dashboard pages, settings, updates
+and uninstall.
+
 ## Phases
 
 | # | Phase | Status |
@@ -147,8 +163,8 @@ new name, and every step is appended to `migration.log` in the data folder.
 | 7 | Tray/background tracker in Rust | Done: see *The tracker service* above (built and checked in CI; not installed yet) |
 | 8 | WinUI 3 dashboard | Built: see *The dashboard* above (checked in CI; not installed yet) |
 | 9 | Migrations (verify-then-switch, logs, backups) | Done: see *Migrations* above |
-| 10 | Replace the C# entry point | Next |
-| 11 | Installer and CI for the Rust build | CI checks added (`.github/workflows/rust.yml`) |
+| 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing |
+| 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove C# after parity is verified | Planned |
 
 ## Checks

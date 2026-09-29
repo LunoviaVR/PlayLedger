@@ -27,8 +27,15 @@ public sealed class TrackerClient : IAsyncDisposable
 
     public string? TrackerVersion { get; private set; }
 
-    /// <summary>The tracker next to this dashboard.</summary>
-    public static string TrackerPath => Path.Combine(AppContext.BaseDirectory, TrackerExeName);
+    /// <summary>The installed tracker: one folder up (the dashboard lives in "Dashboard\"), or alongside in a dev build.</summary>
+    public static string TrackerPath
+    {
+        get
+        {
+            var installed = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", TrackerExeName));
+            return File.Exists(installed) ? installed : Path.Combine(AppContext.BaseDirectory, TrackerExeName);
+        }
+    }
 
     private static async Task<TrackerConnection> OpenAsync(CancellationToken cancellationToken)
     {
