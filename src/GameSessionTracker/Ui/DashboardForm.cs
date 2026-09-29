@@ -9,9 +9,9 @@ internal sealed class DashboardForm : Form
 {
     private const string AllGames = "\0all"; // sentinel item for the "All games" row
 
-    private const int OverviewTab = 0;
-    private const int GamesTab = 1;
-    private const int HistoryTab = 2;
+    public const int OverviewTab = 0;
+    public const int GamesTab = 1;
+    public const int HistoryTab = 2;
     public const int SettingsTab = 3;
 
     private readonly ITrackerHost _host;

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Renders the README screenshots (docs/*.png) from the real dashboard code with made-up sample data.
+    Windows only. Usage: dotnet run -c Release --project tools/Screenshots -- docs
+    Not part of the app or its installers.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>GameSessionTracker</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The app's own source (minus its entry point), so the screenshots show exactly what the app draws. -->
+    <Compile Include="..\..\src\GameSessionTracker\**\*.cs"
+             Exclude="..\..\src\GameSessionTracker\Program.cs;..\..\src\GameSessionTracker\obj\**;..\..\src\GameSessionTracker\bin\**"
+             Link="App\%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\src\GameSessionTracker\app.ico" LogicalName="GameSessionTracker.app.ico" />
+  </ItemGroup>
+
+</Project>
