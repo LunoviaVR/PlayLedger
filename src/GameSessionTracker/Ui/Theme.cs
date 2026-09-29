@@ -9,7 +9,7 @@ namespace GameSessionTracker.Ui;
 /// Colours with alpha are painted with GDI+ over the atmospheric backdrop. Text colours are opaque because
 /// GDI text (TextRenderer) ignores alpha.
 /// </summary>
-internal sealed class Theme
+internal sealed record Theme
 {
     public required bool IsDark { get; init; }
 
@@ -48,6 +48,7 @@ internal sealed class Theme
     public required Color AccentSecondary { get; init; }
     public required Color AccentGradientStart { get; init; } // primary buttons, switch "on"
     public required Color AccentGradientEnd { get; init; }
+    public required Color AccentText { get; init; }          // accent-coloured text and links (readable on the glass)
     public required Color AccentSoft { get; init; }          // selected rows, active tab
     public required Color AccentBorder { get; init; }
     public required Color FocusRing { get; init; }
@@ -104,6 +105,7 @@ internal sealed class Theme
         AccentSecondary = Hex("#818cf8"),
         AccentGradientStart = Hex("#3b82f6"),
         AccentGradientEnd = Hex("#6366f1"),
+        AccentText = Hex("#93c5fd"),
         AccentSoft = Rgba(96, 165, 250, 0.14),
         AccentBorder = Rgba(96, 165, 250, 0.45),
         FocusRing = Rgba(96, 165, 250, 0.70),
@@ -159,6 +161,7 @@ internal sealed class Theme
         AccentSecondary = Hex("#6366f1"),
         AccentGradientStart = Hex("#3b82f6"),
         AccentGradientEnd = Hex("#6366f1"),
+        AccentText = Hex("#1d4ed8"),
         AccentSoft = Rgba(37, 99, 235, 0.10),
         AccentBorder = Rgba(37, 99, 235, 0.40),
         FocusRing = Rgba(37, 99, 235, 0.65),
@@ -181,21 +184,42 @@ internal sealed class Theme
         NeutralSoft = Rgba(15, 23, 42, 0.06),
     };
 
-    public static Theme Current()
+    private static readonly Dictionary<(bool Dark, string Accent), Theme> Resolved = new();
+
+    /// <summary>The theme for the user's appearance settings (light/dark mode and accent colour). Cached, so the same
+    /// settings always give the same instance.</summary>
+    public static Theme Resolve(Settings settings)
+    {
+        var dark = settings.ThemeMode switch
+        {
+            "dark" => true,
+            "light" => false,
+            _ => SystemPrefersDark(),
+        };
+        var key = (dark, settings.AccentColor ?? "blue");
+        lock (Resolved)
+        {
+            if (!Resolved.TryGetValue(key, out var theme))
+                Resolved[key] = theme = Accents.Apply(dark ? Dark : Light, Accents.Parse(key.Item2));
+            return theme;
+        }
+    }
+
+    public static bool SystemPrefersDark()
     {
         try
         {
             var value = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", 1);
-            return value is int i && i == 0 ? Dark : Light;
+            return value is int i && i == 0;
         }
         catch
         {
-            return Light;
+            return false;
         }
     }
 
-    private static Color Hex(string html) => ColorTranslator.FromHtml(html);
-    private static Color Rgba(int r, int g, int b, double a) => Color.FromArgb((int)Math.Round(a * 255), r, g, b);
+    internal static Color Hex(string html) => ColorTranslator.FromHtml(html);
+    internal static Color Rgba(int r, int g, int b, double a) => Color.FromArgb((int)Math.Round(a * 255), r, g, b);
 
     /// <summary>Straight alpha-blend of <paramref name="top"/> over an opaque <paramref name="bottom"/>, for GDI text and native controls.</summary>
     public static Color Over(Color top, Color bottom)
@@ -375,6 +399,7 @@ internal sealed class Fonts : IDisposable
 {
     public Font Title { get; }
     public Font TileValue { get; }
+    public Font Subtitle { get; }
     public Font Heading { get; }
     public Font Body { get; }
     public Font BodyStrong { get; }
@@ -387,6 +412,7 @@ internal sealed class Fonts : IDisposable
         var semibold = Pick("Segoe UI Semibold", "Segoe UI");
         Title = new Font(semibold, 28 * scale, FontStyle.Regular, GraphicsUnit.Pixel);
         TileValue = new Font(semibold, 26 * scale, FontStyle.Regular, GraphicsUnit.Pixel);
+        Subtitle = new Font(semibold, 21 * scale, FontStyle.Regular, GraphicsUnit.Pixel);
         Heading = new Font(semibold, 15 * scale, FontStyle.Regular, GraphicsUnit.Pixel);
         Body = new Font(regular, 14 * scale, FontStyle.Regular, GraphicsUnit.Pixel);
         BodyStrong = new Font(semibold, 14 * scale, FontStyle.Regular, GraphicsUnit.Pixel);
@@ -408,6 +434,7 @@ internal sealed class Fonts : IDisposable
     {
         Title.Dispose();
         TileValue.Dispose();
+        Subtitle.Dispose();
         Heading.Dispose();
         Body.Dispose();
         BodyStrong.Dispose();

@@ -2,6 +2,8 @@ namespace GameSessionTracker;
 
 internal static class Program
 {
+    // These names predate the rename to Playtime Tracker. Keeping them means an older copy that is still running
+    // is detected (and can be closed by the installer) instead of both tracking at once.
     private const string SingleInstanceMutexName = @"Local\GameSessionTracker.SingleInstance";
     private const string ExitEventName = @"Local\GameSessionTracker.Exit";
     private const string ShowEventName = @"Local\GameSessionTracker.Show";
@@ -27,8 +29,8 @@ internal static class Program
                 return;
             }
             MessageBox.Show(
-                "Game Session Tracker is already running.\n\nLook for the controller icon in the system tray (click the ^ arrow next to the clock if you don't see it).",
-                "Game Session Tracker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "Playtime Tracker is already running.\n\nLook for the controller icon in the system tray (click the ^ arrow next to the clock if you don't see it).",
+                "Playtime Tracker", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 

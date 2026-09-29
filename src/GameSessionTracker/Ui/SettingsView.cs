@@ -9,6 +9,11 @@ internal sealed class SettingsView : Panel
     private readonly ITrackerHost _host;
     private readonly Func<(Theme Theme, Fonts Fonts)> _style;
 
+    private readonly SettingsCard _appearance = new() { Title = "Appearance", Description = "Colours for the dashboard, its dialogs and the tray menu." };
+    private readonly ChoiceSegments _themeMode = new("System", "Dark", "Light");
+    private readonly SwatchPicker _accent = new();
+    private static readonly string[] ThemeModes = { "system", "dark", "light" };
+
     private readonly SettingsCard _general = new() { Title = "General" };
     private readonly ToggleSwitch _startWithWindows = new();
     private readonly ToggleSwitch _notifications = new();
@@ -61,6 +66,9 @@ internal sealed class SettingsView : Panel
         SetStyle(ControlStyles.SupportsTransparentBackColor | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
         BackColor = Color.Transparent; // the window's backdrop shows through between the cards
 
+        _appearance.AddRow("Theme", "Follow Windows' light/dark setting, or always use one.", _themeMode);
+        _appearance.AddRow("Accent colour", "", _accent);
+
         _general.AddRow("Start with Windows", "Start quietly in the system tray when you sign in.", _startWithWindows);
         _general.AddRow("Notifications", "Show a notification each time a session is logged.", _notifications);
         _general.AddRow("Use Windows' game list", "Also track programs the Xbox Game Bar recognises as games.", _windowsGameList);
@@ -73,15 +81,18 @@ internal sealed class SettingsView : Panel
         _tracking.AddRow("Same-session window", "A game that closes and reopens within this time stays one session.", _gracePeriod);
 
         var version = Assembly.GetExecutingAssembly().GetName().Version;
-        _data.Description = $"Game Session Tracker {version?.ToString(3)}";
+        _data.Description = $"Playtime Tracker {version?.ToString(3)}";
         _data.AddRow("Rescan installed games", "Look for newly installed games right now.", _rescan);
         _data.AddRow("Export sessions", "Save every session to a spreadsheet file (.csv).", _export);
         _data.AddRow("Text report", "A plain-text summary of all your stats.", _report);
         _data.AddRow("Data folder", host.DataFolder, _folder);
 
-        Controls.AddRange(new Control[] { _general, _tracking, _customGames, _gameFolders, _ignoredGames, _ignoredPrograms, _data });
+        Controls.AddRange(new Control[] { _appearance, _general, _tracking, _customGames, _gameFolders, _ignoredGames, _ignoredPrograms, _data });
 
         // ---- events ----
+        _themeMode.SelectedIndexChanged += (_, _) => ChangeAppearance(s => s.ThemeMode = ThemeModes[_themeMode.SelectedIndex]);
+        _accent.SelectionChanged += key => ChangeAppearance(s => s.AccentColor = key);
+        _accent.CustomRequested += PickCustomAccent;
         _startWithWindows.CheckedChanged += (_, _) => { if (!_loading) _host.StartWithWindows = _startWithWindows.Checked; };
         _notifications.CheckedChanged += (_, _) => Change(s => s.ShowNotifications = _notifications.Checked);
         _windowsGameList.CheckedChanged += (_, _) => Change(s => s.UseWindowsGameList = _windowsGameList.Checked, detection: true);
@@ -123,6 +134,9 @@ internal sealed class SettingsView : Panel
         try
         {
             var s = _host.Settings;
+            _themeMode.SelectedIndex = Math.Max(0, Array.IndexOf(ThemeModes, s.ThemeMode));
+            _accent.SelectedKey = s.AccentColor;
+            DescribeAccent(s.AccentColor);
             _startWithWindows.Checked = _host.StartWithWindows;
             _notifications.Checked = s.ShowNotifications;
             _windowsGameList.Checked = s.UseWindowsGameList;
@@ -191,6 +205,7 @@ internal sealed class SettingsView : Panel
     private IEnumerable<PaintedControl> AllPainted() =>
         new PaintedControl[]
         {
+            _appearance, _themeMode, _accent,
             _general, _startWithWindows, _notifications, _windowsGameList,
             _tracking, _pollInterval, _minimumSession, _gracePeriod,
             _customGames, _gameFolders, _ignoredGames, _ignoredPrograms,
@@ -219,6 +234,7 @@ internal sealed class SettingsView : Panel
             y += height + gap;
         }
 
+        Place(_appearance, _appearance.PreferredHeight);
         Place(_general, _general.PreferredHeight);
         Place(_tracking, _tracking.PreferredHeight);
         Place(_customGames, _customGames.PreferredHeight);
@@ -235,6 +251,39 @@ internal sealed class SettingsView : Panel
     {
         if (!_loading)
             _host.UpdateSettings(change, detection);
+    }
+
+    /// <summary>Raised after the theme or accent changed, so the window can repaint in the new colours right away.</summary>
+    public event Action? AppearanceChanged;
+
+    private void ChangeAppearance(Action<Settings> change)
+    {
+        if (_loading)
+            return;
+        _host.UpdateSettings(change);
+        DescribeAccent(_host.Settings.AccentColor);
+        AppearanceChanged?.Invoke();
+    }
+
+    private void DescribeAccent(string key)
+    {
+        var accent = Accents.Parse(key);
+        _appearance.SetRowDescription(_accent, accent.Name == "Custom" ? $"Custom ({accent.Key}). Used for buttons, selection, charts and highlights." : $"{accent.Name}. Used for buttons, selection, charts and highlights.");
+    }
+
+    private void PickCustomAccent()
+    {
+        using var dialog = new ColorDialog
+        {
+            FullOpen = true,
+            AnyColor = true,
+            Color = Accents.Parse(_host.Settings.AccentColor).GradientStart,
+        };
+        if (dialog.ShowDialog(FindForm()) != DialogResult.OK)
+            return;
+        var key = Accents.ToKey(dialog.Color);
+        _accent.SelectedKey = key;
+        ChangeAppearance(s => s.AccentColor = key);
     }
 
     private void ChangeList(Action<Settings> change)

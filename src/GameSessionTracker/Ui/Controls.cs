@@ -140,7 +140,10 @@ internal sealed class HeaderBar : PaintedControl
         _tabBounds.Clear();
         var tabHeight = S(38);
         var inset = S(4);
-        var widths = Tabs.Select(t => TextRenderer.MeasureText(g, t, Fonts.BodyStrong, Size.Empty, measure).Width + S(32)).ToList();
+        var textWidths = Tabs.Select(t => TextRenderer.MeasureText(g, t, Fonts.BodyStrong, Size.Empty, measure).Width).ToList();
+        // Narrow windows: tighter tabs so the title keeps room.
+        var tabPadding = textWidths.Sum() + S(32) * Tabs.Length > Width * 0.45f ? S(18) : S(32);
+        var widths = textWidths.Select(w => w + tabPadding).ToList();
         var total = widths.Sum() + inset * 2;
         var outer = new Rectangle(Width - total - S(Glass.FocusMargin), (Height - tabHeight) / 2, total, tabHeight);
         Glass.PaintSurface(g, new RectangleF(outer.X + 0.5f, outer.Y + 0.5f, outer.Width - 1, outer.Height - 1), S(Radius.Input), Theme.GlassControl, Theme, sheen: false);
@@ -165,7 +168,7 @@ internal sealed class HeaderBar : PaintedControl
                 using var fill = new SolidBrush(Theme.GlassHover);
                 g.FillPath(fill, path);
             }
-            var color = i == SelectedTab ? (Theme.IsDark ? Theme.InfoText : Theme.Accent) : i == _hotTab ? Theme.TextPrimary : Theme.TextSecondary;
+            var color = i == SelectedTab ? Theme.AccentText : i == _hotTab ? Theme.TextPrimary : Theme.TextSecondary;
             DrawLabel(g, Tabs[i], i == SelectedTab ? Fonts.BodyStrong : Fonts.Body, color, r, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             x += widths[i];
         }
@@ -259,7 +262,7 @@ internal sealed class FooterBar : PaintedControl
         DrawLabel(g, Message, Fonts.Small, Theme.TextMuted, new Rectangle(0, 0, messageWidth + S(4), Height), TextFormatFlags.VerticalCenter);
         _linkBounds = new Rectangle(messageWidth + S(16), (Height - linkSize.Height) / 2, linkSize.Width + S(4), linkSize.Height);
         using var font = _linkHot ? new Font(Fonts.Small, FontStyle.Underline) : null;
-        DrawLabel(g, LinkText, font ?? Fonts.Small, Theme.IsDark ? Theme.InfoText : Theme.Accent, _linkBounds, TextFormatFlags.VerticalCenter);
+        DrawLabel(g, LinkText, font ?? Fonts.Small, Theme.AccentText, _linkBounds, TextFormatFlags.VerticalCenter);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -299,6 +302,9 @@ internal sealed class DailyChart : PaintedControl, IGlassSurface
     public string Title { get; set; } = "";
     public string Detail { get; set; } = "";
 
+    /// <summary>A day's bar was clicked (only days with playtime).</summary>
+    public event Action<DateTime>? DayClicked;
+
     public IReadOnlyList<DayTotal> Days
     {
         get => _days;
@@ -329,8 +335,16 @@ internal sealed class DailyChart : PaintedControl, IGlassSurface
         if (index != _hover)
         {
             _hover = index;
+            Cursor = index >= 0 && _days[index].Total > TimeSpan.Zero ? Cursors.Hand : Cursors.Default;
             Invalidate();
         }
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        if (e.Button == MouseButtons.Left && _hover >= 0 && _hover < _days.Count && _days[_hover].Total > TimeSpan.Zero)
+            DayClicked?.Invoke(_days[_hover].Day);
     }
 
     protected override void OnMouseLeave(EventArgs e)
@@ -427,7 +441,7 @@ internal sealed class DailyChart : PaintedControl, IGlassSurface
     {
         var day = _days[_hover];
         var line1 = day.Day.ToString("dddd, MMM d");
-        var line2 = day.Total > TimeSpan.Zero ? ReportWriter.FormatDuration(day.Total) : "No play";
+        var line2 = day.Total > TimeSpan.Zero ? $"{ReportWriter.FormatDuration(day.Total)} · click for sessions" : "No play";
         var flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
         var size1 = TextRenderer.MeasureText(g, line1, Fonts!.Small, Size.Empty, flags);
         var size2 = TextRenderer.MeasureText(g, line2, Fonts.BodyStrong, Size.Empty, flags);

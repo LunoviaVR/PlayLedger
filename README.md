@@ -1,11 +1,11 @@
-# Game Session Tracker
+# Playtime Tracker
 
 A small Windows 11 app that runs in the system tray, notices when you open a game, and keeps track of
 how many times you've played each game and how long every session lasted.
 
 ![Dashboard](docs/dashboard.png)
 
-- **Dashboard**: all your data in one window. Left-click the tray icon (or open *Game Session Tracker* from the Start menu).
+- **Dashboard**: all your data in one window. Left-click the tray icon (or open *Playtime Tracker* from the Start menu).
 - **Runs in the background** in the system tray (the controller icon). Right-click it for **Open dashboard**, **Settings** and **Exit**.
 - **Starts with Windows** automatically. You can turn this off in **Settings**.
 - **Close it any time** with **Exit** in the tray menu. A game that's running when you exit is logged up to that moment.
@@ -15,24 +15,39 @@ how many times you've played each game and how long every session lasted.
 
 ## The dashboard
 
-- **Top row**: total playtime, number of sessions (and the average length), the past 7 days, and your most-played game.
-- **Daily playtime**: a bar per day for the last 30 days. Hover a bar to see the exact time.
-- **Games**: every game with its total time, session count and when you last played it. Click a game to filter the whole window
-  (tiles, chart and sessions) to that game; click **All games** to go back.
-- **Sessions**: every session, newest first, with date, start and end time, and length. A game you're playing right now
-  shows at the top and counts up live.
-- **Right-click a game** to stop tracking it (or track it again), or to delete its history.
-  **Right-click a session** to delete it.
+The window has four pages, switched at the top right (or with Tab then ←/→):
+
+- **Overview**
+  - **Top row**: total playtime, number of sessions (and the average length), the past 7 days, and your most-played game.
+  - **Daily playtime**: a bar per day for the last 30 days. Hover a bar to see the exact time; **click a bar** to see that day's sessions.
+  - **Games**: every game with its total time, session count and when you last played it. Click a game to filter the whole
+    page (tiles, chart and sessions) to that game; click **All games** to go back.
+  - **Sessions**: every session, newest first, with date, start and end time, and length. A game you're playing right now
+    shows at the top and counts up live. **Click a session** (or select it and press Enter) for its details.
+- **Games**: what you're **playing now** (with when you opened it and how long it's been running) and every game you've
+  **played before**, most recent first, with total and average time, session count, and first and last played.
+  Click a game to open it on the Overview.
+- **History**: the **last 30 days**, one row per day: total playtime, which games you played and for how long, and a bar
+  compared with your busiest day. Click a day to list its sessions, then click a session for its details.
+- **Settings**: see [Settings](#settings).
+
+**Session details** (click any session, finished or still running) show when the game was **opened** and **closed**
+(to the second), how long it ran, the program that was tracked (with **Show program** to open its folder), which session
+it was for that game (e.g. *#3 of 12*), the game's total, and that day's total. A running session keeps updating while
+the window is open. Finished sessions can be deleted from here too.
+
+**Right-click a game** to stop tracking it (or track it again), or to delete its history.
+**Right-click a session** for its details or to delete it.
 
 When a game is selected, the tiles also show its average and longest session, and when you first played it.
 
-It follows your Windows light/dark setting. Closing the window doesn't stop tracking; the app keeps running in the tray.
+Closing the window doesn't stop tracking; the app keeps running in the tray.
 
 ## Install
 
 1. Download one of the installers:
-   - **`GameSessionTrackerSetup.exe`** (about 48 MB) has everything built in and works offline.
-   - **`GameSessionTrackerSetup-Online.exe`** (under 1 MB) is the same app. If your PC doesn't already have
+   - **`PlaytimeTrackerSetup.exe`** (about 48 MB) has everything built in and works offline.
+   - **`PlaytimeTrackerSetup-Online.exe`** (under 1 MB) is the same app. If your PC doesn't already have
      Microsoft's .NET 8 Desktop Runtime, setup downloads and installs it for you (Windows will ask for permission once).
 
    Both are built automatically by the **Build** workflow on GitHub (Actions tab → latest run → *Artifacts*),
@@ -40,7 +55,7 @@ It follows your Windows light/dark setting. Closing the window doesn't stop trac
 2. Double-click it and click through **Next → Next → Install → Finish**. No admin rights, no command prompt.
 
 The installer:
-- installs to `%LocalAppData%\Programs\Game Session Tracker`
+- installs to `%LocalAppData%\Programs\Playtime Tracker`
 - adds a Start menu shortcut (and a desktop shortcut if you tick the box)
 - sets it to start with Windows
 - adds it to **Settings → Apps → Installed apps** so you can uninstall it like any other app
@@ -48,14 +63,18 @@ The installer:
 
 Running the installer again upgrades in place and keeps your history.
 
-Windows 11 hides new tray icons behind the **^** arrow next to the clock. To keep it visible: *Settings → Personalization → Taskbar → Other system tray icons* → turn on **Game Session Tracker**.
+**Coming from Game Session Tracker?** This is the same app under a new name. The installer closes and removes the old
+version (its shortcuts, startup entry and Apps list entry), and on first start the app moves your history from
+`Documents\Game Session Tracker` to `Documents\Playtime Tracker`. Your settings and sessions carry over unchanged.
+
+Windows 11 hides new tray icons behind the **^** arrow next to the clock. To keep it visible: *Settings → Personalization → Taskbar → Other system tray icons* → turn on **Playtime Tracker**.
 
 The first time you run the installer, Windows SmartScreen may warn about an unrecognised app because it isn't code-signed.
 Click **More info → Run anyway**.
 
 ## Your files
 
-Everything lives in `Documents\Game Session Tracker\` (dashboard → **Settings** → **Your data** → **Open folder**):
+Everything lives in `Documents\Playtime Tracker\` (dashboard → **Settings** → **Your data** → **Open folder**):
 
 | File | What it is |
 | --- | --- |
@@ -96,6 +115,8 @@ Everything is in the dashboard's **Settings** tab (or tray menu → **Settings**
 
 ![Settings](docs/settings.png)
 
+- **Appearance**: **Theme** (follow Windows' light/dark setting, or always dark or light) and **Accent colour**
+  (blue, violet, teal, green, amber, rose, or **+** to pick any colour). Changes apply instantly to the dashboard, its dialogs and the tray menu.
 - **General**: start with Windows, notifications when a session is logged, and whether to use the Xbox Game Bar's list of games.
 - **Tracking**: how often to check for games (default 5 seconds), the shortest session worth keeping (30 seconds),
   and how long a game can be closed before a reopen counts as a new session (20 seconds).
@@ -109,8 +130,8 @@ Settings are stored in `settings.json`, which you can still edit by hand if you 
 
 ## Uninstall
 
-*Settings → Apps → Installed apps → Game Session Tracker → Uninstall.* The tracker is closed (any game in progress is logged first)
-and removed along with its shortcuts and startup entry. Your history in `Documents\Game Session Tracker\` is kept unless you tick
+*Settings → Apps → Installed apps → Playtime Tracker → Uninstall.* The tracker is closed (any game in progress is logged first)
+and removed along with its shortcuts and startup entry. Your history in `Documents\Playtime Tracker\` is kept unless you tick
 **Delete my play history and settings** in the uninstaller.
 
 ## Build it yourself

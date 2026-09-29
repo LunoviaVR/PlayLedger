@@ -31,6 +31,12 @@ public sealed class Settings
     /// <summary>Also treat programs that Windows (Xbox Game Bar) recognises as games as games.</summary>
     public bool UseWindowsGameList { get; set; } = true;
 
+    /// <summary>"system" (follow the Windows light/dark setting), "dark" or "light".</summary>
+    public string ThemeMode { get; set; } = "system";
+
+    /// <summary>Accent colour: a preset name ("blue", "violet", "teal", "green", "amber", "rose") or a colour like "#ff8800".</summary>
+    public string AccentColor { get; set; } = "blue";
+
     /// <summary>Extra folders where every sub-folder is a game, e.g. "D:\\Games".</summary>
     public List<string> ExtraGameFolders { get; set; } = new();
 
@@ -133,6 +139,8 @@ public sealed class Settings
         PollIntervalSeconds = Math.Clamp(PollIntervalSeconds, 1, 300);
         MinimumSessionSeconds = Math.Max(0, MinimumSessionSeconds);
         GracePeriodSeconds = Math.Max(0, GracePeriodSeconds);
+        ThemeMode = ThemeMode?.Trim().ToLowerInvariant() is "dark" or "light" ? ThemeMode.Trim().ToLowerInvariant() : "system";
+        AccentColor = string.IsNullOrWhiteSpace(AccentColor) ? "blue" : AccentColor.Trim().ToLowerInvariant();
         ExtraGameFolders ??= new();
         CustomGames ??= new();
         IgnoredGames ??= new();

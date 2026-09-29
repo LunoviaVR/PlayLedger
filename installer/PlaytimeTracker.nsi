@@ -1,29 +1,34 @@
-; Installer for Game Session Tracker.
-; Build: makensis -DVERSION=1.0.0 -DEXE_PATH=..\publish\GameSessionTracker.exe GameSessionTracker.nsi
+; Installer for Playtime Tracker.
+; Build: makensis -DVERSION=1.0.0 -DEXE_PATH=..\publish\PlaytimeTracker.exe PlaytimeTracker.nsi
 ;
 ; Two flavours:
 ;   default    EXE_PATH is the self-contained exe; works offline, nothing else needed.
 ;   -DONLINE   EXE_PATH is the small framework-dependent exe; setup downloads and installs the
 ;              .NET 8 Desktop Runtime from Microsoft if the PC doesn't already have it.
-; Installs per-user (no admin prompt) to %LocalAppData%\Programs\Game Session Tracker.
+; Installs per-user (no admin prompt) to %LocalAppData%\Programs\Playtime Tracker.
 
 Unicode true
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.2.0"
+  !define VERSION "2.0.0"
 !endif
 !ifndef EXE_PATH
-  !define EXE_PATH "..\publish\GameSessionTracker.exe"
+  !define EXE_PATH "..\publish\PlaytimeTracker.exe"
 !endif
 !ifndef OUT_FILE
-  !define OUT_FILE "..\publish\GameSessionTrackerSetup.exe"
+  !define OUT_FILE "..\publish\PlaytimeTrackerSetup.exe"
 !endif
 
-!define APP_NAME "Game Session Tracker"
-!define APP_EXE "GameSessionTracker.exe"
-!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\GameSessionTracker"
+!define APP_NAME "Playtime Tracker"
+!define APP_EXE "PlaytimeTracker.exe"
+!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\PlaytimeTracker"
+; Before the rename, the app was called Game Session Tracker. Setup removes that install (not its data, which the
+; app moves to Documents\Playtime Tracker on first start).
+!define LEGACY_NAME "Game Session Tracker"
+!define LEGACY_EXE "GameSessionTracker.exe"
+!define LEGACY_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\GameSessionTracker"
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 !define APPROVED_KEY "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
 
@@ -49,7 +54,7 @@ VIAddVersionKey "LegalCopyright" ""
 !define MUI_WELCOMEPAGE_TEXT "This will install ${APP_NAME} ${VERSION}.$\r$\n$\r$\nIt runs quietly in the system tray, notices when you open a game, and keeps a file with how many times you've played each game and how long every session lasted.$\r$\n$\r$\nNo administrator rights are needed.$\r$\n$\r$\nClick Next to continue."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME} now"
-!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been installed.$\r$\n$\r$\nIt will start automatically with Windows and live in the system tray (the controller icon, possibly behind the ^ arrow next to the clock).$\r$\n$\r$\nYour stats are saved in Documents\Game Session Tracker."
+!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been installed.$\r$\n$\r$\nIt will start automatically with Windows and live in the system tray (the controller icon, possibly behind the ^ arrow next to the clock).$\r$\n$\r$\nYour stats are saved in Documents\Playtime Tracker."
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -85,7 +90,7 @@ VIAddVersionKey "LegalCopyright" ""
   StrCmp $0 "3010" dotnet_done ; installed, restart recommended
 
 dotnet_failed:
-  MessageBox MB_ICONEXCLAMATION|MB_OK "Setup couldn't install the .NET 8 Desktop Runtime automatically.$\r$\n$\r$\nGame Session Tracker will still be installed. When you first start it, Windows will offer a link to download the runtime; or get it from https://dotnet.microsoft.com/download/dotnet/8.0 ($\".NET Desktop Runtime$\", x64)." /SD IDOK
+  MessageBox MB_ICONEXCLAMATION|MB_OK "Setup couldn't install the .NET 8 Desktop Runtime automatically.$\r$\n$\r$\nPlaytime Tracker will still be installed. When you first start it, Windows will offer a link to download the runtime; or get it from https://dotnet.microsoft.com/download/dotnet/8.0 ($\".NET Desktop Runtime$\", x64)." /SD IDOK
 dotnet_done:
 !macroend
 !endif
@@ -101,6 +106,24 @@ dotnet_done:
   Pop $0
 !macroend
 
+!macro RemoveLegacyInstall
+  ReadRegStr $1 HKCU "${LEGACY_KEY}" "InstallLocation"
+  StrCmp $1 "" legacy_done
+  IfFileExists "$1\${LEGACY_EXE}" 0 +2
+    ExecWait '"$1\${LEGACY_EXE}" --exit'
+  nsExec::Exec 'taskkill /F /IM "${LEGACY_EXE}"'
+  Pop $0
+  Delete "$1\${LEGACY_EXE}"
+  Delete "$1\Uninstall.exe"
+  RMDir "$1"
+  Delete "$SMPROGRAMS\${LEGACY_NAME}.lnk"
+  Delete "$DESKTOP\${LEGACY_NAME}.lnk"
+  DeleteRegValue HKCU "${RUN_KEY}" "GameSessionTracker"
+  DeleteRegValue HKCU "${APPROVED_KEY}" "GameSessionTracker"
+  DeleteRegKey HKCU "${LEGACY_KEY}"
+legacy_done:
+!macroend
+
 Section "${APP_NAME}" SecApp
   SectionIn RO
   SetOutPath "$INSTDIR"
@@ -108,6 +131,7 @@ Section "${APP_NAME}" SecApp
   !insertmacro EnsureDotNetRuntime
 !endif
   !insertmacro CloseRunningTracker
+  !insertmacro RemoveLegacyInstall
 
   File "${EXE_PATH}"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -115,8 +139,8 @@ Section "${APP_NAME}" SecApp
   CreateShortcut "$SMPROGRAMS\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
 
   ; Start with Windows (can be turned off later from the tray menu).
-  WriteRegStr HKCU "${RUN_KEY}" "GameSessionTracker" '"$INSTDIR\${APP_EXE}" --startup'
-  DeleteRegValue HKCU "${APPROVED_KEY}" "GameSessionTracker"
+  WriteRegStr HKCU "${RUN_KEY}" "PlaytimeTracker" '"$INSTDIR\${APP_EXE}" --startup'
+  DeleteRegValue HKCU "${APPROVED_KEY}" "PlaytimeTracker"
 
   ; Apps & features entry
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
@@ -148,8 +172,8 @@ Section "un.${APP_NAME}" UnSecApp
   SectionIn RO
   !insertmacro CloseRunningTracker
 
-  DeleteRegValue HKCU "${RUN_KEY}" "GameSessionTracker"
-  DeleteRegValue HKCU "${APPROVED_KEY}" "GameSessionTracker"
+  DeleteRegValue HKCU "${RUN_KEY}" "PlaytimeTracker"
+  DeleteRegValue HKCU "${APPROVED_KEY}" "PlaytimeTracker"
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
 
   Delete "$SMPROGRAMS\${APP_NAME}.lnk"
@@ -160,10 +184,10 @@ Section "un.${APP_NAME}" UnSecApp
 SectionEnd
 
 Section /o "un.Delete my play history and settings" UnSecData
-  RMDir /r "$DOCUMENTS\Game Session Tracker"
+  RMDir /r "$DOCUMENTS\Playtime Tracker"
 SectionEnd
 
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${UnSecApp} "Remove the program, its shortcuts and its startup entry."
-  !insertmacro MUI_DESCRIPTION_TEXT ${UnSecData} "Also delete Documents\Game Session Tracker (your stats, session log and settings). Leave unticked to keep them."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UnSecData} "Also delete Documents\Playtime Tracker (your stats, session log and settings). Leave unticked to keep them."
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_END
