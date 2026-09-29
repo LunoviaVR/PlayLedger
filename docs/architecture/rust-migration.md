@@ -23,9 +23,9 @@ UI Automation (screen readers), virtualised lists and Windows motion. So:
 | Crate | Contents | Status |
 | --- | --- | --- |
 | `playtime-core` | Domain model + JSON compatible with C#, `Timestamp` (.NET format), session tracker, game catalog matching, launcher metadata parsers (Steam KeyValues, Epic manifests), settings (+ migration), protected-file format and recovery rules, reports (durations, CSV), update-release parsing | **Done** (phases 2–4), 54 tests |
-| `playtime-windows` | DPAPI `DataProtector`, HKCU generation store, read-only file locks, data folders | DPAPI, registry generations, file locks, discovery host (registry, known folders, exe version info) |
+| `playtime-windows` | DPAPI `DataProtector`, HKCU generation store, read-only file locks, data folders | DPAPI, registry generations, file locks, discovery host, WinHTTP client, Credential Manager, exe icon provider |
 | `playtime-tracker` | Background service: tray, polling loop, IPC server | Phase 7 |
-| `playtime-artwork` | `ArtworkProvider` trait; Steam/Epic local art, exe icons, optional online providers, cache | Phase 6 |
+| `playtime-artwork` | `ArtworkProvider` trait, image validation, on-disk cache with remembered misses, Steam local library art, Steam store CDN and SteamGridDB (online, opt-in), PNG encoder | **Done** (phase 6) |
 | dashboard (WinUI 3) | Presentation only | Phase 8 |
 
 The core never calls Windows APIs, so it builds and is tested on any OS; Windows specifics sit behind traits
@@ -41,6 +41,25 @@ it will be imported from `sessions.dat` with the same verify-then-switch rules, 
 family name, GOG product ID, normalised path, or built-in key). History stays keyed by display name for
 compatibility; the ID keys artwork and future per-game settings.
 
+## Artwork
+
+Covers, headers, heroes, logos and icons come from, in order:
+
+1. **Steam's local library cache** (`<Steam>\appcache\librarycache`), both the old flat and the current per-app layouts.
+2. **The game's own exe icon** (Windows), saved as PNG.
+3. Only if **Settings → Online artwork** is on (off by default):
+   - the **Steam store CDN**, for Steam games; the request is just the app ID in the URL;
+   - **SteamGridDB**, only if the user entered their own API key. It gets the Steam app ID, or for other games the
+     game's name as a search term. The key is stored in Windows Credential Manager (never in the repo, the data
+     files or logs), is sent only to the API host, and never to the image CDN.
+
+Online requests go through WinHTTP with Windows' certificate validation, TLS 1.2+ only, no automatic redirects, and an
+allow-list of hosts that's checked again for every redirect and for every image URL an API returns. Everything that
+comes back is sniffed as PNG/JPEG/WebP from its bytes, dimension- and size-checked, then stored in
+`%LocalAppData%\Playtime Tracker\Cache\Artwork\<game key>\`. A lookup that found nothing is remembered (a day for local
+sources, a week online) so nothing is re-requested on every start; a lookup that failed because the PC is offline isn't.
+Play history is never sent anywhere.
+
 ## Phases
 
 | # | Phase | Status |
@@ -50,8 +69,8 @@ compatibility; the ID keys artwork and future per-game settings.
 | 3 | Storage and session model | Done: format, recovery, tracker (tested against C#-written JSON) |
 | 4 | Game detection | Done: matching rules |
 | 5 | Launcher integrations (discovery on disk/registry) | Done: `playtime_core::discovery` (Steam, Epic, GOG, Ubisoft, EA/Origin, Xbox, Riot, `X:\Games`, extra folders, Windows game list) over a `DiscoveryHost` trait; `playtime_windows::discovery::WindowsHost` |
-| 6 | Artwork service | Next |
-| 7 | Tray/background tracker in Rust | Planned |
+| 6 | Artwork service | Done: see *Artwork* below |
+| 7 | Tray/background tracker in Rust | Next |
 | 8 | WinUI 3 dashboard | Planned |
 | 9 | Migrations (verify-then-switch, logs, backups) | Planned |
 | 10 | Replace the C# entry point | Planned |

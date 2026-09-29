@@ -168,6 +168,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
+name = "playtime-artwork"
+version = "2.2.0"
+dependencies = [
+ "playtime-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "playtime-core"
 version = "2.2.0"
 dependencies = [
@@ -181,6 +191,7 @@ dependencies = [
 name = "playtime-windows"
 version = "2.2.0"
 dependencies = [
+ "playtime-artwork",
  "playtime-core",
  "thiserror",
  "windows",

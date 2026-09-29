@@ -6,6 +6,9 @@
 //!   as the C# app.
 //! - [`locks::FileLocks`]: holds data files open read-only so other programs can't change them while the app runs.
 //! - [`discovery::WindowsHost`]: the real files, registry and exe version info behind game discovery.
+//! - [`http::WinHttpClient`]: HTTPS for online artwork (allow-listed hosts, system certificate validation).
+//! - [`credentials`]: API keys in Windows Credential Manager.
+//! - [`icons::ExeIconProvider`]: a game's own icon as artwork.
 //! - [`folders`]: where the data lives.
 //!
 //! On other platforms the crate compiles to stubs so the workspace builds and tests everywhere.
@@ -13,9 +16,15 @@
 pub mod folders;
 
 #[cfg(windows)]
+pub mod credentials;
+#[cfg(windows)]
 pub mod discovery;
 #[cfg(windows)]
 pub mod dpapi;
+#[cfg(windows)]
+pub mod http;
+#[cfg(windows)]
+pub mod icons;
 #[cfg(windows)]
 pub mod locks;
 #[cfg(windows)]

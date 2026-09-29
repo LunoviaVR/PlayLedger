@@ -78,6 +78,9 @@ pub struct Settings {
     pub settings_version: i32,
     /// Set once the app has turned on "Start with Windows" for the first time.
     pub startup_configured: bool,
+    /// Fetch missing game artwork online (Steam store images, and SteamGridDB if the user added an API key).
+    /// Off by default: until the user turns it on, nothing about their games leaves the PC.
+    pub online_artwork: bool,
 }
 
 impl Default for Settings {
@@ -106,6 +109,7 @@ impl Default for Settings {
             // A file without the field predates versioning (see `normalize`).
             settings_version: 0,
             startup_configured: false,
+            online_artwork: false,
         }
     }
 }

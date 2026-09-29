@@ -120,6 +120,10 @@ public sealed class Settings
     /// <summary>Set once the app has turned on "Start with Windows" for the first time. Not meant to be edited.</summary>
     public bool StartupConfigured { get; set; }
 
+    /// <summary>Fetch missing game artwork online. Used by the upcoming Rust version; kept here so saving settings
+    /// from this version doesn't lose it. Off by default.</summary>
+    public bool OnlineArtwork { get; set; }
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
