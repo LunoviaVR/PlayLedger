@@ -2,7 +2,7 @@
 
   <!--
     Renders the README screenshots (docs/*.png) from the real dashboard code with made-up sample data.
-    Windows only. Usage: dotnet run -c Release --project tools/Screenshots -- docs
+    Windows only. Run from the repo root: see .github/workflows/screenshots.yml for the command.
     Not part of the app or its installers.
   -->
   <PropertyGroup>

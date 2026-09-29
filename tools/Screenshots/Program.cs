@@ -16,6 +16,11 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
+        // Park the pointer in the bottom-right corner, away from every window, so no hover state (row highlight, chart
+        // tooltip) ends up in the pictures.
+        var screen = SystemInformation.VirtualScreen;
+        Cursor.Position = new Point(screen.Right - 1, screen.Bottom - 1);
+
         try
         {
             var dark = new DemoHost("dark");
@@ -36,7 +41,9 @@ internal static class Program
     {
         using var form = new DashboardForm(host) { StartPosition = FormStartPosition.Manual, Location = new Point(0, 0) };
         form.Show();
-        form.ClientSize = new Size(1080, 720);
+        // Stay inside the screen: parts of a window beyond its edge aren't rendered, so they'd come out blank.
+        var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1024, 728);
+        form.ClientSize = new Size(Math.Min(1000, area.Width - 24), Math.Min(680, area.Height - 48));
         foreach (var (tab, file) in pages)
         {
             form.ShowTab(tab);
