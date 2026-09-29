@@ -40,6 +40,16 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
     // on disk may still hold good data, so it isn't overwritten during this run.
     private bool _dataReadOnly;
     private bool _settingsReadOnly;
+
+    // ---- Updates (GitHub releases) ----
+    private static readonly TimeSpan FirstUpdateCheckDelay = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(6);
+    private readonly Updater _updater = new();
+    private readonly ToolStripMenuItem _updateItem;
+    private DateTimeOffset _nextUpdateCheck = DateTimeOffset.Now + FirstUpdateCheckDelay;
+    private string? _notifiedUpdate;
+    private bool _autoInstallPending;
+    private bool _balloonOpensSettings;
     private bool _shutDown;
 
     public TrayApp(bool launchedAtStartup, WaitHandle exitRequested, WaitHandle showRequested)
@@ -56,6 +66,7 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
         _settings = LoadSettingsOrDefaults(out var settingsError);
         _settingsWriteTime = SafeWriteTime(_settingsPath);
         ConfigureStartupOnFirstRun();
+        var updatedFrom = NoteVersionRun();
 
         string? dataWarning;
         try
@@ -88,6 +99,7 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
             openDashboard,
             new ToolStripMenuItem("Settings", null, (_, _) => ShowDashboard(DashboardForm.SettingsTab)),
             new ToolStripSeparator(),
+            (_updateItem = new ToolStripMenuItem("Install update...", null, (_, _) => ShowDashboard(DashboardForm.SettingsTab)) { Visible = false }),
             new ToolStripMenuItem("Exit", null, (_, _) => ExitApp()),
         });
         // Same glass menu styling as the dashboard, following the current light/dark setting.
@@ -101,6 +113,14 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
             Visible = true,
         };
         _trayIcon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) ShowDashboard(); };
+        _trayIcon.BalloonTipClicked += (_, _) =>
+        {
+            if (_balloonOpensSettings)
+                ShowDashboard(DashboardForm.SettingsTab);
+            else
+                ShowDashboard();
+        };
+        _updater.StateChanged += OnUpdaterStateChanged;
 
         // Creating controls above installed the WinForms synchronization context.
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
@@ -123,6 +143,8 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
         _timer.Start();
         Poll();
 
+        if (updatedFrom is not null)
+            Notify("Playtime Tracker updated", $"You're now on version {Updater.CurrentVersion.ToString(3)} (was {updatedFrom}).", ToolTipIcon.Info);
         if (dataWarning is not null)
             Notify("Playtime Tracker history", dataWarning, ToolTipIcon.Warning);
         if (settingsError is not null)
@@ -164,6 +186,8 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
                 _dashboard?.RefreshData();
 
             UpdateStatus(now);
+            MaybeCheckForUpdates(now);
+            MaybeAutoInstall();
         }
         catch (Exception ex)
         {
@@ -355,6 +379,88 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
 
     public void OpenTextReport() => OpenStats();
 
+    public Updater Updater => _updater;
+
+    public async Task<bool> InstallUpdateAsync()
+    {
+        if (_updater.Available is not { } update)
+            return false;
+        if (!await _updater.DownloadAndStartInstallerAsync(update))
+            return false;
+        // The installer replaces the app and starts the new version; exit now so any game in progress is logged first.
+        ExitApp();
+        return true;
+    }
+
+    // ---------- Updates ----------
+
+    /// <summary>Remembers which version ran; returns the previous version if this start follows an update.</summary>
+    private string? NoteVersionRun()
+    {
+        var current = Updater.CurrentVersion.ToString(3);
+        var previous = _settings.LastRunVersion;
+        if (previous == current)
+            return null;
+        _settings.LastRunVersion = current;
+        try
+        {
+            SaveSettings();
+            _settingsWriteTime = SafeWriteTime(_settingsPath);
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("Could not save settings", ex);
+        }
+        return string.IsNullOrEmpty(previous) ? null : previous;
+    }
+
+    private async void MaybeCheckForUpdates(DateTimeOffset now)
+    {
+        if (!_settings.CheckForUpdates || _updater.Busy || now < _nextUpdateCheck)
+            return;
+        _nextUpdateCheck = now + UpdateCheckInterval;
+        var update = await _updater.CheckAsync(); // never throws
+        if (update is null || _shutDown)
+            return;
+
+        if (_settings.InstallUpdatesAutomatically && update.CanInstall && Updater.IsInstalledCopy)
+        {
+            _autoInstallPending = true; // installs as soon as no game is running (see MaybeAutoInstall)
+        }
+        else if (_notifiedUpdate != update.Tag)
+        {
+            _notifiedUpdate = update.Tag;
+            Notify("Update available", $"Playtime Tracker {update.Version.ToString(3)} is out. Click to see it in Settings.", ToolTipIcon.Info, opensSettings: true);
+        }
+    }
+
+    /// <summary>Installs a pending update, but never while a game is being tracked (the install restarts the app).</summary>
+    private async void MaybeAutoInstall()
+    {
+        if (!_autoInstallPending || _shutDown || _updater.Busy || _tracker.Active.Count > 0 ||
+            !_settings.CheckForUpdates || !_settings.InstallUpdatesAutomatically)
+            return;
+        _autoInstallPending = false;
+        if (!await InstallUpdateAsync() && _updater.Available is { } update && _notifiedUpdate != update.Tag)
+        {
+            _notifiedUpdate = update.Tag;
+            Notify("Update available", $"Playtime Tracker {update.Version.ToString(3)} couldn't be installed automatically. Click to try from Settings.", ToolTipIcon.Warning, opensSettings: true);
+        }
+    }
+
+    private void OnUpdaterStateChanged()
+    {
+        if (_updater.Available is { } update)
+        {
+            _updateItem.Text = $"Update to {update.Version.ToString(3)}...";
+            _updateItem.Visible = true;
+        }
+        else
+        {
+            _updateItem.Visible = false;
+        }
+    }
+
     private void ConfigureStartupOnFirstRun()
     {
         try
@@ -455,8 +561,10 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
         }
     }
 
-    private void Notify(string title, string text, ToolTipIcon icon)
+    /// <param name="opensSettings">Clicking the notification opens Settings (updates) rather than the Overview.</param>
+    private void Notify(string title, string text, ToolTipIcon icon, bool opensSettings = false)
     {
+        _balloonOpensSettings = opensSettings;
         try
         {
             _trayIcon.ShowBalloonTip(5000, title, text, icon);
@@ -498,6 +606,7 @@ internal sealed class TrayApp : ApplicationContext, ITrackerHost
             _exitWait.Unregister(null);
             _showWait.Unregister(null);
             _timer.Dispose();
+            _updater.Dispose();
             _trayIcon.Dispose();
         }
         base.Dispose(disposing);

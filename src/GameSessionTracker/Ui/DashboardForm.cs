@@ -700,8 +700,10 @@ internal sealed class DashboardForm : Form
             TextRenderer.DrawText(g, note, _fonts.Body, new Rectangle(x, bounds.Y, w, bounds.Height), _theme.TextSecondary, TextFlags | TextFormatFlags.VerticalCenter);
             return;
         }
-        if (row.Game is not { } game)
+        if (row.Game is not { } listed)
             return;
+        // Rows are built when games start or stop; totals come from the current model so a running game keeps counting.
+        var game = _model.Games.FirstOrDefault(g => string.Equals(g.Name, listed.Name, StringComparison.OrdinalIgnoreCase)) ?? listed;
 
         RowPainter.Highlight(g, bounds, selected && _libraryList.Focused, hot, _theme, UiScale);
         var right = x + w - RowPainter.ChevronSpace(UiScale) + S(8);

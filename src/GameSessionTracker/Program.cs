@@ -41,7 +41,9 @@ internal static class Program
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) => ErrorLog.Write("Unexpected error", e.Exception);
 
-        var launchedAtStartup = args.Contains("--startup", StringComparer.OrdinalIgnoreCase);
+        // --updated: started by the installer after an update; stays in the tray like a sign-in start.
+        var launchedAtStartup = args.Contains("--startup", StringComparer.OrdinalIgnoreCase) ||
+                                args.Contains("--updated", StringComparer.OrdinalIgnoreCase);
         using var app = new TrayApp(launchedAtStartup, exitEvent, showEvent);
         Application.Run(app);
     }

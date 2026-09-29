@@ -49,6 +49,11 @@ internal sealed class SettingsView : Panel
         EmptyText = "Nothing ignored.",
     };
 
+    private readonly SettingsCard _updates = new() { Title = "Updates" };
+    private readonly ToggleSwitch _checkUpdates = new();
+    private readonly ToggleSwitch _autoInstall = new();
+    private readonly PillButton _updateButton = new("Check now");
+
     private readonly SettingsCard _data = new() { Title = "Your data" };
     private readonly PillButton _rescan = new("Rescan");
     private readonly PillButton _export = new("Export...");
@@ -77,8 +82,13 @@ internal sealed class SettingsView : Panel
         _minimumSession.Format = FormatSeconds;
         _gracePeriod.Format = FormatSeconds;
         _tracking.AddRow("Check for games every", "How often running programs are checked.", _pollInterval);
-        _tracking.AddRow("Shortest session to keep", "Shorter sessions (updaters, crashes on launch) aren't recorded.", _minimumSession);
+        _tracking.AddRow("Shortest session to keep", "Off keeps every session. Otherwise shorter ones (e.g. updaters) are skipped.", _minimumSession);
         _tracking.AddRow("Same-session window", "A game that closes and reopens within this time stays one session.", _gracePeriod);
+
+        _updates.Description = "New versions come from this app's GitHub releases.";
+        _updates.AddRow("Check for updates", "Look for a new version at start-up and every few hours.", _checkUpdates);
+        _updates.AddRow("Install updates automatically", "Installs and restarts by itself, but never while a game is running.", _autoInstall);
+        _updates.AddRow($"Playtime Tracker {Updater.CurrentVersion.ToString(3)}", "", _updateButton);
 
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         _data.Description = $"Playtime Tracker {version?.ToString(3)}";
@@ -87,7 +97,7 @@ internal sealed class SettingsView : Panel
         _data.AddRow("Text report", "A plain-text summary of all your stats.", _report);
         _data.AddRow("Data folder", host.DataFolder, _folder);
 
-        Controls.AddRange(new Control[] { _appearance, _general, _tracking, _customGames, _gameFolders, _ignoredGames, _ignoredPrograms, _data });
+        Controls.AddRange(new Control[] { _appearance, _general, _updates, _tracking, _customGames, _gameFolders, _ignoredGames, _ignoredPrograms, _data });
 
         // ---- events ----
         _themeMode.SelectedIndexChanged += (_, _) => ChangeAppearance(s => s.ThemeMode = ThemeModes[_themeMode.SelectedIndex]);
@@ -112,6 +122,11 @@ internal sealed class SettingsView : Panel
         _ignoredPrograms.AddButton("Browse...").Click += (_, _) => BrowseIgnoredProgram();
         _ignoredPrograms.AddButton("Add...").Click += (_, _) => AddText(_ignoredPrograms.Title, "Program file name to ignore (e.g. Launcher.exe):", s => s.IgnoredExecutables);
         _ignoredPrograms.RemoveRequested += i => ChangeList(s => s.IgnoredExecutables.RemoveAt(i));
+
+        _checkUpdates.CheckedChanged += (_, _) => Change(s => s.CheckForUpdates = _checkUpdates.Checked);
+        _autoInstall.CheckedChanged += (_, _) => Change(s => s.InstallUpdatesAutomatically = _autoInstall.Checked);
+        _updateButton.Click += (_, _) => OnUpdateButton();
+        _host.Updater.StateChanged += RefreshUpdateRow;
 
         _rescan.Click += (_, _) =>
         {
@@ -138,6 +153,9 @@ internal sealed class SettingsView : Panel
             _accent.SelectedKey = s.AccentColor;
             DescribeAccent(s.AccentColor);
             _startWithWindows.Checked = _host.StartWithWindows;
+            _checkUpdates.Checked = s.CheckForUpdates;
+            _autoInstall.Checked = s.InstallUpdatesAutomatically;
+            RefreshUpdateRow();
             _notifications.Checked = s.ShowNotifications;
             _windowsGameList.Checked = s.UseWindowsGameList;
             _pollInterval.Value = s.PollIntervalSeconds;
@@ -207,6 +225,7 @@ internal sealed class SettingsView : Panel
         {
             _appearance, _themeMode, _accent,
             _general, _startWithWindows, _notifications, _windowsGameList,
+            _updates, _checkUpdates, _autoInstall, _updateButton,
             _tracking, _pollInterval, _minimumSession, _gracePeriod,
             _customGames, _gameFolders, _ignoredGames, _ignoredPrograms,
             _data, _rescan, _export, _report, _folder,
@@ -236,6 +255,7 @@ internal sealed class SettingsView : Panel
 
         Place(_appearance, _appearance.PreferredHeight);
         Place(_general, _general.PreferredHeight);
+        Place(_updates, _updates.PreferredHeight);
         Place(_tracking, _tracking.PreferredHeight);
         Place(_customGames, _customGames.PreferredHeight);
         Place(_gameFolders, _gameFolders.PreferredHeight);
@@ -243,6 +263,89 @@ internal sealed class SettingsView : Panel
         Place(_ignoredPrograms, _ignoredPrograms.PreferredHeight);
         Place(_data, _data.PreferredHeight);
         AutoScrollMinSize = new Size(0, y - AutoScrollPosition.Y + S(16));
+    }
+
+    // ---------- updates ----------
+
+    /// <summary>Shows the updater's state in the version row: status text and what the button will do.</summary>
+    private void RefreshUpdateRow()
+    {
+        var updater = _host.Updater;
+        string status, button;
+        if (updater.Busy && updater.Progress is { } progress)
+        {
+            status = $"Downloading the update... {progress:P0}";
+            button = "Downloading...";
+        }
+        else if (updater.Busy)
+        {
+            status = "Checking for updates...";
+            button = "Checking...";
+        }
+        else if (updater.Available is { } update)
+        {
+            var v = update.Version.ToString(3);
+            var installable = update.CanInstall && Updater.IsInstalledCopy;
+            status = updater.LastError is { } error && installable
+                ? error
+                : installable ? $"Version {v} is available. Installing restarts Playtime Tracker." : $"Version {v} is available on GitHub.";
+            button = installable ? $"Install {v}" : "Open download page";
+        }
+        else
+        {
+            status = updater.LastError ?? (updater.LastChecked is { } at
+                ? $"You're on the latest version (checked {Format.Day(at).ToLowerInvariant()} at {Format.Time(at)})."
+                : "You're on the version above.");
+            button = "Check now";
+        }
+
+        _updates.SetRowDescription(_updateButton, status);
+        if (_updateButton.Text != button)
+        {
+            _updateButton.Text = button;
+            _updateButton.AccessibleName = button;
+            _updates.PerformLayout(); // the button's width follows its text
+        }
+        _updateButton.Enabled = !updater.Busy;
+        _updateButton.Primary = updater.Available is not null && !updater.Busy;
+        _updateButton.Invalidate();
+    }
+
+    private async void OnUpdateButton()
+    {
+        var updater = _host.Updater;
+        if (updater.Available is { } update)
+        {
+            if (update.CanInstall && Updater.IsInstalledCopy)
+                await _host.InstallUpdateAsync(); // on success the app exits and the installer restarts it
+            else
+                OpenReleasesPage();
+        }
+        else
+        {
+            await updater.CheckAsync();
+        }
+        RefreshUpdateRow();
+    }
+
+    private static void OpenReleasesPage()
+    {
+        try
+        {
+            // A fixed https URL to this app's releases (never one taken from the network).
+            Process.Start(new ProcessStartInfo(Updater.ReleasesPage.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ErrorLog.Write("Could not open the releases page", ex);
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _host.Updater.StateChanged -= RefreshUpdateRow;
+        base.Dispose(disposing);
     }
 
     // ---------- changes ----------

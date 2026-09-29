@@ -19,8 +19,8 @@ public sealed class Settings
     /// <summary>How often running programs are checked.</summary>
     public int PollIntervalSeconds { get; set; } = 5;
 
-    /// <summary>Sessions shorter than this are not recorded (e.g. a game that opened and immediately closed to update).</summary>
-    public int MinimumSessionSeconds { get; set; } = 30;
+    /// <summary>Sessions shorter than this are not recorded. Off (0) by default: every time a game is open counts.</summary>
+    public int MinimumSessionSeconds { get; set; } = 0;
 
     /// <summary>A game that closes and reopens within this many seconds continues the same session.</summary>
     public int GracePeriodSeconds { get; set; } = 20;
@@ -103,6 +103,20 @@ public sealed class Settings
         "Unity Hub.exe",
     };
 
+    /// <summary>Check GitHub for new versions of the app.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>Install new versions by itself (only while no game is running). Otherwise just offer them.</summary>
+    public bool InstallUpdatesAutomatically { get; set; } = true;
+
+    /// <summary>The version that last ran, to say "Updated to x.y.z" once after an update. Not meant to be edited.</summary>
+    public string LastRunVersion { get; set; } = "";
+
+    /// <summary>Format of this file, for one-time migrations. Not meant to be edited.</summary>
+    public int SettingsVersion { get; set; }
+
+    private const int CurrentSettingsVersion = 2;
+
     /// <summary>Set once the app has turned on "Start with Windows" for the first time. Not meant to be edited.</summary>
     public bool StartupConfigured { get; set; }
 
@@ -166,7 +180,11 @@ public sealed class Settings
     internal void Normalize()
     {
         PollIntervalSeconds = Math.Clamp(PollIntervalSeconds, 1, 300);
+        if (SettingsVersion < 2 && MinimumSessionSeconds == 30)
+            MinimumSessionSeconds = 0; // the old default silently dropped real short plays; keep any value the user chose
+        SettingsVersion = Math.Max(SettingsVersion, CurrentSettingsVersion);
         MinimumSessionSeconds = Math.Max(0, MinimumSessionSeconds);
+        LastRunVersion ??= "";
         GracePeriodSeconds = Math.Max(0, GracePeriodSeconds);
         ThemeMode = ThemeMode?.Trim().ToLowerInvariant() is "dark" or "light" ? ThemeMode.Trim().ToLowerInvariant() : "system";
         AccentColor = string.IsNullOrWhiteSpace(AccentColor) ? "blue" : AccentColor.Trim().ToLowerInvariant();

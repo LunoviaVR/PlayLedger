@@ -15,6 +15,8 @@ internal sealed partial class GameCatalog
     private readonly List<(string Dir, string Name)> _locations = new();          // a specific game's install folder
     private readonly List<string> _roots = new();                                   // folders where each sub-folder is a game
     private readonly Dictionary<string, string> _exactExes = new(StringComparer.OrdinalIgnoreCase);
+    // Windows' game list by (exe file name, folder two levels up), for games that update into a new versioned folder.
+    private readonly Dictionary<(string File, string Parent), string> _versionedExes = new();
     private readonly List<CustomGame> _customGames;
     private readonly HashSet<string> _ignoredExes;
     private readonly HashSet<string> _ignoredGames;
@@ -83,10 +85,66 @@ internal sealed partial class GameCatalog
             return IsIgnored(parts[0], relative) ? null : parts[0];
         }
 
+        if (MatchKnownGame(exePath) is { } known)
+            return IsIgnored(known, "") ? null : known;
+
         if (_exactExes.TryGetValue(NormalizePath(exePath), out var exactName))
             return IsIgnored(exactName, "") ? null : exactName;
 
+        // A game Windows recognised in an older version folder (e.g. ...\Versions\version-abc\Game.exe after an update).
+        if (VersionedKey(exePath) is { } key && _versionedExes.TryGetValue(key, out var versionedName))
+            return IsIgnored(versionedName, "") ? null : versionedName;
+
         return null;
+    }
+
+    /// <summary>
+    /// Popular games that install outside any store launcher, so none of the sources below would find them. Matched by
+    /// the game's own executable name, which only the game uses. Their launchers, crash handlers and editors are
+    /// deliberately left out (e.g. Roblox Studio isn't "playing Roblox").
+    /// </summary>
+    private static readonly Dictionary<string, string> KnownGameExes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["RobloxPlayerBeta.exe"] = "Roblox",           // %LocalAppData%\Roblox\Versions\version-*\
+        ["Minecraft.Windows.exe"] = "Minecraft",       // Minecraft for Windows (Bedrock), Microsoft Store
+        ["GenshinImpact.exe"] = "Genshin Impact",
+        ["StarRail.exe"] = "Honkai: Star Rail",
+        ["ZenlessZoneZero.exe"] = "Zenless Zone Zero",
+        ["osu!.exe"] = "osu!",
+        ["League of Legends.exe"] = "League of Legends",
+        ["VALORANT-Win64-Shipping.exe"] = "VALORANT",
+        ["FortniteClient-Win64-Shipping.exe"] = "Fortnite",
+    };
+
+    private static string? MatchKnownGame(string exePath)
+    {
+        var fileName = exePath[(exePath.LastIndexOfAny(new[] { '\\', '/' }) + 1)..];
+        if (KnownGameExes.TryGetValue(fileName, out var name))
+            return name;
+
+        // Roblox from the Microsoft Store runs as a generic "Windows10Universal.exe" inside its package folder.
+        if (fileName.Equals("Windows10Universal.exe", StringComparison.OrdinalIgnoreCase) &&
+            exePath.Contains("ROBLOXCORPORATION.ROBLOX", StringComparison.OrdinalIgnoreCase))
+            return "Roblox";
+
+        // Minecraft: Java Edition runs as javaw.exe from the Minecraft Launcher's own Java runtime.
+        if (fileName.Equals("javaw.exe", StringComparison.OrdinalIgnoreCase) &&
+            (exePath.Contains(@"\Minecraft Launcher\runtime\", StringComparison.OrdinalIgnoreCase) ||
+             exePath.Contains(@"\Microsoft.4297127D64EC6_", StringComparison.OrdinalIgnoreCase) ||
+             exePath.Contains(@"\.minecraft\runtime\", StringComparison.OrdinalIgnoreCase)))
+            return "Minecraft";
+
+        return null;
+    }
+
+    /// <summary>(file name, grandparent folder) of an exe: stays the same when a game moves into a new version folder.</summary>
+    private static (string File, string Parent)? VersionedKey(string exePath)
+    {
+        var dir = Path.GetDirectoryName(NormalizePath(exePath));
+        var grandparent = dir is null ? null : Path.GetDirectoryName(dir);
+        if (string.IsNullOrEmpty(grandparent) || grandparent.Length <= 3)
+            return null; // too close to a drive root to say anything
+        return (Path.GetFileName(exePath).ToUpperInvariant(), grandparent.ToUpperInvariant());
     }
 
     private bool IsIgnored(string gameName, string relativePath)
@@ -251,13 +309,25 @@ internal sealed partial class GameCatalog
             if (child?.GetValue("MatchedExeFullPath") is not string exe || string.IsNullOrWhiteSpace(exe))
                 continue;
             var path = NormalizePath(exe);
-            if (_exactExes.ContainsKey(path) || _ignoredExes.Contains(Path.GetFileName(path)) || !File.Exists(path))
+            if (_exactExes.ContainsKey(path) || _ignoredExes.Contains(Path.GetFileName(path)))
                 continue;
-            _exactExes[path] = FriendlyNameFromExe(path);
+            if (File.Exists(path))
+            {
+                _exactExes[path] = FriendlyNameFromExe(path);
+            }
+            else if (IsVersionFolder(Path.GetFileName(Path.GetDirectoryName(path) ?? "")) && VersionedKey(path) is { } key)
+            {
+                // The game has since updated into a new version folder; keep matching it there.
+                _versionedExes.TryAdd(key, Path.GetFileNameWithoutExtension(path));
+            }
         }
     }
 
     // ---------- Helpers ----------
+
+    /// <summary>Folder names like "version-3f2c9a…", "app-1.2.3" or "1.2.3" that launchers replace on every update.</summary>
+    private static bool IsVersionFolder(string folder) =>
+        VersionFolderRegex().IsMatch(folder);
 
     private void Try(string source, Action action)
     {
@@ -347,6 +417,9 @@ internal sealed partial class GameCatalog
     }
 
     private static string UnescapeVdf(string value) => value.Replace(@"\\", @"\").Replace("\\\"", "\"");
+
+    [GeneratedRegex(@"^(version-[0-9a-f]{6,}|app-\d+(\.\d+)+|v?\d+(\.\d+){1,3})$", RegexOptions.IgnoreCase)]
+    private static partial Regex VersionFolderRegex();
 
     [GeneratedRegex("\"path\"\\s+\"((?:[^\"\\\\]|\\\\.)*)\"", RegexOptions.IgnoreCase)]
     private static partial Regex VdfPathRegex();

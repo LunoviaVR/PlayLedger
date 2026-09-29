@@ -23,4 +23,11 @@ internal interface ITrackerHost
     void OpenDataFolder();
     void OpenTextReport();
     string DataFolder { get; }
+
+    /// <summary>Update checks against GitHub releases.</summary>
+    Updater Updater { get; }
+
+    /// <summary>Downloads, verifies and starts the available update; the app then exits and the installer restarts it.
+    /// Returns false (see <see cref="Updater.LastError"/>) if it couldn't.</summary>
+    Task<bool> InstallUpdateAsync();
 }
