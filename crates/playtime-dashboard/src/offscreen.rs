@@ -28,12 +28,14 @@ pub struct RenderArgs {
     pub out: String,
     pub snapshot: String,
     pub dark: bool,
+    /// `--dialog session|day|game`: open that dialog (the newest session, today, the most played game).
+    pub dialog: Option<String>,
 }
 
 impl RenderArgs {
     /// Parses the arguments after `--render`.
     pub fn parse(args: &[String], pages: &[&str]) -> Result<Self, String> {
-        let usage = "usage: --render <page> <width>x<height> <out.png> <snapshot file> [--dark]";
+        let usage = "usage: --render <page> <width>x<height> <out.png> <snapshot file> [--dark] [--dialog session|day|game]";
         let [page, size, out, snapshot, rest @ ..] = args else {
             return Err(usage.into());
         };
@@ -46,6 +48,11 @@ impl RenderArgs {
             out: out.clone(),
             snapshot: snapshot.clone(),
             dark: rest.iter().any(|a| a == "--dark"),
+            dialog: rest
+                .iter()
+                .position(|a| a == "--dialog")
+                .and_then(|i| rest.get(i + 1))
+                .cloned(),
         })
     }
 }

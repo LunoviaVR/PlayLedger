@@ -82,7 +82,6 @@ pub fn time(ts: Timestamp) -> String {
 }
 
 /// "9:05:12 PM" (or "21:05:12"), in local time.
-#[expect(dead_code, reason = "used by the session details dialog (phase 18b)")]
 pub fn time_with_seconds(ts: Timestamp) -> String {
     locale::time(&local(ts), true)
 }

@@ -2,13 +2,14 @@
 import { Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Line, Caption, FluentButton } from "controls.slint";
-import { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay } from "data.slint";
+import { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow } from "data.slint";
 import { OverviewPage } from "overview.slint";
 import { StatisticsPage } from "statistics.slint";
 import { HistoryPage } from "history.slint";
+import { Dialog } from "dialog.slint";
 
 export { Theme, Palette }
-export { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay }
+export { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow }
 
 component NavItem inherits Rectangle {
     in property <string> glyph;
@@ -44,7 +45,15 @@ component NavItem inherits Rectangle {
             width: 16px;
             accessible-role: none;
         }
-        if !root.compact: Line { text: root.label; vertical-alignment: center; }
+        // Always present with a fixed size hint, so folding the pane doesn't feed back into the window's layout.
+        Line {
+            text: root.compact ? "" : root.label;
+            vertical-alignment: center;
+            min-width: 0px;
+            preferred-width: 0px;
+            horizontal-stretch: 1;
+            accessible-role: none;
+        }
     }
     touch := TouchArea { clicked => { root.clicked(); } }
     focus := FocusScope {
@@ -99,6 +108,19 @@ export component AppWindow inherits Window {
     callback overview-day(int);
     callback overview-show-more();
 
+    // The open dialog, if any.
+    in property <bool> dialog-open;
+    in property <string> dialog-title;
+    in property <string> dialog-message;
+    in property <[DetailRow]> dialog-rows;
+    in property <[SessionRow]> dialog-list;
+    in property <string> dialog-link;
+    in property <string> dialog-primary;
+    in property <string> dialog-secondary;
+    in property <string> dialog-close: "Close";
+    callback dialog-button(int);
+    callback dialog-list-clicked(int);
+
     // History
     in property <[HistoryDay]> history-days;
     callback history-toggle(int);
@@ -110,10 +132,16 @@ export component AppWindow inherits Window {
     in property <[RankRow]> statistics-weekdays;
     in property <[RankRow]> statistics-day-parts;
 
-    HorizontalLayout {
+    // The pane's width follows the window's, so the two areas are placed by hand rather than in a layout: a layout
+    // would feed the pane's width back into the window's own size.
+    property <length> pane-width: root.pane-expanded ? 220px : 56px;
+    Rectangle {
         // Navigation pane (collapses to icons with the ☰ button, as Task Manager's does).
         VerticalLayout {
-            width: root.pane-expanded ? 220px : 56px;
+            x: 0;
+            y: 0;
+            width: root.pane-width;
+            height: parent.height;
             padding: 4px;
             spacing: 2px;
             NavItem {
@@ -131,6 +159,10 @@ export component AppWindow inherits Window {
         }
         // The page area sits on a slightly raised surface, like Windows 11 Settings.
         Rectangle {
+            x: root.pane-width;
+            y: 0;
+            width: parent.width - root.pane-width;
+            height: parent.height;
             background: Theme.dark ? #272727 : #F9F9F9;
             border-top-left-radius: 8px;
             VerticalLayout {
@@ -183,5 +215,19 @@ export component AppWindow inherits Window {
                 if root.page == 1 || root.page == 4: Rectangle { }
             }
         }
+    }
+    if root.dialog-open: Dialog {
+        width: root.width;
+        height: root.height;
+        title: root.dialog-title;
+        message: root.dialog-message;
+        rows: root.dialog-rows;
+        list: root.dialog-list;
+        link: root.dialog-link;
+        primary: root.dialog-primary;
+        secondary: root.dialog-secondary;
+        close: root.dialog-close;
+        button(i) => { root.dialog-button(i); }
+        list-clicked(i) => { root.dialog-list-clicked(i); }
     }
 }

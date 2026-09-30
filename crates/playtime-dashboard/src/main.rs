@@ -12,6 +12,7 @@ mod ui {
 }
 
 mod client;
+mod dialogs;
 mod format;
 mod history;
 mod offscreen;
@@ -38,6 +39,9 @@ struct App {
     snapshot: Option<DashboardSnapshot>,
     overview: OverviewState,
     history: history::HistoryState,
+    /// The open dialog, and the sessions its list stands for.
+    dialog: Option<dialogs::Dialog>,
+    dialog_list: Vec<playtime_core::dashboard::SessionView>,
 }
 
 thread_local! {
@@ -66,6 +70,10 @@ fn show(window: &AppWindow, snapshot: DashboardSnapshot, kind: Refresh) {
             3 if !only_times => statistics::render(window, &snapshot),
             _ => {}
         }
+        // An open dialog shows the newest figures (a running session keeps counting up).
+        if let Some(dialog) = &app.dialog {
+            app.dialog_list = dialogs::show(window, dialog, &snapshot);
+        }
         app.snapshot = Some(snapshot);
     });
 }
@@ -77,6 +85,7 @@ fn rerender(window: &AppWindow) {
             snapshot,
             overview,
             history,
+            ..
         } = app;
         if let Some(snapshot) = snapshot.as_ref() {
             match window.get_page() {
@@ -86,6 +95,31 @@ fn rerender(window: &AppWindow) {
                 _ => {}
             }
         }
+    });
+}
+
+/// Opens the dialog `pick` chooses (if any) with the latest snapshot.
+fn open_dialog(
+    window: &slint::Weak<AppWindow>,
+    pick: impl FnOnce(&App) -> Option<dialogs::Dialog>,
+) {
+    let Some(window) = window.upgrade() else {
+        return;
+    };
+    APP.with_borrow_mut(|app| {
+        let (Some(dialog), Some(snapshot)) = (pick(app), app.snapshot.as_ref()) else {
+            return;
+        };
+        app.dialog_list = dialogs::show(&window, &dialog, snapshot);
+        app.dialog = Some(dialog);
+    });
+}
+
+fn close_dialog(window: &AppWindow) {
+    dialogs::close(window);
+    APP.with_borrow_mut(|app| {
+        app.dialog = None;
+        app.dialog_list.clear();
     });
 }
 
@@ -141,8 +175,24 @@ fn main() -> Result<(), slint::PlatformError> {
     let args: Vec<String> = std::env::args().collect();
     if let Some(i) = args.iter().position(|a| a == "--render") {
         let result = offscreen::RenderArgs::parse(&args[i + 1..], &PAGES).and_then(|render| {
-            offscreen::render(&render, |window, snapshot| {
-                show(window, snapshot, Refresh::Full)
+            let dialog = render.dialog.clone();
+            offscreen::render(&render, move |window, snapshot| {
+                let model = &snapshot.model;
+                let pick = match dialog.as_deref() {
+                    Some("session") => model
+                        .sessions
+                        .first()
+                        .cloned()
+                        .map(dialogs::Dialog::Session),
+                    Some("day") => Some(dialogs::Dialog::Day(format::local_date(model.now))),
+                    Some("game") => model
+                        .games
+                        .first()
+                        .map(|g| dialogs::Dialog::Game(g.name.clone())),
+                    _ => None,
+                };
+                show(window, snapshot, Refresh::Full);
+                open_dialog(&window.as_weak(), |_| pick);
             })
         });
         if let Err(message) = result {
@@ -253,6 +303,88 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             rerender(&window);
+        }
+    });
+
+    // Dialogs: opened from the pages, their buttons carried out here.
+    let weak = window.as_weak();
+    window.on_overview_session(move |i| {
+        open_dialog(&weak, |app| {
+            app.overview
+                .sessions
+                .get(i as usize)
+                .cloned()
+                .map(dialogs::Dialog::Session)
+        });
+    });
+    let weak = window.as_weak();
+    window.on_overview_live_session(move |i| {
+        open_dialog(&weak, |app| {
+            app.overview
+                .live
+                .get(i as usize)
+                .cloned()
+                .map(dialogs::Dialog::Session)
+        });
+    });
+    let weak = window.as_weak();
+    window.on_overview_day(move |i| {
+        open_dialog(&weak, |app| {
+            app.overview
+                .days
+                .get(i as usize)
+                .copied()
+                .map(dialogs::Dialog::Day)
+        });
+    });
+    let weak = window.as_weak();
+    window.on_history_session(move |d, i| {
+        open_dialog(&weak, |app| {
+            app.history
+                .sessions
+                .get(d as usize)
+                .and_then(|list| list.get(i as usize))
+                .cloned()
+                .map(dialogs::Dialog::Session)
+        });
+    });
+    let weak = window.as_weak();
+    window.on_dialog_list_clicked(move |i| {
+        open_dialog(&weak, |app| {
+            app.dialog_list
+                .get(i as usize)
+                .cloned()
+                .map(dialogs::Dialog::Session)
+        });
+    });
+    let weak = window.as_weak();
+    let dialog_tracker = tracker.clone();
+    let dialog_refresh = refresh.clone();
+    window.on_dialog_button(move |which| {
+        let Some(window) = weak.upgrade() else { return };
+        let Some(dialog) = APP.with_borrow(|app| app.dialog.clone()) else {
+            return;
+        };
+        match dialogs::button(&dialog, which) {
+            dialogs::Outcome::Close => close_dialog(&window),
+            dialogs::Outcome::Open(next) => open_dialog(&weak, |_| Some(next)),
+            dialogs::Outcome::ShowProgram(path) => dialogs::show_program(&path),
+            dialogs::Outcome::ShowOnOverview(game) => {
+                close_dialog(&window);
+                APP.with_borrow_mut(|app| {
+                    app.overview.game = Some(game);
+                    app.overview.shown = overview::PAGE_SIZE;
+                });
+                window.set_page(0);
+                rerender(&window);
+            }
+            dialogs::Outcome::Run(request) => match dialog_tracker.request(&request) {
+                Ok(_) => {
+                    close_dialog(&window);
+                    let _ = dialog_refresh.send(Refresh::Full);
+                }
+                Err(e) => open_dialog(&weak, |_| Some(dialogs::Dialog::Error(e.to_string()))),
+            },
         }
     });
 
