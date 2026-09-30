@@ -230,8 +230,53 @@ if (screenshots is not null)
             await Task.Delay(TimeSpan.FromSeconds(6)); // connect, load data and artwork, settle animations
             Check(!window!.HasExited, $"the dashboard closed on the {page} page");
             Native.Capture(handle, Path.Combine(screenshots, $"next-{page}.png"));
+            if (page == "overview")
+            {
+                // Make the same window much wider, as maximising does: the page must follow and fill it.
+                Native.Resize(handle, 1800, 900);
+                await Task.Delay(TimeSpan.FromSeconds(3));
+                Native.Capture(handle, Path.Combine(screenshots, "next-overview-wide.png"));
+            }
             window.Kill();
             await window.WaitForExitAsync();
+        }
+    });
+
+    await Step("the accent colour setting changes the dashboard's colours", async () =>
+    {
+        // Rose is far from any Windows default accent, so its shades on screen can only come from the setting.
+        var settings = (await client!.GetSettingsAsync()).Settings;
+        var before = settings.AccentColor;
+        settings.AccentColor = "rose";
+        await client.UpdateSettingsAsync(settings);
+        try
+        {
+            using var window = Process.Start(new ProcessStartInfo(dashboard, "--page settings") { UseShellExecute = false });
+            Check(window is not null, "the dashboard didn't start");
+            var hwnd = await WaitFor(async () =>
+            {
+                await Task.Delay(250);
+                window!.Refresh();
+                return window.MainWindowHandle != IntPtr.Zero ? (object)window.MainWindowHandle : null;
+            }, TimeSpan.FromSeconds(45), "the settings window");
+            Native.Fit((IntPtr)hwnd);
+            await Task.Delay(TimeSpan.FromSeconds(6));
+            var path = Path.Combine(screenshots, "next-accent.png");
+            Native.Capture((IntPtr)hwnd, path);
+            window!.Kill();
+            await window.WaitForExitAsync();
+            // Accent buttons use the Dark1 shade in the light theme and Light2 in the dark theme.
+            var rose = Accent.Shades(Accent.Resolve("rose")!.Value);
+            var pixels = Native.CountNear(path, new[] { rose.Dark1, rose.Light2 }, tolerance: 12);
+            Console.WriteLine($"      {pixels} pixels in the rose accent");
+            if (pixels < 200)
+                Console.WriteLine($"      most common strong colours: {Native.TopColors(path, 6)}");
+            Check(pixels >= 200, "the dashboard doesn't show the chosen accent colour");
+        }
+        finally
+        {
+            settings.AccentColor = before;
+            await client.UpdateSettingsAsync(settings);
         }
     });
 }
@@ -301,6 +346,10 @@ static class Native
         SetForegroundWindow(hwnd);
     }
 
+    /// <summary>Sets the window's size, even beyond the (small) CI screen; the capture still renders all of it.</summary>
+    public static void Resize(IntPtr hwnd, int width, int height) =>
+        SetWindowPos(hwnd, IntPtr.Zero, 0, 0, width, height, SwpNoZOrder);
+
     public static void Capture(IntPtr hwnd, string path)
     {
         GetWindowRect(hwnd, out var rect);
@@ -318,5 +367,41 @@ static class Native
             }
         }
         bitmap.Save(path, ImageFormat.Png);
+    }
+
+    /// <summary>The most common clearly coloured (not grey) pixels, as "#rrggbb×count", for diagnosing a failure.</summary>
+    public static string TopColors(string path, int top)
+    {
+        using var bitmap = new Bitmap(path);
+        var counts = new Dictionary<int, int>();
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var p = bitmap.GetPixel(x, y);
+                if (Math.Max(p.R, Math.Max(p.G, p.B)) - Math.Min(p.R, Math.Min(p.G, p.B)) < 40)
+                    continue;
+                var rgb = (p.R << 16) | (p.G << 8) | p.B;
+                counts[rgb] = counts.GetValueOrDefault(rgb) + 1;
+            }
+        }
+        return string.Join(", ", counts.OrderByDescending(c => c.Value).Take(top).Select(c => $"#{c.Key:x6}×{c.Value}"));
+    }
+
+    /// <summary>How many pixels of an image are within <paramref name="tolerance"/> of any of the colours.</summary>
+    public static int CountNear(string path, IReadOnlyList<Rgb> colors, int tolerance)
+    {
+        using var bitmap = new Bitmap(path);
+        var count = 0;
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var p = bitmap.GetPixel(x, y);
+                if (colors.Any(c => Math.Abs(p.R - c.R) <= tolerance && Math.Abs(p.G - c.G) <= tolerance && Math.Abs(p.B - c.B) <= tolerance))
+                    count++;
+            }
+        }
+        return count;
     }
 }

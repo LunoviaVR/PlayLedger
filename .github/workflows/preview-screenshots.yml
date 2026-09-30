@@ -54,6 +54,8 @@ jobs:
           exit $code
 
       - name: Commit the screenshots
+        # Also after a failed smoke test (the job stays red): the screenshots show what went wrong.
+        if: ${{ !cancelled() }}
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
@@ -61,4 +63,7 @@ jobs:
           git add docs/next/*.png
           if (git diff --cached --quiet) { Write-Host "Screenshots unchanged."; exit 0 }
           git commit -m "Update preview dashboard screenshots"
+          # Other commits may have landed on the branch during the run; put the screenshots on top of them.
+          git pull --rebase
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           git push

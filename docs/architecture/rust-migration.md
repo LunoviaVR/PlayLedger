@@ -170,6 +170,81 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing: [`testing-the-preview.md`](../testing-the-preview.md) |
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove C# after parity is verified | Planned |
+| 13 | Game context menu: change artwork, stop tracking, delete history | Planned, not started: see *Game context menu* below |
+| 14 | Tip or donate section in Settings | Planned, not started: see *Tip or donate* below |
+| 15 | Glass look in the Windows 11 design language | Planned, not started: see *Glass look* below |
+
+## Game context menu (phase 13, planned)
+
+Not started. On the **Games** page, right-clicking a game tile opens a menu. The same menu opens with the keyboard
+(the Menu key or Shift+F10) and with press-and-hold on touch screens:
+
+- **Change artwork ▸** a cascading submenu:
+  - **Choose an image file…** picks a PNG, JPEG or WebP from the PC. It goes through the same checks as downloaded
+    artwork (format sniffed from the bytes, size and dimension limits), is copied into the artwork cache, and is
+    never uploaded.
+  - **Pick from SteamGridDB…** shows the images SteamGridDB has for the game, to choose one. It's only there when
+    *Online artwork* is on and the user has entered their own API key, and sends only what artwork lookups already
+    send: the Steam app ID, or the game's name.
+  - **Use automatic artwork** removes the override and goes back to the sources under *Artwork* above.
+- **Stop tracking**, as in the game's details now: it moves the game to *Settings → Ignored games* and keeps its
+  history.
+
+**Recommended artwork size**, shown next to *Choose an image file…* so people can make their own:
+
+- **600 × 900 pixels**, portrait (2:3), PNG, JPEG or WebP. Game tiles are 160 × 240 (2:3), so this stays sharp on
+  displays scaled up to 375%. It's also the size of Steam's library covers and SteamGridDB's standard grids, so
+  artwork made for those fits exactly.
+- **PNG is fully supported, including transparency.** Transparent areas show the tile's own background (which
+  follows the light or dark theme), so a logo or character cut-out on a transparent PNG sits cleanly on the tile.
+  The file is kept exactly as chosen: it's checked, not re-compressed, so PNG stays lossless.
+- The smallest that still looks sharp is **320 × 480** (up to 200% scaling). Anything up to 8192 pixels a side and
+  16 MB is accepted, the limits every artwork image already has.
+- Other shapes are scaled to fill the tile and cropped at the edges, so keep the important part in the middle.
+- Tiles have rounded corners (about 30 pixels at 600 × 900), and while the game runs a *Playing* badge covers the
+  top-left corner (roughly the top-left 250 × 100 pixels at 600 × 900), so keep text and faces out of the corners.
+- **Delete history…**, as in the game's details now, after the same confirmation.
+
+The tracker would keep each game's chosen artwork locally, as an override the artwork service checks before its
+automatic sources. The dashboard would reach it through new pipe requests (setting and resetting a game's
+artwork, and listing SteamGridDB candidates), added to `dashboard/fixtures/responses.jsonl` so both sides agree.
+It would come with Rust unit tests for the override and the file checks, and a smoke-test step that sets a
+game's artwork from a file and resets it.
+
+## Tip or donate (phase 14, planned)
+
+Not started. A small **Support Playtime Tracker** section in Settings, directly below *About*: one line of text and
+a button with the Cash App logo, labelled **Tip or Donate**. It opens `https://cash.app/$LunoviaVR` in the default
+browser.
+
+- The logo is Cash App's trademark, so it would be the official asset from Cash App's brand resources, used as their
+  guidelines allow (unaltered, with clear space), not a redrawn copy. It is bundled with the dashboard, not loaded
+  from the web. The owner of this project has agreed to use it under Cash App's terms.
+- Nothing is sent anywhere until the user clicks. The link is a fixed address in the code, opened only after a
+  check that it's that exact `https://cash.app/` address, and the app neither sees nor handles any payment.
+- The button has an accessible name ("Tip or donate with Cash App, opens in your browser") and works with the
+  keyboard like every other control.
+
+## Glass look (phase 15, planned)
+
+Not started. A glassmorphism look, still clearly Windows 11: the Task Manager layout (custom title bar, left
+navigation, cards) and WinUI 3's controls, type (Segoe UI Variable), spacing, corner radii and motion all stay. The
+glass comes from Windows' own materials rather than painted imitations, so it looks and performs like the rest of the
+system:
+
+- **Window:** Mica Alt (or Desktop Acrylic as a setting) behind everything, so the wallpaper's colour shows through.
+- **Surfaces in three levels,** like the C# app's glass design system (`Ui/Glass.cs`: panels, cards, controls): the
+  navigation pane and page stay clear, cards and tiles become frosted in-app acrylic with a soft tint of the
+  accent colour, and controls sit on the card material. A thin light edge and a subtle shadow keep each card's
+  outline readable against any wallpaper.
+- **Readable first:** text keeps at least WCAG AA contrast (4.5:1) on every surface in light and dark, with the tint
+  and opacity chosen for the worst-case wallpaper. Game artwork on tiles stays opaque.
+- **Follows Windows:** with *Transparency effects* off, in Battery/Energy saver, or when the window isn't focused,
+  surfaces fall back to solid colours, as Windows' materials do. High-contrast themes get plain system colours.
+- **A switch in Settings** (Appearance → Glass effects: on, off) for people who prefer the plain look.
+
+It would be checked with screenshots of every page in light and dark, over a bright and a dark wallpaper, plus a
+contrast check on the text colours used on each surface.
 
 ## Checks
 

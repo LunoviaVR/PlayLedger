@@ -117,6 +117,9 @@ public class ProtocolTests
         Assert.Equal("12m 03s", Format.Duration(12 * 60 + 3));
         Assert.Equal("1248h 32m", Format.Duration(1248 * 3600 + 32 * 60));
         Assert.Equal("2 hours 5 minutes", Format.SpokenDuration(2 * 3600 + 5 * 60));
+        // A running session keeps its seconds past an hour, so it visibly counts up.
+        Assert.Equal("12m 03s", Format.LiveDuration(12 * 60 + 3));
+        Assert.Equal("1h 05m 09s", Format.LiveDuration(3600 + 5 * 60 + 9));
         var today = new DateOnly(2026, 9, 29);
         var culture = CultureInfo.InvariantCulture;
         Assert.Equal("Today", Format.Day(today, today, culture));

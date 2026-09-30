@@ -20,6 +20,17 @@ public static class Format
 
     public static string Duration(long seconds) => Duration(TimeSpan.FromSeconds(Math.Max(0, seconds)));
 
+    /// <summary>
+    /// A running session's time, which counts up every second while the dashboard is open: like
+    /// <see cref="Duration(long)"/>, but past an hour it keeps the seconds too ("1h 05m 12s") so it visibly moves.
+    /// </summary>
+    public static string LiveDuration(long seconds)
+    {
+        var t = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        var hours = (long)t.TotalHours;
+        return hours > 0 ? $"{hours}h {t.Minutes:00}m {t.Seconds:00}s" : Duration(t);
+    }
+
     /// <summary>A short, readable duration for screen readers: "2 hours 5 minutes".</summary>
     public static string SpokenDuration(long seconds)
     {
