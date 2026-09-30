@@ -171,7 +171,7 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove C# after parity is verified | Planned |
 | 13 | Game context menu: change artwork, stop tracking, delete history; fix layouts in narrow windows (History, Statistics, Overview) | Planned, not started: see *Game context menu* below |
-| 14 | Tip or donate section in Settings | Planned, not started: see *Tip or donate* below |
+| 14 | Tip or donate section in Settings; search in Ignored Games and Ignored Programs | Planned, not started: see *Tip or donate* below |
 | 15 | Glass look in the Windows 11 design language | Planned, not started: see *Glass look* below |
 | 16 | "Get API key" button for SteamGridDB | Planned, not started: see *Get API key button* below |
 | 17 | Settings: section order and title-case headings | Planned, not started: see *Settings headings* below |
@@ -249,6 +249,13 @@ browser.
   check that it's that exact `https://cash.app/` address, and the app neither sees nor handles any payment.
 - The button has an accessible name ("Tip or donate with Cash App, opens in your browser") and works with the
   keyboard like every other control.
+
+**Also in this phase (quality of life): search in *Ignored Games* and *Ignored Programs*.** Each list gets a search
+box above it that filters as you type (case-insensitive, matching anywhere in the name, e.g. "steam" finds
+"steamwebhelper.exe"), with a clear button, a "No matches" line when nothing fits, and the count ("3 of 41"). It
+only filters what's shown: adding and removing entries works the same, and a removed entry disappears from the
+filtered list straight away. The search boxes have accessible names ("Search ignored games", "Search ignored
+programs") and are reachable with the keyboard.
 
 ## Glass look (phase 15, planned)
 
