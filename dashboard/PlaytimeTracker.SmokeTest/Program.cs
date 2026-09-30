@@ -234,6 +234,42 @@ if (screenshots is not null)
             await window.WaitForExitAsync();
         }
     });
+
+    await Step("the accent colour setting changes the dashboard's colours", async () =>
+    {
+        // Rose is far from any Windows default accent, so its shades on screen can only come from the setting.
+        var settings = (await client!.GetSettingsAsync()).Settings;
+        var before = settings.AccentColor;
+        settings.AccentColor = "rose";
+        await client.UpdateSettingsAsync(settings);
+        try
+        {
+            using var window = Process.Start(new ProcessStartInfo(dashboard, "--page settings") { UseShellExecute = false });
+            Check(window is not null, "the dashboard didn't start");
+            var hwnd = await WaitFor(async () =>
+            {
+                await Task.Delay(250);
+                window!.Refresh();
+                return window.MainWindowHandle != IntPtr.Zero ? (object)window.MainWindowHandle : null;
+            }, TimeSpan.FromSeconds(45), "the settings window");
+            Native.Fit((IntPtr)hwnd);
+            await Task.Delay(TimeSpan.FromSeconds(6));
+            var path = Path.Combine(screenshots, "next-accent.png");
+            Native.Capture((IntPtr)hwnd, path);
+            window!.Kill();
+            await window.WaitForExitAsync();
+            // Accent buttons use the Dark1 shade in the light theme and Light2 in the dark theme.
+            var rose = Accent.Shades(Accent.Resolve("rose")!.Value);
+            var pixels = Native.CountNear(path, new[] { rose.Dark1, rose.Light2 }, tolerance: 12);
+            Console.WriteLine($"      {pixels} pixels in the rose accent");
+            Check(pixels >= 200, "the dashboard doesn't show the chosen accent colour");
+        }
+        finally
+        {
+            settings.AccentColor = before;
+            await client.UpdateSettingsAsync(settings);
+        }
+    });
 }
 
 await Step("a session can be deleted", async () =>
@@ -318,5 +354,22 @@ static class Native
             }
         }
         bitmap.Save(path, ImageFormat.Png);
+    }
+
+    /// <summary>How many pixels of an image are within <paramref name="tolerance"/> of any of the colours.</summary>
+    public static int CountNear(string path, IReadOnlyList<Rgb> colors, int tolerance)
+    {
+        using var bitmap = new Bitmap(path);
+        var count = 0;
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var p = bitmap.GetPixel(x, y);
+                if (colors.Any(c => Math.Abs(p.R - c.R) <= tolerance && Math.Abs(p.G - c.G) <= tolerance && Math.Abs(p.B - c.B) <= tolerance))
+                    count++;
+            }
+        }
+        return count;
     }
 }
