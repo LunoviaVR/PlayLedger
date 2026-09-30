@@ -28,7 +28,7 @@ public sealed partial class StatisticsPage : Page
         if (App.State.Snapshot is not { } s)
             return;
         var culture = CultureInfo.CurrentCulture;
-        var played = s.History.Where(d => d.TotalSeconds > 0).ToList();
+        var played = s.History.Where(d => d.SessionCount > 0).ToList();
         DaysPlayed.Text = played.Count.ToString(culture);
         PerDay.Text = played.Count == 0 ? "–" : Format.Duration(played.Sum(d => d.TotalSeconds) / played.Count);
         var longest = s.Sessions.OrderByDescending(x => x.Seconds).FirstOrDefault();

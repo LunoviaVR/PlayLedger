@@ -8,11 +8,11 @@ use crate::service::{EventHub, Service};
 use playtime_core::ipc::{self, Event, Response};
 use std::fs::File;
 use std::io::BufReader;
-use std::os::windows::io::FromRawHandle;
+use std::os::windows::io::{AsRawHandle, FromRawHandle};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use windows::core::{HSTRING, PCWSTR, PWSTR};
 use windows::Win32::Foundation::{CloseHandle, LocalFree, ERROR_PIPE_CONNECTED, HANDLE, HLOCAL};
 use windows::Win32::Security::Authorization::{
@@ -24,8 +24,8 @@ use windows::Win32::Security::{
 };
 use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
 use windows::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS,
-    PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+    ConnectNamedPipe, CreateNamedPipeW, PeekNamedPipe, PIPE_READMODE_BYTE,
+    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -33,6 +33,24 @@ const BUFFER_BYTES: u32 = 64 * 1024;
 /// More simultaneous dashboard connections than this are refused (one dashboard uses two).
 const MAX_CLIENTS: usize = 8;
 const HEARTBEAT: Duration = Duration::from_secs(30);
+const DISCONNECT_CHECK: Duration = Duration::from_secs(1);
+
+/// False once the other end of the pipe has closed (PeekNamedPipe then fails with a broken pipe).
+fn peer_connected(pipe: &File) -> bool {
+    let mut available = 0u32;
+    // SAFETY: peeks without reading; the handle belongs to `pipe`, which outlives the call.
+    unsafe {
+        PeekNamedPipe(
+            HANDLE(pipe.as_raw_handle()),
+            None,
+            0,
+            None,
+            Some(&mut available),
+            None,
+        )
+    }
+    .is_ok()
+}
 
 /// The current user's SID as a string (e.g. `S-1-5-21-…`).
 pub fn current_user_sid() -> Option<String> {
@@ -221,13 +239,24 @@ fn client(pipe: File, service: &Mutex<Service>, events: &EventHub) {
                     return;
                 }
                 let receiver = events.subscribe();
+                let mut quiet_since = Instant::now();
                 loop {
-                    // A heartbeat now and then notices a dashboard that went away while nothing was happening.
-                    let event = match receiver.recv_timeout(HEARTBEAT) {
+                    // Check every second whether the dashboard went away (it may have been closed or crashed),
+                    // so its connection slot is freed promptly; a heartbeat also goes out when nothing happens.
+                    let event = match receiver.recv_timeout(DISCONNECT_CHECK) {
                         Ok(event) => event,
-                        Err(RecvTimeoutError::Timeout) => Event::Heartbeat,
+                        Err(RecvTimeoutError::Timeout) => {
+                            if !peer_connected(&writer) {
+                                return;
+                            }
+                            if quiet_since.elapsed() < HEARTBEAT {
+                                continue;
+                            }
+                            Event::Heartbeat
+                        }
                         Err(RecvTimeoutError::Disconnected) => return,
                     };
+                    quiet_since = Instant::now();
                     if ipc::write_message(&mut writer, &Response::Event { event }).is_err() {
                         return;
                     }

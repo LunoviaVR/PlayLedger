@@ -6,7 +6,8 @@ use std::fs;
 use std::io::Read;
 use windows::core::{HSTRING, PCWSTR};
 use windows::Win32::Storage::FileSystem::{
-    GetDriveTypeW, GetFileVersionInfoSizeW, GetFileVersionInfoW, GetLogicalDrives, VerQueryValueW,
+    GetDriveTypeW, GetFileVersionInfoSizeW, GetFileVersionInfoW, GetLogicalDrives,
+    GetLongPathNameW, VerQueryValueW,
 };
 use windows::Win32::System::Environment::ExpandEnvironmentStringsW;
 
@@ -96,8 +97,27 @@ impl DiscoveryHost for WindowsHost {
             return text.to_string();
         }
         let end = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
-        String::from_utf16(&buffer[..end]).unwrap_or_else(|_| text.to_string())
+        let expanded = String::from_utf16(&buffer[..end]).unwrap_or_else(|_| text.to_string());
+        long_path(&expanded).unwrap_or(expanded)
     }
+}
+
+/// The long form of an existing path (`C:\Users\RUNNER~1\…` → `C:\Users\runneradmin\…`). Windows reports running
+/// programs by their long path, so a folder saved in 8.3 short form would otherwise never match.
+fn long_path(path: &str) -> Option<String> {
+    let source = HSTRING::from(path);
+    // SAFETY: size query with no buffer; fails (0) if the path doesn't exist.
+    let needed = unsafe { GetLongPathNameW(PCWSTR(source.as_ptr()), None) };
+    if needed == 0 || needed > 32 * 1024 {
+        return None;
+    }
+    let mut buffer = vec![0u16; needed as usize];
+    // SAFETY: `buffer` has room for `needed` characters including the terminator.
+    let written = unsafe { GetLongPathNameW(PCWSTR(source.as_ptr()), Some(&mut buffer)) };
+    if written == 0 || written as usize >= buffer.len() {
+        return None;
+    }
+    String::from_utf16(&buffer[..written as usize]).ok()
 }
 
 fn fixed_drives() -> Vec<String> {

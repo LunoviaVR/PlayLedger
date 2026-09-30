@@ -19,13 +19,30 @@ public partial class App : Application
     /// <summary>The dashboard's shared state (connection and latest data).</summary>
     public static AppState State { get; } = new();
 
+    static App()
+    {
+        // Registered before anything else so even a failure while starting up is recorded.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception ex)
+                CrashLog.Write("Unhandled", ex);
+        };
+        TaskScheduler.UnobservedTaskException += (_, e) => CrashLog.Write("Unobserved task", e.Exception);
+    }
+
     public App()
     {
         InitializeComponent();
+        // Missing resources and broken bindings are otherwise silent (or an unexplained parse error).
+        DebugSettings.IsXamlResourceReferenceTracingEnabled = true;
+        DebugSettings.XamlResourceReferenceFailed += (_, e) => CrashLog.Write("XAML resource", e.Message);
+        DebugSettings.IsBindingTracingEnabled = true;
+        DebugSettings.BindingFailed += (_, e) => CrashLog.Write("Binding", e.Message);
         UnhandledException += (_, e) =>
         {
             // Keep the window alive on unexpected UI errors; the tracker (and the data) are unaffected.
             e.Handled = true;
+            CrashLog.Write("UI", e.Exception);
             State.ReportError(e.Exception.Message);
         };
     }
@@ -51,9 +68,17 @@ public partial class App : Application
             return;
         }
 
-        _window = new MainWindow(page);
-        CurrentWindow = _window;
-        _window.Activate();
+        try
+        {
+            _window = new MainWindow(page);
+            CurrentWindow = _window;
+            _window.Activate();
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Starting the window", ex);
+            throw;
+        }
         ListenForOtherLaunches(_window);
     }
 

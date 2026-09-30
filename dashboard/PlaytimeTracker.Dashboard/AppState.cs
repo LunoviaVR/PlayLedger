@@ -35,10 +35,10 @@ public sealed class AppState
         _client.EventReceived += e => Post(() => OnEvent(e));
         _client.ConnectionChanged += connected => Post(() =>
         {
-            if (connected && !Connected)
+            // Only the change stream dropped (it reconnects by itself); whether the tracker is actually gone is decided
+            // by a real request, which shows the banner if it fails.
+            if (!connected || !Connected)
                 _ = RefreshAsync();
-            else if (!connected)
-                SetConnected(false, "Playtime Tracker isn't running. Tracking is paused until it starts again.");
         });
     }
 
