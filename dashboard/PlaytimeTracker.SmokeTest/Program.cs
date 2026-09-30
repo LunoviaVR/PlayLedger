@@ -163,10 +163,13 @@ await Step("closing the game records a session", async () =>
         return s.Sessions.FirstOrDefault(x => x.Game == GameName && !x.IsLive);
     }, TimeSpan.FromSeconds(30), "the finished session");
     Check(session.Executable?.EndsWith("smoke-game.exe", StringComparison.OrdinalIgnoreCase) == true, "wrong executable recorded");
-    List<TrackerEvent> seen;
-    lock (events) seen = events.ToList();
-    Check(seen.OfType<SessionStartedEvent>().Any(e => e.Game == GameName), "no sessionStarted event");
-    Check(seen.OfType<SessionEndedEvent>().Any(e => e.Session.Game == GameName), "no sessionEnded event");
+    // Events come over their own connection, so they can arrive just after the snapshot shows the session.
+    TrackerEvent? Seen<T>(Func<T, bool> match) where T : TrackerEvent
+    {
+        lock (events) return events.OfType<T>().FirstOrDefault(match);
+    }
+    await WaitFor(() => Task.FromResult(Seen<SessionStartedEvent>(e => e.Game == GameName)), TimeSpan.FromSeconds(10), "the sessionStarted event");
+    await WaitFor(() => Task.FromResult(Seen<SessionEndedEvent>(e => e.Session.Game == GameName)), TimeSpan.FromSeconds(10), "the sessionEnded event");
 });
 
 await Step("history is protected on disk and reports are read-only", async () =>
