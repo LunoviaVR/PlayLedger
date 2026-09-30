@@ -16,6 +16,9 @@
     <!-- Lets the project restore on non-Windows machines (e.g. GitHub's dependency scan); it still builds only on Windows. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <WindowsPackageType>None</WindowsPackageType>
+    <!-- Runs the resource packaging (MakePri) that puts the compiled XAML into the app's .pri file. Without it an
+         unpackaged app builds, but fails at startup with "Cannot locate resource from ms-appx:///MainWindow.xaml". -->
+    <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

@@ -17,6 +17,8 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 dotnet publish "$PSScriptRoot\dashboard\PlaytimeTracker.Dashboard" -c Release -r win-x64 --self-contained true `
     -p:Platform=x64 -p:DebugType=none -p:Version=$Version -o "$out\dashboard"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
+# The compiled XAML lives in the .pri resource index; without it the dashboard can't start.
+if (-not (Get-ChildItem "$out\dashboard" -Filter *.pri)) { throw "The dashboard was published without its resources (.pri)" }
 
 $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
 if (-not $makensis) { $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
