@@ -2,8 +2,8 @@
 //! <snapshot> [--dark] [--glass]`, where `<snapshot>` is a file whose first line is a `dashboard` response (the
 //! protocol fixture has one). Used to check layouts at several sizes on any platform, including CI.
 //!
-//! `--glass` draws the glass look's see-through colours over a mock-up of Windows' Mica Alt material (a sample
-//! wallpaper, heavily tinted towards the base colour, as Mica blurs and tints the real one). Windows draws the real
+//! `--glass` draws the glass look's see-through colours over a mock-up of Windows' Acrylic material (a sample
+//! backdrop, heavily tinted towards the base colour, as Acrylic blurs and tints what's behind the window). Windows draws the real
 //! material, so this is only an illustration of it.
 
 use crate::ui::{AppWindow, Palette};
@@ -32,16 +32,17 @@ pub struct RenderArgs {
     pub out: String,
     pub snapshot: String,
     pub dark: bool,
-    /// `--glass`: the glass look over a mock-up of the Mica Alt backdrop.
+    /// `--glass`: the glass look over a mock-up of the Acrylic backdrop.
     pub glass: bool,
-    /// `--dialog session|day|game|name`: open that dialog (the newest session, today, the most played game).
+    /// `--dialog session|day|game|name|choices`: open that dialog (the newest session, today, the most played game,
+    /// naming a custom game, or the SteamGridDB picker with sample covers).
     pub dialog: Option<String>,
 }
 
 impl RenderArgs {
     /// Parses the arguments after `--render`.
     pub fn parse(args: &[String], pages: &[&str]) -> Result<Self, String> {
-        let usage = "usage: --render <page> <width>x<height> <out.png> <snapshot file> [--dark] [--glass] [--dialog session|day|game|name]";
+        let usage = "usage: --render <page> <width>x<height> <out.png> <snapshot file> [--dark] [--glass] [--dialog session|day|game|name|choices]";
         let [page, size, out, snapshot, rest @ ..] = args else {
             return Err(usage.into());
         };
@@ -106,9 +107,12 @@ pub fn render(
                     is_installed_copy,
                 )
             });
+            let version = env!("CARGO_PKG_VERSION");
             window.global::<crate::ui::SettingsData>().set_about(
-                "Playtime Tracker 3.0.0 (dashboard 3.0.0). Your play history stays on this PC."
-                    .into(),
+                format!(
+                    "Playtime Tracker {version} (dashboard {version}). Your play history stays on this PC."
+                )
+                .into(),
             );
         }
     }
@@ -165,7 +169,7 @@ pub fn render(
     std::fs::write(&args.out, png).map_err(|e| format!("{}: {e}", args.out))
 }
 
-/// The mock-up of Mica Alt at (`x`, `y`) in 0..1: a smooth blue-violet sample wallpaper (as blurred as Mica makes
+/// The mock-up of Acrylic at (`x`, `y`) in 0..1: a smooth blue-violet sample backdrop (as blurred as Acrylic makes
 /// it), mixed mostly with the theme's base colour.
 fn mica_backdrop(x: f32, y: f32, dark: bool) -> [u8; 3] {
     const CORNERS: [[f32; 3]; 4] = [

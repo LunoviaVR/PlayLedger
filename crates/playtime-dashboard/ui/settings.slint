@@ -54,7 +54,7 @@ export global SettingsData {
     in property <bool> update-busy;
     // About
     in property <string> about;
-    // The Cash App logo on the Tip or Donate button (34 × 24).
+    // The Cash App logo on the Tip button (34 × 24).
     in property <image> cash-app-logo: @image-url("cash-app.png");
     in property <bool> has-cash-app-logo: true;
 
@@ -572,7 +572,7 @@ export component SettingsPage inherits Rectangle {
                             border-color: Theme.card-border;
                             background: donate-touch.pressed || donate-touch.has-hover ? Theme.subtle : Theme.card;
                             accessible-role: button;
-                            accessible-label: "Tip or donate with Cash App, opens in your browser";
+                            accessible-label: "Tip with Cash App, opens in your browser";
                             accessible-action-default => { SettingsData.donate(); }
                             forward-focus: donate-focus;
                             donate-row := HorizontalLayout {
@@ -588,10 +588,13 @@ export component SettingsPage inherits Rectangle {
                                     y: (parent.height - self.height) / 2;
                                     accessible-role: none;
                                 }
-                                Line { text: "Tip or Donate"; vertical-alignment: center; }
+                                Line { text: "Tip"; vertical-alignment: center; }
                             }
-                            donate-touch := TouchArea { mouse-cursor: pointer; clicked => { SettingsData.donate(); } }
+                            donate-touch := TouchArea { mouse-cursor: pointer; clicked => { Theme.focus-visible = false; SettingsData.donate(); } }
                             donate-focus := FocusScope {
+                                // A press gives focus and would otherwise be taken here, so the first click did nothing.
+                                focus-on-click: false;
+                                focus-gained(reason) => { Theme.focus-visible = reason == FocusReason.tab-navigation; }
                                 key-pressed(event) => {
                                     if (event.text == " " || event.text == "\n") { SettingsData.donate(); return accept; }
                                     reject
@@ -599,7 +602,7 @@ export component SettingsPage inherits Rectangle {
                             }
                             Rectangle {
                                 border-radius: 4px;
-                                border-width: donate-focus.has-focus ? 2px : 0;
+                                border-width: donate-focus.has-focus && Theme.focus-visible ? 2px : 0;
                                 border-color: Theme.text;
                             }
                         }

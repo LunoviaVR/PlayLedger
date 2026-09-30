@@ -306,12 +306,17 @@ fn select_renderer(args: &[String]) -> bool {
             .select()
     };
     if gpu {
-        match select("femtovg") {
-            Ok(()) => return true,
-            Err(e) => crash_log::write(
-                "Starting the GPU renderer",
-                &format!("{e}; drawing on the CPU instead"),
-            ),
+        // Skia draws text like Windows does (smooth, at subpixel positions); femtovg hints every glyph to the pixel
+        // grid, which looks too sharp. Skia on OpenGL keeps the window's transparency for the glass look (its
+        // Direct3D path would draw opaque). femtovg is the fallback if Skia can't start.
+        for renderer in ["skia-opengl", "femtovg"] {
+            match select(renderer) {
+                Ok(()) => return true,
+                Err(e) => crash_log::write(
+                    "Starting the GPU renderer",
+                    &format!("{renderer}: {e}; trying the next one"),
+                ),
+            }
         }
     }
     let _ = select("software");
@@ -497,10 +502,34 @@ fn main() -> Result<(), slint::PlatformError> {
                         .games
                         .first()
                         .map(|g| dialogs::Dialog::Game(g.name.clone())),
+                    Some("choices") => model
+                        .games
+                        .first()
+                        .map(|g| dialogs::Dialog::Choices(g.name.clone())),
                     _ => None,
                 };
                 show(window, snapshot, Refresh::Full);
+                let choices = matches!(pick, Some(dialogs::Dialog::Choices(_)));
                 open_dialog(&window.as_weak(), |_| pick);
+                if choices {
+                    // Twelve plain covers in different colours stand in for SteamGridDB's pictures.
+                    let pictures: Vec<slint::Image> = (0..12u8)
+                        .map(|i| {
+                            let colour = slint::Rgba8Pixel::new(40 + i * 17, 90, 220 - i * 13, 255);
+                            let mut cover =
+                                slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(100, 150);
+                            cover.make_mut_slice().fill(colour);
+                            slint::Image::from_rgba8(cover)
+                        })
+                        .collect();
+                    let names: Vec<slint::SharedString> =
+                        (1..=12).map(|i| format!("Picture {i}").into()).collect();
+                    window
+                        .set_dialog_pictures(slint::ModelRc::new(slint::VecModel::from(pictures)));
+                    window.set_dialog_picture_names(slint::ModelRc::new(slint::VecModel::from(
+                        names,
+                    )));
+                }
             })
         });
         if let Err(message) = result {

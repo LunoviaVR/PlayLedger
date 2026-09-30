@@ -62,9 +62,12 @@ export component FluentButton inherits Rectangle {
     touch := TouchArea {
         mouse-cursor: pointer;
         enabled: root.enabled;
-        clicked => { root.clicked(); }
+        clicked => { Theme.focus-visible = false; root.clicked(); }
     }
     focus := FocusScope {
+        // A press gives focus and would otherwise be taken here, so the first click did nothing.
+        focus-on-click: false;
+        focus-gained(reason) => { Theme.focus-visible = reason == FocusReason.tab-navigation; }
         key-pressed(event) => {
             if (root.enabled && (event.text == " " || event.text == "\n")) { root.clicked(); return accept; }
             reject
@@ -72,7 +75,7 @@ export component FluentButton inherits Rectangle {
     }
     Rectangle {
         border-radius: 4px;
-        border-width: focus.has-focus ? 2px : 0;
+        border-width: focus.has-focus && Theme.focus-visible ? 2px : 0;
         border-color: Theme.text;
     }
 }
@@ -87,8 +90,11 @@ export component RowButton inherits Rectangle {
     accessible-label: accessible-name;
     accessible-action-default => { clicked(); }
     forward-focus: focus;
-    touch := TouchArea { clicked => { root.clicked(); } }
+    touch := TouchArea { clicked => { Theme.focus-visible = false; root.clicked(); } }
     focus := FocusScope {
+        // A press gives focus and would otherwise be taken here, so the first click did nothing.
+        focus-on-click: false;
+        focus-gained(reason) => { Theme.focus-visible = reason == FocusReason.tab-navigation; }
         key-pressed(event) => {
             if (event.text == " " || event.text == "\n") { root.clicked(); return accept; }
             reject
@@ -97,7 +103,7 @@ export component RowButton inherits Rectangle {
     @children
     Rectangle {
         border-radius: 4px;
-        border-width: focus.has-focus ? 2px : 0;
+        border-width: focus.has-focus && Theme.focus-visible ? 2px : 0;
         border-color: Theme.text;
     }
 }
@@ -137,9 +143,12 @@ export component ToggleSwitch inherits Rectangle {
     }
     touch := TouchArea {
         enabled: root.enabled;
-        clicked => { root.toggle(); }
+        clicked => { Theme.focus-visible = false; root.toggle(); }
     }
     focus := FocusScope {
+        // A press gives focus and would otherwise be taken here, so the first click did nothing.
+        focus-on-click: false;
+        focus-gained(reason) => { Theme.focus-visible = reason == FocusReason.tab-navigation; }
         enabled: root.enabled;
         key-pressed(event) => {
             if (event.text == " ") { root.toggle(); return accept; }
@@ -152,7 +161,7 @@ export component ToggleSwitch inherits Rectangle {
         width: root.width + 6px;
         height: root.height + 6px;
         border-radius: 13px;
-        border-width: focus.has-focus ? 2px : 0;
+        border-width: focus.has-focus && Theme.focus-visible ? 2px : 0;
         border-color: Theme.text;
     }
 }

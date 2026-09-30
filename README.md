@@ -17,7 +17,7 @@ Riot Games and more), needs no account, and keeps your history on your own PC.
   by themselves (Roblox, Minecraft, Genshin Impact and more). Anything else takes one click to add.
 - **Accurate**: sleep never counts, a launcher handing off to its game stays one session, and play survives a crash or
   power cut.
-- **A proper Windows 11 app**: Mica glass, your accent colour, light and dark themes, full keyboard and screen reader
+- **A proper Windows 11 app**: see-through Acrylic glass, your accent colour, light and dark themes, full keyboard and screen reader
   support, and a layout that fits any window size.
 - **Your data stays yours**: nothing about your play leaves your PC. History is encrypted for your Windows account,
   and you can export every session to a spreadsheet at any time.
@@ -46,7 +46,7 @@ Riot Games and more), needs no account, and keeps your history on your own PC.
 
 ## Requirements
 
-- **Windows 11** on a 64-bit (x64) PC. The glass look uses Mica, which Windows provides from Windows 11 version 22H2;
+- **Windows 11** on a 64-bit (x64) PC. The glass look uses Acrylic, which Windows provides from Windows 11 version 22H2;
   on earlier versions the dashboard uses solid colours instead. Windows 10 isn't tested.
 - A 7 MB download. No administrator rights, and nothing else to install.
 
@@ -112,7 +112,7 @@ Everything at a glance.
 
 - **Four tiles**: total playtime (and how many games), number of sessions (and their average length), the past 7 days,
   and your most-played game.
-- **Playing now**: games running right now, with how long so far.
+- **Playing now**: games running right now, with how long each has been running.
 - **Daily playtime**: a bar for each of the last 30 days. **Select a bar** to see that day's sessions.
 - **Games**: every game with its total, number of sessions and when you last played it. Select a game to focus the whole
   page on it (tiles, chart and sessions); **All games** goes back.
@@ -180,10 +180,12 @@ only way to remove a single session, since your history can't be edited by hand 
 - **Theme**: follows Windows' light or dark mode, or is always light or always dark.
 - **Accent colour**: Windows' own, one of six presets (blue, violet, teal, green, amber, rose), or any colour you pick.
   Buttons, switches, selection and charts all use it.
-- **Glass effects** (on by default): Windows' Mica material shows your wallpaper's colour through the window, and cards
-  and panels are see-through, as in Windows 11's own apps. The dashboard switches to solid colours by itself when
-  Windows' transparency effects are off, with a high-contrast theme, and on Windows versions without Mica.
-- **Hardware acceleration** (on by default): the dashboard draws with your graphics card. If the window flickers or
+- **Glass effects** (on by default): the window is see-through. Windows' Acrylic material shows whatever is behind
+  it, softly blurred, and cards and panels are translucent over it, as in Windows 11's own apps. The dashboard switches
+  to solid colours by itself when Windows' transparency effects are off, with a high-contrast theme, and on Windows
+  versions without Acrylic.
+- **Hardware acceleration** (on by default): the dashboard draws with your graphics card, with smooth text like the
+  rest of Windows. If the window flickers or
   stays blank, for example over remote desktop, turn it off and click **Reopen now**. If the graphics card can't draw
   it at all, the dashboard switches to drawing without it by itself.
 - **Any window size**: tiles reflow from four across to one per row, lists never squeeze text into a column of single
@@ -191,8 +193,8 @@ only way to remove a single session, since your history can't be edited by hand 
 - **Accessible**: every control works with the keyboard (Tab, Space, Enter, and Escape to close a dialog) and has a
   label for screen readers.
 
-These two images are **mock-ups** of the glass look: Windows draws Mica from your own wallpaper, so the rendered images
-use a sample backdrop instead.
+These two images are **mock-ups** of the glass look: on your PC, Windows blurs whatever is behind the window, so the
+rendered images use a sample backdrop instead.
 
 | Glass, dark theme (mock-up) | Glass, light theme (mock-up) |
 | --- | --- |
@@ -292,7 +294,7 @@ straight away.
 | | Install updates automatically | On |
 | | **Check now**, and **Install update** when one is ready | |
 | **About** | The version you're running | |
-| **Support Playtime Tracker** | **Tip or Donate** opens [cash.app/$LunoviaVR](https://cash.app/$LunoviaVR) in your browser | |
+| **Support Playtime Tracker** | **Tip** opens [cash.app/$LunoviaVR](https://cash.app/$LunoviaVR) in your browser | |
 
 Settings are stored in the protected `settings.dat` (see [Your data](#your-data)), so they can only be changed here.
 
@@ -359,7 +361,7 @@ requests are:
   the installer when there's a new one.
 - **Artwork** (only with **Download missing artwork** on): Steam store pictures looked up by Steam ID and, with your key,
   SteamGridDB searches by game name. Only an allow-list of image hosts is contacted, over HTTPS.
-- **Links you click** (Get API key, Tip or Donate) open in your browser.
+- **Links you click** (Get API key, Tip) open in your browser.
 
 The tracker and the dashboard talk to each other over a private channel on your PC that only your Windows account can
 open.
@@ -395,7 +397,7 @@ Turn off **Settings → Appearance → Hardware acceleration** and click **Reope
 desktop and with older graphics drivers.
 
 **The window isn't see-through.**
-Glass effects need Windows 11 version 22H2 or later with **Transparency effects** on in *Settings → Personalization →
+Glass effects need **Hardware acceleration** on, Windows 11 version 22H2 or later, with **Transparency effects** on in *Settings → Personalization →
 Colors*. Windows also turns the material solid while the window isn't focused and in energy saver.
 
 **I can't see the tray icon.**
@@ -444,7 +446,7 @@ cargo run -p playtime-dashboard -- --render overview 1180x760 overview.png crate
 
 - **Found a bug or have an idea?** [Open an issue](https://github.com/LunoviaVR/PlaytimeTracker/issues).
 - **Security problem?** Report it privately as described in [SECURITY.md](SECURITY.md).
-- **Enjoying it?** **Settings → Support Playtime Tracker → Tip or Donate**, or
+- **Enjoying it?** **Settings → Support Playtime Tracker → Tip**, or
   [cash.app/$LunoviaVR](https://cash.app/$LunoviaVR).
 
 Playtime Tracker is free software under the GPL-3.0 (see [LICENSE](LICENSE)). The dashboard uses Slint under the

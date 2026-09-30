@@ -57,8 +57,11 @@ component NavItem inherits Rectangle {
             accessible-role: none;
         }
     }
-    touch := TouchArea { clicked => { root.clicked(); } }
+    touch := TouchArea { clicked => { Theme.focus-visible = false; root.clicked(); } }
     focus := FocusScope {
+        // A press gives focus and would otherwise be taken here, so the first click did nothing.
+        focus-on-click: false;
+        focus-gained(reason) => { Theme.focus-visible = reason == FocusReason.tab-navigation; }
         key-pressed(event) => {
             if (event.text == " " || event.text == "\n") { root.clicked(); return accept; }
             reject
@@ -66,7 +69,7 @@ component NavItem inherits Rectangle {
     }
     Rectangle {
         border-radius: 4px;
-        border-width: focus.has-focus ? 2px : 0;
+        border-width: focus.has-focus && Theme.focus-visible ? 2px : 0;
         border-color: Theme.text;
     }
 }
@@ -152,7 +155,8 @@ export component AppWindow inherits Window {
 
     // The pane's width follows the window's, so the two areas are placed by hand rather than in a layout: a layout
     // would feed the pane's width back into the window's own size.
-    property <length> pane-width: root.pane-expanded ? 220px : 56px;
+    // Folded, 48px centres the 16px icons (12px into each 40px item, 4px from the pane edge) with 16px either side.
+    property <length> pane-width: root.pane-expanded ? 220px : 48px;
     Rectangle {
         // Navigation pane (collapses to icons with the ☰ button, as Task Manager's does).
         VerticalLayout {

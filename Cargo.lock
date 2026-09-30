@@ -1628,7 +1628,7 @@ dependencies = [
  "log",
  "presser",
  "thiserror 2.0.21",
- "windows 0.61.3",
+ "windows 0.62.2",
 ]
 
 [[package]]
@@ -1750,6 +1750,7 @@ dependencies = [
  "i-slint-common",
  "i-slint-core",
  "i-slint-renderer-femtovg",
+ "i-slint-renderer-skia",
  "i-slint-renderer-software",
  "input",
  "libseat",
@@ -1774,6 +1775,7 @@ dependencies = [
  "i-slint-core",
  "i-slint-core-macros",
  "i-slint-renderer-femtovg",
+ "i-slint-renderer-skia",
 ]
 
 [[package]]
@@ -3405,7 +3407,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "playtime-artwork"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "miniz_oxide 0.8.9",
  "playtime-core",
@@ -3416,7 +3418,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-core"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "chrono",
  "serde",
@@ -3426,7 +3428,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-dashboard"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "chrono",
  "embed-resource",
@@ -3443,7 +3445,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-smoke-test"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "playtime-artwork",
  "playtime-core",
@@ -3454,7 +3456,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-tracker"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "chrono",
  "embed-resource",
@@ -3467,7 +3469,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-windows"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "chrono",
  "playtime-artwork",
@@ -4102,6 +4104,7 @@ dependencies = [
  "i-slint-core",
  "i-slint-core-macros",
  "i-slint-renderer-femtovg",
+ "i-slint-renderer-skia",
  "i-slint-renderer-software",
  "num-traits",
  "once_cell",
@@ -4225,6 +4228,7 @@ checksum = "aac18da81ebbf05109ab275b157c22a653bb3c12cf884450179942f81bcbf6c3"
 dependencies = [
  "as-raw-xcb-connection",
  "bytemuck",
+ "drm",
  "fastrand",
  "js-sys",
  "memmap2",

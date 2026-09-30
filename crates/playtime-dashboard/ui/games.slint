@@ -80,7 +80,7 @@ component GameCard inherits Rectangle {
                 Rectangle {
                     background: touch.has-hover ? #FFFFFF14 : transparent;
                     border-radius: Theme.radius;
-                    border-width: focus.has-focus ? 2px : 0;
+                    border-width: focus.has-focus && Theme.focus-visible ? 2px : 0;
                     border-color: Theme.text;
                 }
             }
@@ -103,6 +103,7 @@ component GameCard inherits Rectangle {
                 }
             }
             clicked => {
+                Theme.focus-visible = false;
                 if (!root.held) { root.clicked(); }
             }
         }
@@ -116,6 +117,9 @@ component GameCard inherits Rectangle {
             }
         }
         focus := FocusScope {
+            // A press gives focus and would otherwise be taken here, so the first click did nothing.
+            focus-on-click: false;
+            focus-gained(reason) => { Theme.focus-visible = reason == FocusReason.tab-navigation; }
             key-pressed(event) => {
                 if (event.text == " " || event.text == "\n") { root.clicked(); return accept; }
                 // Anything else (the Menu key, Shift+F10) goes on to the menu.
