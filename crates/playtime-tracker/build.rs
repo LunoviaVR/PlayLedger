@@ -15,12 +15,7 @@ fn main() {
 
     let dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default());
     let rc_path = |p: PathBuf| p.display().to_string().replace('\\', "\\\\");
-    let icon = rc_path(
-        dir.join("..")
-            .join("..")
-            .join("assets")
-            .join("app.ico"),
-    );
+    let icon = rc_path(dir.join("..").join("..").join("assets").join("app.ico"));
     let manifest = rc_path(dir.join("tracker.manifest"));
 
     let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "0.0.0".into());
