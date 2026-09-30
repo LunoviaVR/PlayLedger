@@ -170,9 +170,11 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing: [`testing-the-preview.md`](../testing-the-preview.md) |
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove C# after parity is verified | Planned |
-| 13 | Game context menu: change artwork, stop tracking, delete history | Planned, not started: see *Game context menu* below |
-| 14 | Tip or donate section in Settings | Planned, not started: see *Tip or donate* below |
+| 13 | Game context menu: change artwork, stop tracking, delete history; fix layouts in narrow windows (History, Statistics, Overview) | Planned, not started: see *Game context menu* below |
+| 14 | Tip or donate section in Settings; search in Ignored Games and Ignored Programs | Planned, not started: see *Tip or donate* below |
 | 15 | Glass look in the Windows 11 design language | Planned, not started: see *Glass look* below |
+| 16 | "Get API key" button for SteamGridDB | Planned, not started: see *Get API key button* below |
+| 17 | Settings: section order and title-case headings | Planned, not started: see *Settings headings* below |
 
 ## Game context menu (phase 13, planned)
 
@@ -189,6 +191,29 @@ Not started. On the **Games** page, right-clicking a game tile opens a menu. The
   - **Use automatic artwork** removes the override and goes back to the sources under *Artwork* above.
 - **Stop tracking**, as in the game's details now: it moves the game to *Settings → Ignored games* and keeps its
   history.
+
+**Bug to fix in this phase: History rows collapse in a narrow window.** Each day's header row has fixed columns
+(140 px day, 230 px bar, 90 px total, plus spacing), and the games summary ("VRChat 1h 28m, OBS Studio 1h 28m, …")
+only gets what's left. In a narrow window that's almost nothing, and because the caption style wraps, the text
+breaks one letter per line and each row becomes very tall. Fix: the summary never wraps (one line, ending in "…"
+when it doesn't fit, with the full text in a tooltip and the row's accessible name); the bar column shrinks with
+the window instead of a fixed 230 px; and below a narrow width the summary moves to its own line under the day, so
+it always has room. Checked with History screenshots at a narrow and a wide window size.
+
+**Same bug on Statistics and the Overview: summary tiles collapse in a narrow window.** Both pages lay their four
+tiles (e.g. *Days played*, *Average per day played*, *Longest session*, *Games played*) out as four equal columns at
+any width, so in a narrow window each is about 40 px wide and its caption and value wrap one letter per line. The
+Statistics lists (*Most played*, by weekday, by time of day) use fixed 200 + 340 px columns and overflow too. Fix,
+for every page:
+
+- **Tiles reflow with the width:** four across when there's room, two by two when medium, one per row when narrow.
+- **Captions and values never wrap mid-word:** one line, ending in "…" if needed, with the full text in a tooltip
+  and the accessible name.
+- **List rows:** the name column and the bar share the width proportionally instead of fixed 200 + 340 px.
+- **A minimum window size** (about 500 × 500), as Task Manager has, so the window can't be shrunk past the point
+  where the layout still works.
+
+Checked with screenshots of the Overview, History and Statistics at a narrow, a medium and a wide window size.
 
 **Recommended artwork size**, shown next to *Choose an image file…* so people can make their own:
 
@@ -225,6 +250,13 @@ browser.
 - The button has an accessible name ("Tip or donate with Cash App, opens in your browser") and works with the
   keyboard like every other control.
 
+**Also in this phase (quality of life): search in *Ignored Games* and *Ignored Programs*.** Each list gets a search
+box above it that filters as you type (case-insensitive, matching anywhere in the name, e.g. "steam" finds
+"steamwebhelper.exe"), with a clear button, a "No matches" line when nothing fits, and the count ("3 of 41"). It
+only filters what's shown: adding and removing entries works the same, and a removed entry disappears from the
+filtered list straight away. The search boxes have accessible names ("Search ignored games", "Search ignored
+programs") and are reachable with the keyboard.
+
 ## Glass look (phase 15, planned)
 
 Not started. A glassmorphism look, still clearly Windows 11: the Task Manager layout (custom title bar, left
@@ -245,6 +277,43 @@ system:
 
 It would be checked with screenshots of every page in light and dark, over a bright and a dark wallpaper, plus a
 contrast check on the text colours used on each surface.
+
+## Get API key button (phase 16, planned)
+
+Not started. In **Settings → Artwork**, next to the SteamGridDB key box, a **Get API key** button for people who
+haven't saved a key yet. It opens SteamGridDB's API key page (`https://www.steamgriddb.com/profile/preferences/api`,
+where a signed-in user creates their free key) in the default browser.
+
+- It shows only while no key is saved: saving a key hides it straight away, and removing the key brings it back.
+  The dashboard already knows this from the tracker (`hasSteamGridDbKey`), so no new pipe request is needed.
+- The address is fixed in the code and checked to be exactly that `https://www.steamgriddb.com/` page before it's
+  opened. The app sends nothing itself; the browser does the rest, and the key is still pasted into the box and
+  kept in Windows Credential Manager as now.
+- Accessible name: "Get a SteamGridDB API key, opens in your browser"; keyboard reachable like every other control.
+
+## Settings headings (phase 17, planned)
+
+Not started. Two changes to the Settings page:
+
+- **Move *Your Data* up** to directly below *Game Folders*, so everything about which games are tracked and the data
+  they produce sits together.
+- **Title case for every section heading** (capital letter on each word):
+
+  | Now | After |
+  | --- | --- |
+  | Appearance, Startup, General, Tracking, Artwork, Updates, About | unchanged (one word) |
+  | Custom games | Custom Games |
+  | Game folders | Game Folders |
+  | Ignored games | Ignored Games |
+  | Ignored programs | Ignored Programs |
+  | Your data | Your Data |
+
+  Sections added by later phases follow the same rule (phase 14's *Support Playtime Tracker*). Only headings
+  change: setting names, descriptions and buttons stay in sentence case, as in Windows' own Settings.
+
+Resulting order: Appearance, Startup, General, Tracking, Artwork, Custom Games, Game Folders, **Your Data**, Ignored
+Games, Ignored Programs, Updates, About (then *Support Playtime Tracker* from phase 14). Screen readers get the same
+names, and the smoke test's Settings screenshot is checked afterwards.
 
 ## Checks
 
