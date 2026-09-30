@@ -96,6 +96,17 @@ async Task StopTracker()
 var gamesRoot = Path.Combine(Path.GetTempPath(), "PlaytimeTracker-SmokeGames");
 Process? game = null;
 
+await Step("the tracker exe carries its name and version (Task Manager shows these)", () =>
+{
+    var info = FileVersionInfo.GetVersionInfo(tracker);
+    Check(info.FileDescription == "Playtime Tracker", $"FileDescription is '{info.FileDescription}'");
+    Check(info.ProductName == "Playtime Tracker", $"ProductName is '{info.ProductName}'");
+    Check(!string.IsNullOrEmpty(info.ProductVersion), "no ProductVersion");
+    using var icon = Icon.ExtractAssociatedIcon(tracker);
+    Check(icon is not null, "no icon");
+    return Task.CompletedTask;
+});
+
 await Step("tracker starts and answers over its pipe", async () =>
 {
     await StartTracker();
