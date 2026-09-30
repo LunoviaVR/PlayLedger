@@ -33,6 +33,11 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        // Missing resources and broken bindings are otherwise silent (or an unexplained parse error).
+        DebugSettings.IsXamlResourceReferenceTracingEnabled = true;
+        DebugSettings.XamlResourceReferenceFailed += (_, e) => CrashLog.Write("XAML resource", e.Message);
+        DebugSettings.IsBindingTracingEnabled = true;
+        DebugSettings.BindingFailed += (_, e) => CrashLog.Write("Binding", e.Message);
         UnhandledException += (_, e) =>
         {
             // Keep the window alive on unexpected UI errors; the tracker (and the data) are unaffected.

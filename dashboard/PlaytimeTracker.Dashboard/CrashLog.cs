@@ -13,6 +13,8 @@ public static class CrashLog
     public static string Path => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Playtime Tracker", "dashboard-errors.log");
 
+    public static void Write(string context, string message) => Write(context, new Exception(message));
+
     public static void Write(string context, Exception exception)
     {
         try
@@ -22,7 +24,10 @@ public static class CrashLog
                 Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
                 if (File.Exists(Path) && new FileInfo(Path).Length > MaxBytes)
                     File.Move(Path, Path + ".old", overwrite: true);
-                File.AppendAllText(Path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {context}: {exception}{Environment.NewLine}");
+                // WinRT errors keep their detailed description (e.g. which XAML line failed) in Data.
+                var details = string.Concat(exception.Data.Keys.Cast<object>()
+                    .Select(key => $"{Environment.NewLine}    {key}: {exception.Data[key]}"));
+                File.AppendAllText(Path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {context}: {exception}{details}{Environment.NewLine}");
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
