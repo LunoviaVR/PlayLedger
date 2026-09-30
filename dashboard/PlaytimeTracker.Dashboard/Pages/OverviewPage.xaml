@@ -81,26 +81,9 @@
             <!-- Daily chart -->
             <TextBlock Text="Daily playtime (last 30 days)" Style="{StaticResource SectionHeaderStyle}" />
             <Border Style="{StaticResource CardStyle}">
-                <ItemsControl x:Name="Bars" AutomationProperties.Name="Daily playtime for the last 30 days">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:DayBar">
-                            <StackPanel Width="22" Spacing="6" ToolTipService.ToolTip="{x:Bind Tooltip}"
-                                        AutomationProperties.Name="{x:Bind AutomationName}">
-                                <Grid Height="140">
-                                    <Rectangle Height="{x:Bind Height}" VerticalAlignment="Bottom" RadiusX="3" RadiusY="3"
-                                               Opacity="{x:Bind Opacity}" Fill="{ThemeResource AccentFillColorDefaultBrush}" />
-                                </Grid>
-                                <TextBlock Text="{x:Bind Label}" HorizontalAlignment="Center" FontSize="10"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <!-- 30 equal columns, built in code so the chart fits any window width. -->
+                <Grid x:Name="Chart" Height="164" ColumnSpacing="4"
+                      AutomationProperties.Name="Daily playtime for the last 30 days" />
             </Border>
 
             <!-- Recent sessions -->

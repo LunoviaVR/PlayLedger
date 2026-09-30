@@ -128,7 +128,8 @@ public sealed class DayItem
     {
         Day = day.Day;
         DayText = Format.Day(day.Day, today);
-        TotalText = day.TotalSeconds > 0 ? Format.Duration(day.TotalSeconds) : "No play";
+        // A day with sessions was played, even if they were under a second.
+        TotalText = day.TotalSeconds > 0 || day.SessionCount > 0 ? Format.Duration(day.TotalSeconds) : "No play";
         GamesText = day.Games.Count == 0
             ? ""
             : string.Join(", ", day.Games.Take(3).Select(g => $"{g.Game} {Format.Duration(g.Seconds)}"))
@@ -139,7 +140,7 @@ public sealed class DayItem
             .Select(s => new SessionItem(s, snapshot.Now))
             .ToList();
         HasSessions = Sessions.Count > 0;
-        AutomationName = $"{DayText}, {(day.TotalSeconds > 0 ? Format.SpokenDuration(day.TotalSeconds) : "no play")}";
+        AutomationName = $"{DayText}, {(day.SessionCount > 0 ? Format.SpokenDuration(day.TotalSeconds) : "no play")}";
     }
 
     private static bool Overlaps(SessionView s, DateOnly day)
