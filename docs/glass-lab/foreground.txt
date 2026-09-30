@@ -1,0 +1,6 @@
+shipped foreground: True
+noblur foreground: True
+noextend foreground: True
+mica foreground: True
+swca foreground: True
+blur3 foreground: True

@@ -1,0 +1,1 @@
+lab=blur3 on=true dark=true accepted=true
