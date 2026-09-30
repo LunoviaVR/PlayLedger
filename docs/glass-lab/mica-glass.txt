@@ -1,1 +1,0 @@
-lab=mica on=true dark=true accepted=true

@@ -41,7 +41,7 @@ component GameCard inherits Rectangle {
                 height: 240px;
                 border-radius: Theme.radius;
                 clip: true;
-                background: Theme.dark ? #2B2B2B : #F3F3F3;
+                background: Theme.black ? Theme.raised : Theme.dark ? #2B2B2B : #F3F3F3;
                 border-width: 1px;
                 border-color: Theme.card-border;
                 if !tile.has-art: Text {

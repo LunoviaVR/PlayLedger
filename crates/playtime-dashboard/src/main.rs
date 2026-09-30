@@ -17,7 +17,6 @@ mod crash_log;
 mod dialogs;
 mod format;
 mod games;
-mod glass;
 mod history;
 mod instance;
 mod offscreen;
@@ -26,6 +25,7 @@ mod overview;
 mod settings;
 mod settings_actions;
 mod statistics;
+mod title_bar;
 
 use client::{ClientError, Tracker};
 use overview::OverviewState;
@@ -307,16 +307,10 @@ fn select_renderer(args: &[String]) -> bool {
     };
     if gpu {
         // Skia draws text like Windows does (smooth, at subpixel positions); femtovg hints every glyph to the pixel
-        // grid, which looks too sharp. Skia on OpenGL keeps the window's transparency for the glass look (its
-        // Direct3D path would draw opaque). femtovg is the fallback if Skia can't start.
+        // grid, which looks too sharp. femtovg is the fallback if Skia can't start.
         for renderer in ["skia-opengl", "femtovg"] {
             match select(renderer) {
-                Ok(()) => {
-                    if let Ok(log) = std::env::var("PLAYTIME_RENDERER_LOG") {
-                        let _ = std::fs::write(log, renderer); // LAB (temporary)
-                    }
-                    return true;
-                }
+                Ok(()) => return true,
                 Err(e) => crash_log::write(
                     "Starting the GPU renderer",
                     &format!("{renderer}: {e}; trying the next one"),
@@ -553,7 +547,6 @@ fn main() -> Result<(), slint::PlatformError> {
         return Ok(());
     }
     let gpu = select_renderer(&args);
-    glass::GPU.store(gpu, std::sync::atomic::Ordering::Relaxed);
     let window = AppWindow::new()?;
     APP.with_borrow_mut(|app| app.settings.drawn_with_gpu = gpu);
     if let Some(page) = args
@@ -839,11 +832,11 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    // The native window only exists once the event loop runs, so the glass look is applied as soon as it has a
-    // handle (with the saved choice, or on until the settings arrive); the settings then keep it up to date.
-    let glass_start = std::rc::Rc::new(slint::Timer::default());
-    let (weak, timer) = (window.as_weak(), std::rc::Rc::downgrade(&glass_start));
-    glass_start.start(
+    // The native window only exists once the event loop runs, so the title bar is matched to the page as soon as it
+    // has a handle; the settings then keep it up to date.
+    let title_bar_start = std::rc::Rc::new(slint::Timer::default());
+    let (weak, timer) = (window.as_weak(), std::rc::Rc::downgrade(&title_bar_start));
+    title_bar_start.start(
         slint::TimerMode::Repeated,
         std::time::Duration::from_millis(50),
         move || {
@@ -853,7 +846,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let hwnd = owner_of(&window);
             if hwnd != 0 {
                 let theme = window.global::<ui::Theme>();
-                theme.set_glass(glass::apply(hwnd, glass::wanted(), theme.get_dark()));
+                title_bar::apply(hwnd, theme.get_dark(), title_bar::amoled());
                 if let Some(timer) = timer.upgrade() {
                     timer.stop();
                 }
@@ -861,7 +854,7 @@ fn main() -> Result<(), slint::PlatformError> {
         },
     );
     let result = window.show().and_then(|()| slint::run_event_loop());
-    drop(glass_start);
+    drop(title_bar_start);
     // The GPU renderer can also fail once the window opens (a broken graphics driver): start again on the CPU.
     if result.is_err() && gpu && !args.iter().any(|a| a == "--software") {
         crash_log::write(

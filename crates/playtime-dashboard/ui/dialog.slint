@@ -40,9 +40,8 @@ export component Dialog inherits Rectangle {
         }
     }
     init => { keys.focus(); }
-    // Dialogs stay solid in the glass look, as WinUI's do.
     Card {
-        background: Theme.dark ? #2B2B2B : #FFFFFF;
+        background: Theme.raised;
         width: min(parent.width - 48px, 520px);
         height: min(parent.height - 48px, content.preferred-height);
         content := VerticalLayout {
