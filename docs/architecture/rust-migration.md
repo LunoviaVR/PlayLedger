@@ -170,7 +170,7 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing: [`testing-the-preview.md`](../testing-the-preview.md) |
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove C# after parity is verified | Planned |
-| 13 | Game context menu: change artwork, stop tracking, delete history | Planned, not started: see *Game context menu* below |
+| 13 | Game context menu: change artwork, stop tracking, delete history; fix History rows in narrow windows | Planned, not started: see *Game context menu* below |
 | 14 | Tip or donate section in Settings | Planned, not started: see *Tip or donate* below |
 | 15 | Glass look in the Windows 11 design language | Planned, not started: see *Glass look* below |
 | 16 | "Get API key" button for SteamGridDB | Planned, not started: see *Get API key button* below |
@@ -191,6 +191,14 @@ Not started. On the **Games** page, right-clicking a game tile opens a menu. The
   - **Use automatic artwork** removes the override and goes back to the sources under *Artwork* above.
 - **Stop tracking**, as in the game's details now: it moves the game to *Settings → Ignored games* and keeps its
   history.
+
+**Bug to fix in this phase: History rows collapse in a narrow window.** Each day's header row has fixed columns
+(140 px day, 230 px bar, 90 px total, plus spacing), and the games summary ("VRChat 1h 28m, OBS Studio 1h 28m, …")
+only gets what's left. In a narrow window that's almost nothing, and because the caption style wraps, the text
+breaks one letter per line and each row becomes very tall. Fix: the summary never wraps (one line, ending in "…"
+when it doesn't fit, with the full text in a tooltip and the row's accessible name); the bar column shrinks with
+the window instead of a fixed 230 px; and below a narrow width the summary moves to its own line under the day, so
+it always has room. Checked with History screenshots at a narrow and a wide window size.
 
 **Recommended artwork size**, shown next to *Choose an image file…* so people can make their own:
 
