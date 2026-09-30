@@ -30,30 +30,32 @@ impl std::fmt::Debug for Secret {
 
 pub fn read(target: &str) -> Option<Secret> {
     let target = HSTRING::from(target);
-    let mut credential: *mut CREDENTIALW = std::ptr::null_mut();
-    // SAFETY: on success `credential` points to a block owned by the system, freed with CredFree below.
+    // Windows writes the pointer only when the call succeeds, so it's read only after that, and then only if
+    // it isn't null: there is never a null or unset pointer to dereference.
+    let mut out = std::mem::MaybeUninit::<*mut CREDENTIALW>::uninit();
+    // SAFETY: `out` is a valid place for CredReadW to write the pointer to.
     unsafe {
         CredReadW(
             PCWSTR(target.as_ptr()),
             CRED_TYPE_GENERIC,
             None,
-            &mut credential,
+            out.as_mut_ptr(),
         )
     }
     .ok()?;
-    if credential.is_null() {
-        return None;
-    }
-    // SAFETY: `credential` is valid until CredFree; the blob is `CredentialBlobSize` bytes.
+    // SAFETY: CredReadW succeeded, so it wrote the pointer.
+    let credential = std::ptr::NonNull::new(unsafe { out.assume_init() })?;
+    // SAFETY: on success `credential` points to a block owned by the system, valid until CredFree below; the blob
+    // is `CredentialBlobSize` bytes.
     let value = unsafe {
-        let c = &*credential;
+        let c = credential.as_ref();
         let size = c.CredentialBlobSize as usize;
         let value = if c.CredentialBlob.is_null() || size == 0 || size > MAX_SECRET_BYTES {
             None
         } else {
             String::from_utf8(std::slice::from_raw_parts(c.CredentialBlob, size).to_vec()).ok()
         };
-        CredFree(credential.cast());
+        CredFree(credential.as_ptr().cast());
         value
     };
     value.map(Secret)
