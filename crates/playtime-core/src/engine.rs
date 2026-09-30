@@ -1,5 +1,5 @@
-//! The tracker's brain, independent of Windows: turns process snapshots into sessions with the C# app's rules
-//! (see `docs/architecture/current-behavior.md`) and says when data must be saved. The Windows service only
+//! The tracker's brain, independent of Windows: turns process snapshots into sessions with the tracking rules
+//! (see `docs/architecture/compatibility.md`) and says when data must be saved. The Windows service only
 //! supplies snapshots, power events and storage.
 
 use crate::catalog::{GameCatalog, GameMatch};

@@ -2252,6 +2252,7 @@ checksum = "85ab80394333c02fe689eaf900ab500fbd0c2213da414687ebf995a65d5a6104"
 dependencies = [
  "bytemuck",
  "byteorder-lite",
+ "image-webp",
  "moxcms",
  "num-traits",
  "png",
@@ -3404,7 +3405,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "playtime-artwork"
-version = "2.2.0"
+version = "3.0.0"
 dependencies = [
  "playtime-core",
  "serde",
@@ -3414,7 +3415,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-core"
-version = "2.2.0"
+version = "3.0.0"
 dependencies = [
  "chrono",
  "serde",
@@ -3424,7 +3425,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-dashboard"
-version = "2.2.0"
+version = "3.0.0"
 dependencies = [
  "chrono",
  "embed-resource",
@@ -3441,7 +3442,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-smoke-test"
-version = "2.2.0"
+version = "3.0.0"
 dependencies = [
  "playtime-artwork",
  "playtime-core",
@@ -3452,7 +3453,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-tracker"
-version = "2.2.0"
+version = "3.0.0"
 dependencies = [
  "chrono",
  "embed-resource",
@@ -3465,7 +3466,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-windows"
-version = "2.2.0"
+version = "3.0.0"
 dependencies = [
  "chrono",
  "playtime-artwork",

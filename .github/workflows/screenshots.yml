@@ -1,14 +1,16 @@
 name: Screenshots
 
-# Re-renders the README screenshots (docs/*.png) on Windows from the real dashboard code with sample data
-# (tools/Screenshots), and commits them back to the branch. Run it by hand from the Actions tab after UI changes;
-# it also runs when the screenshot tool itself changes on a branch.
+# Re-renders the README screenshots (docs/*.png) on Windows with the dashboard's own renderer
+# (`playtime-dashboard --render`) from the sample data in crates/playtime-dashboard/fixtures, and commits them back
+# to the branch. Run it by hand from the Actions tab after UI changes; it also runs when the dashboard's UI changes
+# on a branch.
 on:
   workflow_dispatch:
   push:
     branches-ignore: [main]
     paths:
-      - "tools/Screenshots/**"
+      - "crates/playtime-dashboard/ui/**"
+      - "crates/playtime-dashboard/fixtures/**"
       - ".github/workflows/screenshots.yml"
 
 permissions:
@@ -26,13 +28,28 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          dotnet-version: 8.0.x
-
+      # rustup is preinstalled on the runner; rust-toolchain.toml pins the exact toolchain.
       - name: Render screenshots
         shell: pwsh
-        run: dotnet run -c Release --project tools/Screenshots -- docs
+        run: |
+          rustup show active-toolchain
+          cargo build --release --locked -p playtime-dashboard
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $exe = 'target\release\playtime-dashboard.exe'
+          $data = 'crates\playtime-dashboard\fixtures\responses.jsonl'
+          $shots = @(
+            @('overview', 'docs\dashboard.png', '--dark'),
+            @('overview', 'docs\dashboard-light.png', $null),
+            @('games', 'docs\games.png', '--dark'),
+            @('history', 'docs\history.png', '--dark'),
+            @('settings', 'docs\settings.png', '--dark'),
+            @('overview', 'docs\session-details.png', '--dark', '--dialog', 'session')
+          )
+          foreach ($s in $shots) {
+            $extra = @($s[2..($s.Count - 1)] | Where-Object { $_ })
+            & $exe --render $s[0] '1180x760' $s[1] $data @extra
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
 
       - name: Keep a copy as an artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -49,4 +66,7 @@ jobs:
           git add docs/*.png
           if (git diff --cached --quiet) { Write-Host "Screenshots unchanged."; exit 0 }
           git commit -m "Update README screenshots"
+          # Other commits may have landed on the branch during the run; put the screenshots on top of them.
+          git pull --rebase
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           git push

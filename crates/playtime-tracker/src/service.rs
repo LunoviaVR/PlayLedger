@@ -185,7 +185,7 @@ impl Service {
                 }
                 let mut store = opened.store;
                 let mut settings = opened.settings;
-                // Remember which version ran, as the C# app does (the next version change triggers a backup).
+                // Remember which version ran, as earlier versions did (the next version change triggers a backup).
                 if settings.last_run_version != VERSION {
                     if !settings.last_run_version.is_empty() {
                         notifications.push(Notification {
@@ -222,7 +222,7 @@ impl Service {
             }
         };
 
-        // "Start with Windows", as the C# app: on by default the first time, the pre-rename entry moved over, and
+        // "Start with Windows", as before: on by default the first time, the pre-rename entry moved over, and
         // the entry pointed at this exe. Only for the installed copy, so a copy run from elsewhere never takes over.
         let installed = startup::is_installed_copy();
         let (mut store, mut settings) = (store, settings);

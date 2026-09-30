@@ -1,4 +1,4 @@
-//! User settings, in the same JSON shape the C# app stores inside `settings.dat` (camelCase, all fields written).
+//! User settings, in the same JSON shape earlier versions store inside `settings.dat` (camelCase, all fields written).
 //! Unknown fields are ignored and missing ones take their defaults, so both versions read each other's files.
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -123,7 +123,7 @@ impl Default for Settings {
 impl Settings {
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         let mut value: serde_json::Value = serde_json::from_str(json)?;
-        // The C# app may write null for strings/lists; treat null as "use the default".
+        // Earlier versions may write null for strings/lists; treat null as "use the default".
         if let Some(object) = value.as_object_mut() {
             object.retain(|_, v| !v.is_null());
         }
@@ -136,7 +136,7 @@ impl Settings {
         serde_json::to_string_pretty(self)
     }
 
-    /// Clamps values into sensible ranges and applies one-time migrations (same rules as the C# app).
+    /// Clamps values into sensible ranges and applies one-time migrations (the same rules as earlier versions).
     pub fn normalize(&mut self) {
         self.poll_interval_seconds = self.poll_interval_seconds.clamp(1, 300);
         if self.settings_version < 2 && self.minimum_session_seconds == 30 {
@@ -223,7 +223,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn reads_csharp_settings() {
+    fn reads_earlier_versions_settings() {
         let json = r##"{"pollIntervalSeconds":5,"minimumSessionSeconds":0,"gracePeriodSeconds":20,"showNotifications":true,
             "useWindowsGameList":true,"themeMode":"dark","accentColor":"#FF8800","extraGameFolders":["D:\\Games"],
             "customGames":[{"name":"Minecraft","executable":"javaw.exe"}],"ignoredGames":[],"ignoredExecutables":["x.exe"],

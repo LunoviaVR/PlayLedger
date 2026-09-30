@@ -160,7 +160,7 @@ pub fn game_at(state: &GamesState, section: i32, index: i32) -> Option<String> {
     names.get(usize::try_from(index).ok()?).cloned()
 }
 
-/// Reads a PNG or JPEG and scales it down to fit `max` (never up). Runs off the UI thread; the pixels are handed
+/// Reads a PNG, JPEG or WebP picture and scales it down to fit `max` (never up). Runs off the UI thread; the pixels are handed
 /// to the UI thread, which makes the [`Image`].
 pub fn decode(path: &Path, max: (u32, u32)) -> Option<SharedPixelBuffer<Rgba8Pixel>> {
     let size = std::fs::metadata(path).ok()?.len();

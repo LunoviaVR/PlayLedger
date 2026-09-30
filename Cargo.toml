@@ -1,11 +1,10 @@
-# Rust rewrite of Playtime Tracker (in progress; see docs/architecture/rust-migration.md).
-# The shipping app is still the C# one in src/ until the Rust version reaches feature parity.
+# Playtime Tracker: the background tracker, the dashboard and their shared libraries (see docs/architecture/).
 [workspace]
 resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "2.2.0"
+version = "3.0.0"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/LunoviaVR/PlaytimeTracker"

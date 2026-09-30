@@ -1,4 +1,4 @@
-//! One tracker per Windows session, with the same kernel object names as the C# app so an old and a new copy
+//! One tracker per Windows session, with the same kernel object names as earlier versions so an old and a new copy
 //! detect each other: a second launch asks the running copy to show the dashboard, and `--exit` (used by the
 //! installer) asks it to save and quit.
 

@@ -1,5 +1,5 @@
 //! The last saved generation of each protected file, DPAPI-protected under
-//! `HKCU\Software\Playtime Tracker\Integrity` (value name = purpose). Same format as the C# app:
+//! `HKCU\Software\Playtime Tracker\Integrity` (value name = purpose). Same format as earlier versions:
 //! the value is DPAPI(ASCII decimal generation) with entropy `PlaytimeTracker/<purpose>/generation/v1`.
 
 use crate::dpapi::Dpapi;

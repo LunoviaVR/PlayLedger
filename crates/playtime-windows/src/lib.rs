@@ -1,9 +1,9 @@
 //! Windows integrations for Playtime Tracker, behind the platform-neutral traits in `playtime-core`.
 //!
-//! - [`dpapi::Dpapi`]: `DataProtector` backed by Windows DPAPI (current user), byte-compatible with the C# app's
+//! - [`dpapi::Dpapi`]: `DataProtector` backed by Windows DPAPI (current user), byte-compatible with the files earlier versions wrote
 //!   `ProtectedData.Protect(..., DataProtectionScope.CurrentUser)`.
 //! - [`registry::RegistryGenerations`]: `GenerationStore` in `HKCU\Software\Playtime Tracker\Integrity`, same values
-//!   as the C# app.
+//!   as earlier versions.
 //! - [`locks::FileLocks`]: holds data files open read-only so other programs can't change them while the app runs.
 //! - [`discovery::WindowsHost`]: the real files, registry and exe version info behind game discovery.
 //! - [`http::WinHttpClient`]: HTTPS for online artwork (allow-listed hosts, system certificate validation).

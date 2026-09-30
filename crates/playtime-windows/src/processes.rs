@@ -1,4 +1,4 @@
-//! Running processes with their full executable paths (the C# `ProcessScanner`). Paths come from
+//! Running processes with their full executable paths . Paths come from
 //! `QueryFullProcessImageNameW` with `PROCESS_QUERY_LIMITED_INFORMATION`, which works for elevated games too.
 
 use playtime_core::engine::ProcessInfo;

@@ -1,4 +1,4 @@
-//! Finds installed games (the C# `GameCatalog.Build`): Steam, Epic Games, GOG, Ubisoft Connect, EA/Origin, Xbox app,
+//! Finds installed games: Steam, Epic Games, GOG, Ubisoft Connect, EA/Origin, Xbox app,
 //! Riot, `X:\Games`, the user's extra folders and Windows' own game list.
 //!
 //! All file-system and registry access goes through [`DiscoveryHost`], so the rules are tested here with a fake
@@ -66,7 +66,7 @@ pub struct Discovered {
     pub issues: Vec<DiscoveryIssue>,
 }
 
-/// Runs every source in the C# app's order (earlier sources win for the same folder).
+/// Runs every source in a fixed order (earlier sources win for the same folder).
 pub fn discover(host: &dyn DiscoveryHost, settings: &Settings) -> Discovered {
     let mut out = Discovered::default();
     let folders = host.known_folders();

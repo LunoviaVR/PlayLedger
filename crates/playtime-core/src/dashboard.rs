@@ -1,4 +1,4 @@
-//! What the dashboard shows, computed from the play history at one moment (the C# `DashboardModel`): sessions
+//! What the dashboard shows, computed from the play history at one moment: sessions
 //! newest first with live ones running up to "now", games most played first, per-day totals for the last 30 days
 //! (sessions crossing midnight are split between days), and the History page's days. Serializable, so the tracker
 //! can hand it to the dashboard over IPC.

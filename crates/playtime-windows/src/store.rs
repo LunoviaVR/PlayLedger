@@ -1,4 +1,4 @@
-//! The data folder as the C# app keeps it: protected `sessions.dat` / `settings.dat` (+ `.bak`), the read-only
+//! The data folder: protected `sessions.dat` / `settings.dat` (+ `.bak`), the read-only
 //! `Game Stats.txt` and `Sessions.csv` reports, and `errors.log`. Files are held open read-only while the tracker
 //! runs and released only around its own saves.
 
@@ -193,7 +193,7 @@ impl Store {
         self.save_protected(Purpose::Settings, SETTINGS_FILE, &json)
     }
 
-    /// `Game Stats.txt` and `Sessions.csv`, read-only, with a UTF-8 BOM (as the C# app writes them).
+    /// `Game Stats.txt` and `Sessions.csv`, read-only, with a UTF-8 BOM (as earlier versions wrote them).
     pub fn write_reports(&mut self, data: &TrackerData, now: Timestamp) -> std::io::Result<()> {
         let stats = reports::stats_text(&data.sessions, &data.active, now, &chrono::Local);
         self.write_read_only(STATS_FILE, &format!("\u{feff}{stats}"))?;

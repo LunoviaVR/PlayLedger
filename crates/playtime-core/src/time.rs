@@ -1,11 +1,11 @@
-//! Timestamps compatible with the C# app's `DateTimeOffset` JSON (ISO 8601 with a UTC offset and
+//! Timestamps in the JSON form earlier versions stored (ISO 8601 with a UTC offset and
 //! up to 7 fractional digits, e.g. `2026-09-29T20:15:03.1234567+02:00`).
 
 use chrono::{DateTime, Duration, FixedOffset, Local, SecondsFormat};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 
-/// A moment in time plus the local UTC offset it was recorded in (like .NET's `DateTimeOffset`).
+/// A moment in time plus the local UTC offset it was recorded in .
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Timestamp(DateTime<FixedOffset>);
 
@@ -15,7 +15,7 @@ impl Timestamp {
     }
 
     pub fn from_datetime(value: DateTime<FixedOffset>) -> Self {
-        // .NET stores 100 ns ticks; drop anything finer so values round-trip exactly.
+        // Stored values have 100 ns precision; drop anything finer so values round-trip exactly.
         let nanos = value.timestamp_subsec_nanos();
         let trimmed = value - Duration::nanoseconds(i64::from(nanos % 100));
         Self(trimmed)
@@ -43,8 +43,8 @@ impl Timestamp {
         self.0.signed_duration_since(earlier.0)
     }
 
-    /// Formats like .NET: 7 fractional digits when there's a fraction, none otherwise.
-    pub fn to_dotnet_string(&self) -> String {
+    /// The stored form: 7 fractional digits when there's a fraction, none otherwise.
+    pub fn to_wire_string(&self) -> String {
         let ticks = self.0.timestamp_subsec_nanos() / 100;
         if ticks == 0 {
             return self.0.to_rfc3339_opts(SecondsFormat::Secs, false);
@@ -57,19 +57,19 @@ impl Timestamp {
 
 impl fmt::Debug for Timestamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_dotnet_string())
+        f.write_str(&self.to_wire_string())
     }
 }
 
 impl fmt::Display for Timestamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_dotnet_string())
+        f.write_str(&self.to_wire_string())
     }
 }
 
 impl Serialize for Timestamp {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.to_dotnet_string())
+        serializer.serialize_str(&self.to_wire_string())
     }
 }
 
@@ -85,40 +85,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn now_round_trips_through_dotnet_precision() {
+    fn now_round_trips_through_stored_precision() {
         let now = Timestamp::now();
         assert_eq!(now.as_datetime().timestamp_subsec_nanos() % 100, 0);
-        assert_eq!(
-            Timestamp::parse(&now.to_dotnet_string()).expect("valid"),
-            now
-        );
+        assert_eq!(Timestamp::parse(&now.to_wire_string()).expect("valid"), now);
     }
 
     #[test]
-    fn round_trips_dotnet_format() {
+    fn round_trips_stored_format() {
         for text in [
             "2026-09-29T20:15:03.1234567+02:00",
             "2026-09-29T20:15:03+02:00",
             "2026-01-01T00:00:00.0000001-05:00",
         ] {
             let parsed = Timestamp::parse(text).expect("valid");
-            assert_eq!(parsed.to_dotnet_string(), text);
+            assert_eq!(parsed.to_wire_string(), text);
         }
     }
 
     #[test]
     fn utc_z_is_accepted() {
         let parsed = Timestamp::parse("2026-09-29T18:15:03Z").expect("valid");
-        assert_eq!(parsed.to_dotnet_string(), "2026-09-29T18:15:03+00:00");
+        assert_eq!(parsed.to_wire_string(), "2026-09-29T18:15:03+00:00");
     }
 
     #[test]
     fn finer_than_ticks_is_truncated() {
         let parsed = Timestamp::parse("2026-09-29T20:15:03.123456789+02:00").expect("valid");
-        assert_eq!(
-            parsed.to_dotnet_string(),
-            "2026-09-29T20:15:03.1234567+02:00"
-        );
+        assert_eq!(parsed.to_wire_string(), "2026-09-29T20:15:03.1234567+02:00");
     }
 
     #[test]

@@ -1,4 +1,4 @@
-//! The tracker's data, in the exact JSON shape the C# app stores inside `sessions.dat`
+//! The tracker's data, in the exact JSON shape stored inside `sessions.dat`
 //! (camelCase: `{"version":1,"sessions":[...],"active":[...]}`), so both versions read each other's files.
 
 use crate::time::Timestamp;
@@ -61,7 +61,7 @@ impl Default for TrackerData {
 
 impl TrackerData {
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
-        // The C# app writes `null` for empty lists in some edge cases; treat it as empty.
+        // Earlier versions write `null` for empty lists in some edge cases; treat it as empty.
         let mut value: serde_json::Value = serde_json::from_str(json)?;
         if let Some(object) = value.as_object_mut() {
             for key in ["sessions", "active"] {
@@ -82,8 +82,8 @@ impl TrackerData {
 mod tests {
     use super::*;
 
-    /// A file written by the C# app (System.Text.Json, camelCase, indented).
-    const CSHARP_JSON: &str = r#"{
+    /// A file as earlier versions wrote it (camelCase, indented).
+    const EARLIER_JSON: &str = r#"{
   "version": 1,
   "sessions": [
     {
@@ -100,8 +100,8 @@ mod tests {
 }"#;
 
     #[test]
-    fn reads_csharp_file() {
-        let data = TrackerData::from_json(CSHARP_JSON).expect("parses");
+    fn reads_earlier_versions_file() {
+        let data = TrackerData::from_json(EARLIER_JSON).expect("parses");
         assert_eq!(data.sessions.len(), 2);
         assert_eq!(
             data.sessions[0].duration().num_seconds(),
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn round_trips() {
-        let data = TrackerData::from_json(CSHARP_JSON).expect("parses");
+        let data = TrackerData::from_json(EARLIER_JSON).expect("parses");
         let again =
             TrackerData::from_json(&data.to_json().expect("serializes")).expect("parses again");
         assert_eq!(data, again);

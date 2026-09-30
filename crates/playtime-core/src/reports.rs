@@ -1,4 +1,4 @@
-//! Human-readable durations, the `Game Stats.txt` report and the spreadsheet (CSV) export, matching the C# app's
+//! Human-readable durations, the `Game Stats.txt` report and the spreadsheet (CSV) export, matching earlier versions'
 //! output.
 
 use crate::model::{ActiveSession, SessionRecord};
@@ -9,7 +9,7 @@ use chrono::TimeZone;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
-/// "2h 05m", "12m 03s", "45s", or "0m" for under a second (same as the C# `ReportWriter.FormatDuration`).
+/// "2h 05m", "12m 03s", "45s", or "0m" for under a second.
 pub fn format_duration(duration: Duration) -> String {
     let total_seconds = duration.num_seconds();
     if duration < Duration::seconds(1) {
@@ -68,7 +68,7 @@ pub fn sessions_csv(sessions: &[SessionRecord], offset: chrono::FixedOffset) -> 
     out
 }
 
-/// "Tue Sep 29, 2026  9:35 PM" in `tz` (the C# `FormatDateTime`).
+/// "Tue Sep 29, 2026  9:35 PM" in `tz`.
 fn format_date_time<Tz: TimeZone>(t: Timestamp, tz: &Tz) -> String
 where
     Tz::Offset: std::fmt::Display,
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn stats_report_matches_the_csharp_layout() {
+    fn stats_report_matches_the_established_layout() {
         let tz = chrono::FixedOffset::east_opt(0).expect("offset");
         let at = |text: &str| Timestamp::parse(text).expect("valid");
         let session = |game: &str, start: &str, end: &str| SessionRecord {

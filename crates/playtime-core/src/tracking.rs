@@ -1,5 +1,5 @@
 //! Turns "which games are running right now" snapshots into start/end play sessions.
-//! A port of the C# `SessionTracker`, with the same rules:
+//! Session tracking, with these rules:
 //! - a session starts when a game's process first appears and ends when it has been gone for the grace period
 //!   (so a launcher handing off to the game, or a quick restart, stays one session);
 //! - a session ends at the moment the game was *last seen*, not when the gap was noticed;

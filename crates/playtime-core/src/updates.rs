@@ -1,4 +1,4 @@
-//! Parsing GitHub's "latest release" response, with the same safety rules as the C# updater:
+//! Parsing GitHub's "latest release" response, with these safety rules:
 //! only published, non-prerelease releases with a plain `vX.Y.Z` tag newer than the running version count; the
 //! installer must come from this repository's release download URL over HTTPS, and GitHub's recorded size and
 //! SHA-256 digest are required before anything can be installed. Downloading and running the installer is the
@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 pub const OWNER: &str = "LunoviaVR";
 pub const REPOSITORY: &str = "PlaytimeTracker";
-/// Releases carry one installer, `Setup.exe` (the online installer; it fetches .NET 8 if needed).
+/// Releases carry one installer, `Setup.exe` .
 pub const INSTALLER_ASSET: &str = "Setup.exe";
 
 /// A version as released: major.minor.patch.

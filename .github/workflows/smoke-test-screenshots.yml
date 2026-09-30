@@ -1,9 +1,9 @@
-name: Preview screenshots
+name: Smoke test screenshots
 
-# Builds and installs the next app (Rust tracker + Rust dashboard) on Windows, runs the end-to-end smoke test,
-# screenshots every dashboard page, and commits them to docs/next/ on this branch so they can be reviewed without
-# installing anything. Run it by hand from the Actions tab; it also runs when the dashboard, the smoke test or this
-# workflow changes on a branch. Its own commit (docs/next/*.png) doesn't trigger it again.
+# Builds and installs the app on Windows, runs the end-to-end smoke test, screenshots every dashboard page at several
+# sizes, and commits them to docs/smoke-test/ on this branch so they can be reviewed without installing anything.
+# Run it by hand from the Actions tab; it also runs when the dashboard, the smoke test or this workflow changes on a
+# branch. Its own commit (docs/smoke-test/*.png) doesn't trigger it again.
 on:
   workflow_dispatch:
   push:
@@ -11,13 +11,13 @@ on:
     paths:
       - "crates/playtime-dashboard/**"
       - "crates/playtime-smoke-test/**"
-      - ".github/workflows/preview-screenshots.yml"
+      - ".github/workflows/smoke-test-screenshots.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: preview-screenshots-${{ github.ref }}
+  group: smoke-test-screenshots-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,18 +33,18 @@ jobs:
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { choco install nsis -y --no-progress }
 
-      - name: Build the preview installer
+      - name: Build the installer
         shell: pwsh
         run: |
           rustup show active-toolchain
-          ./build-next.ps1
+          ./build.ps1
 
       - name: Install, smoke test with screenshots, uninstall
         shell: pwsh
         run: |
-          Start-Process -FilePath publish/PlaytimeTrackerSetup-Preview.exe -ArgumentList '/S' -Wait
+          Start-Process -FilePath publish/PlaytimeTrackerSetup.exe -ArgumentList '/S' -Wait
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
-          cargo run --release --locked -p playtime-smoke-test -- $dir docs/next
+          cargo run --release --locked -p playtime-smoke-test -- $dir docs/smoke-test
           $code = $LASTEXITCODE
           Start-Process -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '/S' -Wait
           exit $code
@@ -56,9 +56,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/next/*.png
+          git add docs/smoke-test/*.png
           if (git diff --cached --quiet) { Write-Host "Screenshots unchanged."; exit 0 }
-          git commit -m "Update preview dashboard screenshots"
+          git commit -m "Update smoke test screenshots"
           # Other commits may have landed on the branch during the run; put the screenshots on top of them.
           git pull --rebase
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

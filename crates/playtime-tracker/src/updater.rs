@@ -1,4 +1,4 @@
-//! Updates from this repository's GitHub releases, with the C# app's safety rules:
+//! Updates from this repository's GitHub releases, with these safety rules:
 //! - only the latest published (non-draft, non-prerelease) plain `vX.Y.Z` release newer than this version;
 //! - the installer (`Setup.exe`) comes from this repository's release download URL over HTTPS, following redirects
 //!   only to GitHub's own hosts, and must match the size and SHA-256 digest GitHub recorded when it was uploaded;
