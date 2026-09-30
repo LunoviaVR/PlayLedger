@@ -80,7 +80,7 @@ public sealed partial class OverviewPage : Page
 
         var finished = sessions.Where(x => !x.IsLive).ToList();
         SessionsHeader.Text = finished.Count > 0 ? $"Sessions ({finished.Count.ToString(culture)})" : "Sessions";
-        SessionsList.ItemsSource = finished.Take(_shown).Select(x => new SessionItem(x, s.Now, showGame: game is null)).ToList();
+        SessionsList.ItemsSource = finished.Take(_shown).Select(x => new SessionItem(x, s.Now)).ToList();
         ShowMore.Visibility = finished.Count > _shown ? Visibility.Visible : Visibility.Collapsed;
         ShowMore.Content = $"Show more ({(finished.Count - _shown).ToString(culture)} older)";
         EmptyText.Visibility = finished.Count == 0 && live.Count == 0 ? Visibility.Visible : Visibility.Collapsed;

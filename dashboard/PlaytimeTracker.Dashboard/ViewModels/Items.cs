@@ -13,10 +13,10 @@ public sealed class SessionItem : INotifyPropertyChanged
     private string _durationText = "";
     private string _automationName = "";
 
-    public SessionItem(SessionView session, DateTimeOffset now, bool showGame = true)
+    public SessionItem(SessionView session, DateTimeOffset now)
     {
         Session = session;
-        Game = showGame ? session.Game : "";
+        Game = session.Game;
         Day = Format.Day(session.Start, now);
         Range = session.IsLive ? $"Since {Format.Time(session.Start)}" : Format.Range(session.Start, session.End, now);
         LiveVisibility = session.IsLive ? Visibility.Visible : Visibility.Collapsed;
