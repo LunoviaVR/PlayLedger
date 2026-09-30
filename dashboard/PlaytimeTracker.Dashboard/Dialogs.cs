@@ -121,6 +121,23 @@ public static class Dialogs
         }
     }
 
+    /// <summary>A session row for a dialog list, built in code: x:Bind templates can't live in App.xaml.</summary>
+    private static Grid SessionRow(ViewModels.SessionItem item)
+    {
+        var grid = new Grid { Padding = new Thickness(0, 8, 0, 8), ColumnSpacing = 16, Tag = item };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(grid, item.AutomationName);
+        var names = new StackPanel();
+        names.Children.Add(new TextBlock { Text = item.Game });
+        names.Children.Add(new TextBlock { Text = item.Range, Style = (Style)Application.Current.Resources["CaptionStyle"] });
+        var duration = new TextBlock { Text = item.DurationText, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(duration, 1);
+        grid.Children.Add(names);
+        grid.Children.Add(duration);
+        return grid;
+    }
+
     /// <summary>One day's sessions (from a chart bar); choosing one opens its details.</summary>
     public static async Task ShowDayAsync(XamlRoot root, DateOnly day, IReadOnlyList<SessionView> sessions, DateTimeOffset now)
     {
@@ -130,8 +147,7 @@ public static class Dialogs
             SelectionMode = ListViewSelectionMode.None,
             IsItemClickEnabled = true,
             MaxHeight = 360,
-            ItemsSource = sessions.Select(s => new ViewModels.SessionItem(s, now)).ToList(),
-            ItemTemplate = (DataTemplate)Application.Current.Resources["DialogSessionTemplate"],
+            ItemsSource = sessions.Select(s => SessionRow(new ViewModels.SessionItem(s, now))).ToList(),
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(list, $"Sessions on {Format.Day(day, today)}");
         var panel = new StackPanel { Spacing = 8, MinWidth = 420 };
@@ -154,7 +170,7 @@ public static class Dialogs
         SessionView? chosen = null;
         list.ItemClick += (_, e) =>
         {
-            chosen = (e.ClickedItem as ViewModels.SessionItem)?.Session;
+            chosen = ((e.ClickedItem as FrameworkElement)?.Tag as ViewModels.SessionItem)?.Session;
             dialog.Hide();
         };
         await dialog.ShowAsync();
