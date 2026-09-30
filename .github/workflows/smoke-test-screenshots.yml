@@ -42,7 +42,7 @@ jobs:
       - name: Install, smoke test with screenshots, uninstall
         shell: pwsh
         run: |
-          Start-Process -FilePath publish/PlaytimeTrackerSetup.exe -ArgumentList '/S' -Wait
+          Start-Process -FilePath publish/PlayLedgerSetup.exe -ArgumentList '/S' -Wait
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
           cargo run --release --locked -p playtime-smoke-test -- $dir docs/smoke-test
           $code = $LASTEXITCODE

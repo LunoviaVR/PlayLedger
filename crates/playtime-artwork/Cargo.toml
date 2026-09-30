@@ -1,6 +1,6 @@
 [package]
 name = "playtime-artwork"
-description = "Game artwork for Playtime Tracker: provider trait, local Steam art, opt-in online providers, validated on-disk cache."
+description = "Game artwork for PlayLedger: provider trait, local Steam art, opt-in online providers, validated on-disk cache."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

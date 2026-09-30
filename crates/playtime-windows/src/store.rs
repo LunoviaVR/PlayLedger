@@ -28,7 +28,7 @@ pub struct Opened {
     pub store: Store,
     pub data: TrackerData,
     pub settings: Settings,
-    /// Messages for the user (e.g. "sessions.dat was changed outside Playtime Tracker…").
+    /// Messages for the user (e.g. "sessions.dat was changed outside PlayLedger…").
     pub warnings: Vec<String>,
     /// Settings didn't exist yet (first run) or had to be started fresh.
     pub settings_created: bool,
@@ -47,11 +47,11 @@ fn warning(file: &str, recovery: &Recovery) -> Option<String> {
     match recovery {
         Recovery::None => None,
         Recovery::RestoredFromBackup { set_aside } => Some(format!(
-            "{file} was changed outside Playtime Tracker. The changed file was kept as {}, and the last saved copy was restored.",
+            "{file} was changed outside PlayLedger. The changed file was kept as {}, and the last saved copy was restored.",
             name(set_aside)
         )),
         Recovery::StartedFresh { set_aside: Some(set_aside) } => Some(format!(
-            "{file} was changed outside Playtime Tracker. The changed file was kept as {} and a new one was started.",
+            "{file} was changed outside PlayLedger. The changed file was kept as {} and a new one was started.",
             name(set_aside)
         )),
         Recovery::StartedFresh { set_aside: None } => Some(format!(

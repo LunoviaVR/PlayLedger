@@ -106,7 +106,7 @@ pub fn render(
             let version = env!("CARGO_PKG_VERSION");
             window.global::<crate::ui::SettingsData>().set_about(
                 format!(
-                    "Playtime Tracker {version} (dashboard {version}). Your play history stays on this PC."
+                    "PlayLedger {version} (dashboard {version}). Your play history stays on this PC."
                 )
                 .into(),
             );

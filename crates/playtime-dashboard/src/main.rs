@@ -1,4 +1,4 @@
-//! Playtime Tracker's dashboard window. It holds no data of its own: everything comes from `playtime-tracker.exe`
+//! PlayLedger's dashboard window. It holds no data of its own: everything comes from `playtime-tracker.exe`
 //! over its named pipe (see `client.rs`), shown with Slint in the Windows 11 Fluent style.
 
 // No console window behind the dashboard on Windows.

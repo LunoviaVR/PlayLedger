@@ -45,7 +45,7 @@ pub fn current_version() -> Version {
 
 fn client() -> Result<WinHttpClient, HttpError> {
     WinHttpClient::with_policy(
-        &format!("PlaytimeTracker/{}", crate::service::VERSION),
+        &format!("PlayLedger/{}", crate::service::VERSION),
         github_policy,
     )
 }
@@ -311,7 +311,7 @@ fn check_and_announce(service: &Mutex<Service>, automatic: bool) {
         "Install it from Settings → Updates in the dashboard.".to_string()
     };
     s.queue_notification(Notification {
-        title: format!("Playtime Tracker {} is available", update.version),
+        title: format!("PlayLedger {} is available", update.version),
         body,
         warning: false,
     });

@@ -1,4 +1,4 @@
-//! Windows integrations for Playtime Tracker, behind the platform-neutral traits in `playtime-core`.
+//! Windows integrations for PlayLedger, behind the platform-neutral traits in `playtime-core`.
 //!
 //! - [`dpapi::Dpapi`]: `DataProtector` backed by Windows DPAPI (current user), byte-compatible with the files earlier versions wrote
 //!   `ProtectedData.Protect(..., DataProtectionScope.CurrentUser)`.

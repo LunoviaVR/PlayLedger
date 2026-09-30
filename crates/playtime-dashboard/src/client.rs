@@ -35,14 +35,14 @@ impl Connection {
     fn open() -> Result<Self, ClientError> {
         let pipe = connect().map_err(|e| {
             ClientError::Unavailable(if e.kind() == io::ErrorKind::PermissionDenied {
-                format!("Couldn't connect safely to Playtime Tracker: {e}.")
+                format!("Couldn't connect safely to PlayLedger: {e}.")
             } else {
-                "Playtime Tracker isn't running.".into()
+                "PlayLedger isn't running.".into()
             })
         })?;
-        let writer = pipe.try_clone().map_err(|e| {
-            ClientError::Unavailable(format!("Couldn't talk to Playtime Tracker: {e}."))
-        })?;
+        let writer = pipe
+            .try_clone()
+            .map_err(|e| ClientError::Unavailable(format!("Couldn't talk to PlayLedger: {e}.")))?;
         Ok(Self {
             reader: BufReader::new(pipe),
             writer,
@@ -110,15 +110,13 @@ impl Tracker {
                     *slot = None;
                     if attempt == 1 {
                         return Err(ClientError::Unavailable(
-                            "Lost the connection to Playtime Tracker.".into(),
+                            "Lost the connection to PlayLedger.".into(),
                         ));
                     }
                 }
             }
         }
-        Err(ClientError::Unavailable(
-            "Playtime Tracker isn't running.".into(),
-        ))
+        Err(ClientError::Unavailable("PlayLedger isn't running.".into()))
     }
 }
 

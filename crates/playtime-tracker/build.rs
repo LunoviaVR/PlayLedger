@@ -1,5 +1,5 @@
 //! Embeds the app icon, version information and application manifest into playtime-tracker.exe, so Windows (Task
-//! Manager, Startup apps, the tray) shows "Playtime Tracker" with its icon, and the tray icon and menu are sharp on
+//! Manager, Startup apps, the tray) shows "PlayLedger" with its icon, and the tray icon and menu are sharp on
 //! high-DPI screens. Resources are compiled only when building on Windows for Windows; elsewhere this does nothing.
 
 use std::path::PathBuf;
@@ -42,12 +42,12 @@ BEGIN
   BEGIN
     BLOCK "040904b0"
     BEGIN
-      VALUE "CompanyName", "Playtime Tracker"
-      VALUE "FileDescription", "Playtime Tracker"
+      VALUE "CompanyName", "PlayLedger"
+      VALUE "FileDescription", "PlayLedger"
       VALUE "FileVersion", "{version}"
       VALUE "InternalName", "playtime-tracker"
       VALUE "OriginalFilename", "playtime-tracker.exe"
-      VALUE "ProductName", "Playtime Tracker"
+      VALUE "ProductName", "PlayLedger"
       VALUE "ProductVersion", "{version}"
     END
   END

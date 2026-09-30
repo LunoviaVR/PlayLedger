@@ -258,15 +258,15 @@ export component SettingsPage inherits Rectangle {
             // Startup
             SectionHeader { text: "Startup"; height: 40px; vertical-alignment: bottom; }
             Setting {
-                title: "Start Playtime Tracker when I sign in to Windows";
+                title: "Start PlayLedger when I sign in to Windows";
                 description: SettingsData.installed
                     ? "You can also change this in Task Manager → Startup apps."
-                    : "Available once Playtime Tracker is installed.";
+                    : "Available once PlayLedger is installed.";
                 narrow: root.narrow;
                 ToggleSwitch {
                     enabled: SettingsData.loaded && SettingsData.installed;
                     checked <=> SettingsData.start-with-windows;
-                    accessible-label: "Start Playtime Tracker when I sign in to Windows";
+                    accessible-label: "Start PlayLedger when I sign in to Windows";
                     toggled => { SettingsData.start-with-windows-changed(); }
                 }
             }
@@ -398,7 +398,7 @@ export component SettingsPage inherits Rectangle {
             // Custom Games
             SectionHeader { text: "Custom Games"; height: 40px; vertical-alignment: bottom; }
             ListCard {
-                description: "Pick a game's .exe to track something Playtime Tracker doesn't find on its own.";
+                description: "Pick a game's .exe to track something PlayLedger doesn't find on its own.";
                 entries: SettingsData.custom-games;
                 remove(i) => { SettingsData.remove(0, i); }
                 HorizontalLayout {
@@ -555,13 +555,13 @@ export component SettingsPage inherits Rectangle {
                 }
             }
 
-            // Support Playtime Tracker (phase 14)
-            SectionHeader { text: "Support Playtime Tracker"; height: 40px; vertical-alignment: bottom; }
+            // Support PlayLedger (phase 14)
+            SectionHeader { text: "Support PlayLedger"; height: 40px; vertical-alignment: bottom; }
             Card {
                 VerticalLayout {
                     padding: 16px;
                     spacing: 12px;
-                    Caption { text: "Playtime Tracker is free. If it's useful to you, a tip helps keep it going."; wrap: word-wrap; }
+                    Caption { text: "PlayLedger is free. If it's useful to you, a tip helps keep it going."; wrap: word-wrap; }
                     HorizontalLayout {
                         alignment: start;
                         donate := Rectangle {

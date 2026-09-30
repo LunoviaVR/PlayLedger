@@ -1,6 +1,6 @@
 [package]
 name = "playtime-core"
-description = "Platform-independent core of Playtime Tracker: domain model, session tracking, game matching, launcher metadata parsing, settings, protected-file format and update parsing."
+description = "Platform-independent core of PlayLedger: domain model, session tracking, game matching, launcher metadata parsing, settings, protected-file format and update parsing."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

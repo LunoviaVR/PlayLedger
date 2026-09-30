@@ -245,7 +245,7 @@ pub fn run() -> ExitCode {
             for exe in [t.tracker_exe(), t.dashboard_exe()] {
                 let info = native::version_info(&exe);
                 check(
-                    info.get("FileDescription").map(String::as_str) == Some("Playtime Tracker"),
+                    info.get("FileDescription").map(String::as_str) == Some("PlayLedger"),
                     &format!(
                         "{}: FileDescription is {:?}",
                         exe.display(),
@@ -253,7 +253,7 @@ pub fn run() -> ExitCode {
                     ),
                 )?;
                 check(
-                    info.get("ProductName").map(String::as_str) == Some("Playtime Tracker"),
+                    info.get("ProductName").map(String::as_str) == Some("PlayLedger"),
                     &format!(
                         "{}: ProductName is {:?}",
                         exe.display(),

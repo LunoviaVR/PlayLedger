@@ -1,5 +1,5 @@
-# Builds Playtime Tracker (the tracker and the dashboard, both Rust) and its installer into .\publish
-#   publish\PlaytimeTrackerSetup.exe   (releases ship it as Setup.exe)
+# Builds PlayLedger (the tracker and the dashboard, both Rust) and its installer into .\publish
+#   publish\PlayLedgerSetup.exe   (releases ship it as Setup.exe)
 # Requires Rust (rustup; rust-toolchain.toml picks the version) and NSIS (winget install NSIS.NSIS).
 param(
     # Optional: the version being released. It must match Cargo.toml, which also sets the exes' version resources.
@@ -34,9 +34,9 @@ if (-not (Test-Path $makensis)) {
 Push-Location "$PSScriptRoot\installer"
 try {
     & $makensis /V2 "/DVERSION=$Version" "/DTRACKER_EXE=$PSScriptRoot\target\release\playtime-tracker.exe" `
-        "/DDASHBOARD_DIR=$out\dashboard" "/DOUT_FILE=$out\PlaytimeTrackerSetup.exe" PlaytimeTracker.nsi
+        "/DDASHBOARD_DIR=$out\dashboard" "/DOUT_FILE=$out\PlayLedgerSetup.exe" PlayLedger.nsi
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 } finally {
     Pop-Location
 }
-Write-Host "`nDone:`n  $out\PlaytimeTrackerSetup.exe"
+Write-Host "`nDone:`n  $out\PlayLedgerSetup.exe"

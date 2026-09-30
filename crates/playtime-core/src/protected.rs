@@ -110,7 +110,7 @@ pub fn decode(
     };
     let v2 = bytes.starts_with(HEADER_V2);
     if !v2 && !bytes.starts_with(HEADER_V1) {
-        return Err(unverified("not in Playtime Tracker's protected format"));
+        return Err(unverified("not in PlayLedger's protected format"));
     }
     let plain = protector
         .unprotect(&bytes[HEADER_V2.len()..], &purpose.entropy())
@@ -378,6 +378,18 @@ pub(crate) mod testing {
 mod tests {
     use super::testing::*;
     use super::*;
+
+    #[test]
+    fn entropy_never_changes() {
+        // Every existing sessions.dat, settings.dat and integrity value was protected with these exact bytes; a
+        // different value (for example after a rename) would make them all unreadable.
+        assert_eq!(Purpose::Sessions.entropy(), b"PlaytimeTracker/sessions/v1");
+        assert_eq!(Purpose::Settings.entropy(), b"PlaytimeTracker/settings/v1");
+        assert_eq!(
+            Purpose::Sessions.generation_entropy(),
+            b"PlaytimeTracker/sessions/generation/v1"
+        );
+    }
 
     struct TempDir(PathBuf);
 

@@ -1,4 +1,4 @@
-//! Game artwork for Playtime Tracker.
+//! Game artwork for PlayLedger.
 //!
 //! - [`ArtworkProvider`]: one source of pictures (Steam's local library cache, the Steam store CDN, SteamGridDB,
 //!   the exe's own icon on Windows, …).

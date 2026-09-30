@@ -1,4 +1,4 @@
-//! Where Playtime Tracker keeps its files (the same locations as earlier versions).
+//! Where PlayLedger keeps its files (the same locations as earlier versions).
 
 use std::path::PathBuf;
 

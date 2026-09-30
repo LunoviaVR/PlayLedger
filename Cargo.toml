@@ -1,10 +1,10 @@
-# Playtime Tracker: the background tracker, the dashboard and their shared libraries (see docs/architecture/).
+# PlayLedger: the background tracker, the dashboard and their shared libraries (see docs/architecture/).
 [workspace]
 resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "3.0.4"
+version = "3.1.0"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/LunoviaVR/PlaytimeTracker"

@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest release of Playtime Tracker receives security fixes.
+Only the latest release of PlayLedger receives security fixes.
 
 | Version | Supported |
 | ------- | --------- |
