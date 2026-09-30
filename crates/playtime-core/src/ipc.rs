@@ -54,6 +54,32 @@ pub enum Request {
         game: String,
         kind: String,
     },
+    /// Makes a picture file from this PC the game's `kind` artwork (copied into the tracker's own folder).
+    #[serde(rename_all = "camelCase")]
+    SetArtworkFromFile {
+        game: String,
+        kind: String,
+        path: String,
+    },
+    /// Pictures of `kind` for the game to choose from (SteamGridDB; only with online artwork on and a key).
+    #[serde(rename_all = "camelCase")]
+    ListArtworkChoices {
+        game: String,
+        kind: String,
+    },
+    /// Makes one of the pictures last listed by `listArtworkChoices` the game's `kind` artwork.
+    #[serde(rename_all = "camelCase")]
+    ApplyArtworkChoice {
+        game: String,
+        kind: String,
+        index: usize,
+    },
+    /// Goes back to automatic artwork for the game's `kind`.
+    #[serde(rename_all = "camelCase")]
+    ResetArtwork {
+        game: String,
+        kind: String,
+    },
     ExportCsv,
     /// Stores (or with `None`, removes) the user's SteamGridDB API key in Credential Manager.
     #[serde(rename_all = "camelCase")]
@@ -68,6 +94,16 @@ pub enum Request {
         enabled: bool,
     },
     Subscribe,
+}
+
+/// One picture offered by `listArtworkChoices`; `index` goes back in `applyArtworkChoice`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtworkChoiceInfo {
+    pub index: usize,
+    pub path: String,
+    pub width: u32,
+    pub height: u32,
 }
 
 /// How a game was identified: where it was found, and the key its artwork is cached under.
@@ -147,6 +183,10 @@ pub enum Response {
     /// A local file path, or `None` if there's no artwork (yet: an `artworkReady` event follows if it arrives).
     Artwork {
         path: Option<String>,
+    },
+    /// Pictures to choose from, previewed from local files.
+    ArtworkChoices {
+        choices: Vec<ArtworkChoiceInfo>,
     },
     Error {
         message: String,

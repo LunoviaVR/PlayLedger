@@ -1,10 +1,17 @@
-//! Finds artwork for a game: cache first, then each provider in order (online ones only when allowed), validating
-//! and caching whatever is found.
+//! Finds artwork for a game: the user's own choice first, then the cache, then each provider in order (online ones
+//! only when allowed), validating and caching whatever is found.
 
 use crate::cache::{unix_now, ArtworkCache, CachedImage};
-use crate::{image, ArtworkError, ArtworkKind, ArtworkProvider, ArtworkRequest};
+use crate::image::{self, ImageInfo};
+use crate::{ArtworkError, ArtworkKind, ArtworkProvider, ArtworkRequest};
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+/// How many pictures to offer when the user picks artwork from an online source.
+pub const MAX_CHOICES: usize = 12;
 
 /// The result of a lookup: the image if one was found, and anything worth logging along the way.
 #[derive(Debug, Default)]
@@ -14,8 +21,28 @@ pub struct Lookup {
     pub issues: Vec<(&'static str, String)>,
 }
 
+/// A picture offered to choose from, previewed from a local file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChoicePreview {
+    /// Pass back to [`ArtworkService::apply_choice`].
+    pub index: usize,
+    pub path: PathBuf,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// For each game (cache key) and kind, the choices last offered: `(provider index, full image URL)`.
+type Offered = HashMap<(String, ArtworkKind), Vec<(usize, String)>>;
+
 pub struct ArtworkService {
     cache: ArtworkCache,
+    /// Pictures the user chose themselves; always win over automatic artwork and survive clearing the cache.
+    overrides: Option<ArtworkCache>,
+    /// Where previews of the offered choices are kept (replaced on every listing).
+    choices_dir: Option<PathBuf>,
+    /// For each game and kind, the choices last offered: `(provider index, full image URL)`. Only these are ever
+    /// downloaded when the user picks one.
+    offered: Mutex<Offered>,
     providers: Vec<Arc<dyn ArtworkProvider>>,
     online_allowed: AtomicBool,
 }
@@ -26,9 +53,20 @@ impl ArtworkService {
     pub fn new(cache: ArtworkCache, providers: Vec<Arc<dyn ArtworkProvider>>) -> Self {
         Self {
             cache,
+            overrides: None,
+            choices_dir: None,
+            offered: Mutex::new(HashMap::new()),
             providers,
             online_allowed: AtomicBool::new(false),
         }
+    }
+
+    /// Enables the user's own artwork choices, kept in `overrides`, with previews of online choices in
+    /// `choices_dir`.
+    pub fn with_overrides(mut self, overrides: ArtworkCache, choices_dir: PathBuf) -> Self {
+        self.overrides = Some(overrides);
+        self.choices_dir = Some(choices_dir);
+        self
     }
 
     pub fn set_online_allowed(&self, allowed: bool) {
@@ -43,19 +81,24 @@ impl ArtworkService {
         &self.cache
     }
 
-    /// Cached artwork only; never asks a provider. For drawing a list quickly.
-    pub fn cached(&self, request: &ArtworkRequest, kind: ArtworkKind) -> Option<CachedImage> {
-        self.cache.get(&request.id, kind)
+    fn chosen(&self, request: &ArtworkRequest, kind: ArtworkKind) -> Option<CachedImage> {
+        self.overrides.as_ref()?.get(&request.id, kind)
     }
 
-    /// Cached artwork, or the first valid image a provider has (which is then cached).
+    /// The user's choice or cached artwork only; never asks a provider. For drawing a list quickly.
+    pub fn cached(&self, request: &ArtworkRequest, kind: ArtworkKind) -> Option<CachedImage> {
+        self.chosen(request, kind)
+            .or_else(|| self.cache.get(&request.id, kind))
+    }
+
+    /// The user's choice, cached artwork, or the first valid image a provider has (which is then cached).
     pub fn get(&self, request: &ArtworkRequest, kind: ArtworkKind) -> Lookup {
         self.get_at(request, kind, unix_now())
     }
 
     fn get_at(&self, request: &ArtworkRequest, kind: ArtworkKind, now: u64) -> Lookup {
         let mut lookup = Lookup::default();
-        if let Some(image) = self.cache.get(&request.id, kind) {
+        if let Some(image) = self.cached(request, kind) {
             lookup.image = Some(image);
             return lookup;
         }
@@ -110,6 +153,140 @@ impl ArtworkService {
             }
         }
         lookup
+    }
+
+    fn overrides(&self) -> Result<&ArtworkCache, ArtworkError> {
+        self.overrides
+            .as_ref()
+            .ok_or_else(|| ArtworkError::Response("choosing artwork isn't available".into()))
+    }
+
+    /// Makes `bytes` (after the same checks as downloaded artwork) the game's `kind` image, stored as is.
+    pub fn set_override(
+        &self,
+        request: &ArtworkRequest,
+        kind: ArtworkKind,
+        bytes: &[u8],
+        source: &str,
+    ) -> Result<CachedImage, ArtworkError> {
+        let info: ImageInfo = image::validate(bytes, None)?;
+        Ok(self
+            .overrides()?
+            .store(&request.id, kind, bytes, info, source, unix_now())?)
+    }
+
+    /// Makes a PNG, JPEG or WebP file from this PC the game's `kind` image. The file is copied, not referenced.
+    pub fn set_override_from_file(
+        &self,
+        request: &ArtworkRequest,
+        kind: ArtworkKind,
+        path: &Path,
+    ) -> Result<CachedImage, ArtworkError> {
+        let meta = fs::metadata(path)?;
+        if !meta.is_file() || meta.len() > image::MAX_IMAGE_BYTES as u64 {
+            return Err(ArtworkError::Response(format!(
+                "choose a picture file of at most {} MB",
+                image::MAX_IMAGE_BYTES / (1024 * 1024)
+            )));
+        }
+        let bytes = fs::read(path)?;
+        self.set_override(request, kind, &bytes, "file")
+    }
+
+    /// Goes back to automatic artwork for the game's `kind` image.
+    pub fn clear_override(
+        &self,
+        request: &ArtworkRequest,
+        kind: ArtworkKind,
+    ) -> Result<(), ArtworkError> {
+        Ok(self.overrides()?.remove(&request.id, kind)?)
+    }
+
+    /// Pictures of `kind` to choose from, from the online providers that offer several (only when online artwork
+    /// is on). Previews are downloaded, checked and saved locally; see [`apply_choice`](Self::apply_choice).
+    pub fn choices(
+        &self,
+        request: &ArtworkRequest,
+        kind: ArtworkKind,
+        limit: usize,
+    ) -> Result<Vec<ChoicePreview>, ArtworkError> {
+        if !self.online_allowed() {
+            return Err(ArtworkError::Response(
+                "turn on online artwork in Settings to pick from SteamGridDB".into(),
+            ));
+        }
+        let root = self
+            .choices_dir
+            .as_ref()
+            .ok_or_else(|| ArtworkError::Response("choosing artwork isn't available".into()))?;
+        let dir = root.join(request.id.cache_key());
+        match fs::remove_dir_all(&dir) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+            _ => {}
+        }
+        fs::create_dir_all(&dir)?;
+
+        let mut offered = Vec::new();
+        let mut previews = Vec::new();
+        for (index, provider) in self.providers.iter().enumerate() {
+            if !provider.is_online() || previews.len() >= limit {
+                continue;
+            }
+            for choice in provider.choices(request, kind, limit - previews.len())? {
+                let Some(fetched) = provider.download(&choice.thumb_url)? else {
+                    continue;
+                };
+                let Ok(info) = image::validate(&fetched.bytes, fetched.content_type.as_deref())
+                else {
+                    continue;
+                };
+                let path = dir.join(format!(
+                    "{}-{}.{}",
+                    kind.as_str(),
+                    offered.len(),
+                    info.format.extension()
+                ));
+                fs::write(&path, &fetched.bytes)?;
+                previews.push(ChoicePreview {
+                    index: offered.len(),
+                    path,
+                    width: info.width,
+                    height: info.height,
+                });
+                offered.push((index, choice.url));
+            }
+        }
+        if let Ok(mut map) = self.offered.lock() {
+            map.insert((request.id.cache_key(), kind), offered);
+        }
+        Ok(previews)
+    }
+
+    /// Downloads the full picture of one of the last [`choices`](Self::choices) offered for this game and makes it
+    /// the game's `kind` image. Nothing but an offered picture is ever downloaded.
+    pub fn apply_choice(
+        &self,
+        request: &ArtworkRequest,
+        kind: ArtworkKind,
+        index: usize,
+    ) -> Result<CachedImage, ArtworkError> {
+        let chosen = self.offered.lock().ok().and_then(|map| {
+            map.get(&(request.id.cache_key(), kind))?
+                .get(index)
+                .cloned()
+        });
+        let Some((provider, url)) = chosen else {
+            return Err(ArtworkError::Response(
+                "that picture is no longer offered; list them again".into(),
+            ));
+        };
+        let provider = &self.providers[provider];
+        let Some(fetched) = provider.download(&url)? else {
+            return Err(ArtworkError::Response(
+                "the picture couldn't be downloaded".into(),
+            ));
+        };
+        self.set_override(request, kind, &fetched.bytes, provider.name())
     }
 }
 
@@ -246,6 +423,154 @@ mod tests {
             offline.calls(),
             2,
             "tried again because the first attempt was offline"
+        );
+    }
+
+    struct Chooser;
+
+    impl ArtworkProvider for Chooser {
+        fn name(&self) -> &'static str {
+            "chooser"
+        }
+        fn is_online(&self) -> bool {
+            true
+        }
+        fn fetch(
+            &self,
+            _: &ArtworkRequest,
+            _: ArtworkKind,
+        ) -> Result<Option<FetchedImage>, ArtworkError> {
+            Ok(None)
+        }
+        fn choices(
+            &self,
+            _: &ArtworkRequest,
+            _: ArtworkKind,
+            limit: usize,
+        ) -> Result<Vec<crate::ArtworkChoice>, ArtworkError> {
+            Ok((0..3)
+                .map(|i| crate::ArtworkChoice {
+                    url: format!("https://cdn2.steamgriddb.com/full/{i}.png"),
+                    thumb_url: format!("https://cdn2.steamgriddb.com/thumb/{i}.png"),
+                })
+                .take(limit)
+                .collect())
+        }
+        fn download(&self, url: &str) -> Result<Option<FetchedImage>, ArtworkError> {
+            let (w, h) = if url.contains("/thumb/") {
+                (60, 90)
+            } else {
+                (600, 900)
+            };
+            Ok(Some(FetchedImage {
+                bytes: samples::png(w, h),
+                content_type: Some("image/png".into()),
+            }))
+        }
+    }
+
+    fn with_overrides(dir: &TempDir, providers: Vec<Arc<dyn ArtworkProvider>>) -> ArtworkService {
+        ArtworkService::new(ArtworkCache::new(dir.path().join("cache")), providers).with_overrides(
+            ArtworkCache::new(dir.path().join("overrides")),
+            dir.path().join("choices"),
+        )
+    }
+
+    #[test]
+    fn the_users_choice_wins_and_can_be_undone() {
+        let dir = TempDir::new("service-override");
+        let auto = Stub::new("auto", false, png);
+        let service = with_overrides(&dir, vec![auto.clone() as Arc<dyn ArtworkProvider>]);
+        assert_eq!(
+            service
+                .get_at(&request(), ArtworkKind::Cover, 1)
+                .image
+                .expect("auto")
+                .source,
+            "auto"
+        );
+
+        let file = dir.path().join("mine.png");
+        std::fs::write(&file, samples::png(320, 480)).expect("write");
+        let chosen = service
+            .set_override_from_file(&request(), ArtworkKind::Cover, &file)
+            .expect("set");
+        assert_eq!((chosen.source.as_str(), chosen.width), ("file", 320));
+        assert_eq!(
+            service
+                .cached(&request(), ArtworkKind::Cover)
+                .expect("cached")
+                .source,
+            "file"
+        );
+
+        // Clearing the automatic cache keeps the user's choice.
+        service.cache().clear().expect("clear");
+        assert_eq!(
+            service
+                .get_at(&request(), ArtworkKind::Cover, 2)
+                .image
+                .expect("still")
+                .source,
+            "file"
+        );
+
+        service
+            .clear_override(&request(), ArtworkKind::Cover)
+            .expect("reset");
+        assert_eq!(
+            service
+                .get_at(&request(), ArtworkKind::Cover, 3)
+                .image
+                .expect("auto again")
+                .source,
+            "auto"
+        );
+    }
+
+    #[test]
+    fn files_that_arent_pictures_are_refused() {
+        let dir = TempDir::new("service-override-bad");
+        let service = with_overrides(&dir, Vec::new());
+        let file = dir.path().join("notes.png");
+        std::fs::write(&file, b"not a picture").expect("write");
+        assert!(service
+            .set_override_from_file(&request(), ArtworkKind::Cover, &file)
+            .is_err());
+        assert!(service.cached(&request(), ArtworkKind::Cover).is_none());
+    }
+
+    #[test]
+    fn choices_are_online_only_and_only_offered_pictures_are_downloaded() {
+        let dir = TempDir::new("service-choices");
+        let service = with_overrides(&dir, vec![Arc::new(Chooser) as Arc<dyn ArtworkProvider>]);
+        assert!(
+            service.choices(&request(), ArtworkKind::Cover, 12).is_err(),
+            "online artwork is off"
+        );
+
+        service.set_online_allowed(true);
+        let previews = service
+            .choices(&request(), ArtworkKind::Cover, 2)
+            .expect("choices");
+        assert_eq!(previews.len(), 2, "limited");
+        assert!(previews.iter().all(|p| p.path.is_file() && p.width == 60));
+
+        let chosen = service
+            .apply_choice(&request(), ArtworkKind::Cover, 1)
+            .expect("apply");
+        assert_eq!((chosen.source.as_str(), chosen.width), ("chooser", 600));
+        assert!(
+            service
+                .apply_choice(&request(), ArtworkKind::Cover, 2)
+                .is_err(),
+            "never offered"
+        );
+        assert!(
+            service
+                .apply_choice(&request(), ArtworkKind::Hero, 0)
+                .is_err(),
+            "other kind"
         );
     }
 }
