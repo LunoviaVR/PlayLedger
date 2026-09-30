@@ -8,8 +8,11 @@ namespace PlaytimeTracker.Dashboard;
 /// <summary>Session and game details, and confirmations before anything is deleted.</summary>
 public static class Dialogs
 {
-    private static Grid Details(IEnumerable<(string Label, string Value)> rows)
+    private static Grid Details(IEnumerable<(string Label, string Value)> rows) => Details(rows, out _);
+
+    private static Grid Details(IEnumerable<(string Label, string Value)> rows, out List<TextBlock> values)
     {
+        values = new List<TextBlock>();
         var grid = new Grid { ColumnSpacing = 24, RowSpacing = 8 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -25,6 +28,7 @@ public static class Dialogs
             Grid.SetColumn(text, 1);
             grid.Children.Add(name);
             grid.Children.Add(text);
+            values.Add(text);
             row++;
         }
         return grid;
@@ -50,26 +54,63 @@ public static class Dialogs
     /// <summary>When a session was opened and closed, how long it ran, and which program; finished ones can be deleted.</summary>
     public static async Task ShowSessionAsync(XamlRoot root, SessionView session, DateTimeOffset now)
     {
+        var all = App.State.Snapshot?.Sessions ?? (IReadOnlyList<SessionView>)new[] { session };
+        var (number, count) = SessionMath.Number(all, session);
+        var day = DateOnly.FromDateTime(session.Start.ToLocalTime().DateTime);
+        var gameTotal = SessionMath.ForGame(all, session.Game).Sum(s => s.Seconds);
         var rows = new List<(string, string)>
         {
             ("Opened", When(session.Start, now)),
             ("Closed", session.IsLive ? "Still running" : When(session.End, now)),
             (session.IsLive ? "Running for" : "Played for", Format.Duration(session.Seconds)),
+            ("Session", count > 0 ? $"#{number} of {count}" : "–"),
+            ($"{session.Game} total", Format.Duration(gameTotal)),
+            ($"{Format.Day(day, DateOnly.FromDateTime(now.ToLocalTime().DateTime))} total", Format.Duration(SessionMath.DayTotal(all, day))),
         };
-        if (!string.IsNullOrEmpty(session.Executable))
-            rows.Add(("Program", session.Executable));
+        var exe = session.Executable;
+        if (!string.IsNullOrEmpty(exe))
+            rows.Add(("Program", exe));
 
+        var content = Details(rows, out var values);
         var dialog = new ContentDialog
         {
             XamlRoot = root,
             Title = session.Game,
-            Content = Details(rows),
+            Content = content,
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
         };
         if (!session.IsLive)
             dialog.SecondaryButtonText = "Delete session";
-        if (await dialog.ShowAsync() != ContentDialogResult.Secondary)
+        if (exe is not null && File.Exists(exe))
+            dialog.PrimaryButtonText = "Show program";
+
+        // A running session keeps counting up while its details are open.
+        Microsoft.UI.Dispatching.DispatcherQueueTimer? tick = null;
+        if (session.IsLive)
+        {
+            tick = content.DispatcherQueue.CreateTimer();
+            tick.Interval = TimeSpan.FromSeconds(1);
+            tick.Tick += (_, _) => values[2].Text = Format.Duration((long)(DateTimeOffset.Now - session.Start).TotalSeconds);
+            tick.Start();
+        }
+        var result = await dialog.ShowAsync();
+        tick?.Stop();
+
+        if (result == ContentDialogResult.Primary && exe is not null)
+        {
+            // Opens the program's folder with it selected. Explorer wants `/select,"path"` as one token; Windows paths
+            // can't contain quotes, so the recorded path can't break out of it.
+            if (!exe.Contains('"'))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{exe}\"")
+                {
+                    UseShellExecute = false,
+                })?.Dispose();
+            }
+            return;
+        }
+        if (result != ContentDialogResult.Secondary)
             return;
         if (await ConfirmAsync(root, "Delete this session?",
                 $"The {Format.Duration(session.Seconds)} session of {session.Game} on {Format.Day(session.Start, now)} will be removed from your history. This can't be undone.",
@@ -78,6 +119,48 @@ public static class Dialogs
             if (await App.State.RunAsync(c => c.DeleteSessionAsync(session.Game, session.Start)))
                 await App.State.RefreshAsync();
         }
+    }
+
+    /// <summary>One day's sessions (from a chart bar); choosing one opens its details.</summary>
+    public static async Task ShowDayAsync(XamlRoot root, DateOnly day, IReadOnlyList<SessionView> sessions, DateTimeOffset now)
+    {
+        var today = DateOnly.FromDateTime(now.ToLocalTime().DateTime);
+        var list = new ListView
+        {
+            SelectionMode = ListViewSelectionMode.None,
+            IsItemClickEnabled = true,
+            MaxHeight = 360,
+            ItemsSource = sessions.Select(s => new ViewModels.SessionItem(s, now)).ToList(),
+            ItemTemplate = (DataTemplate)Application.Current.Resources["DialogSessionTemplate"],
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(list, $"Sessions on {Format.Day(day, today)}");
+        var panel = new StackPanel { Spacing = 8, MinWidth = 420 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = sessions.Count == 0
+                ? "No play this day."
+                : $"{Format.Duration(SessionMath.DayTotal(sessions, day))} in {(sessions.Count == 1 ? "1 session" : $"{sessions.Count} sessions")}",
+            Style = (Style)Application.Current.Resources["CaptionStyle"],
+        });
+        panel.Children.Add(list);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = Format.Day(day, today),
+            Content = panel,
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        SessionView? chosen = null;
+        list.ItemClick += (_, e) =>
+        {
+            chosen = (e.ClickedItem as ViewModels.SessionItem)?.Session;
+            dialog.Hide();
+        };
+        await dialog.ShowAsync();
+        // Only one dialog can be open at a time, so the details open after the day closes.
+        if (chosen is not null)
+            await ShowSessionAsync(root, chosen, now);
     }
 
     /// <summary>A game's totals, with Stop tracking and Delete history.</summary>
@@ -96,15 +179,25 @@ public static class Dialogs
         if (identity is not null)
             rows.Add(("Found through", identity.Source));
 
+        var content = new StackPanel { Spacing = 16 };
+        content.Children.Add(Details(rows));
+        var show = new HyperlinkButton { Content = "Show on Overview", Padding = new Thickness(0) };
+        content.Children.Add(show);
         var dialog = new ContentDialog
         {
             XamlRoot = root,
             Title = game.Name,
-            Content = Details(rows),
+            Content = content,
             PrimaryButtonText = "Stop tracking",
             SecondaryButtonText = "Delete history",
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Close,
+        };
+        show.Click += (_, _) =>
+        {
+            App.State.OverviewGame = game.Name;
+            dialog.Hide();
+            (App.CurrentWindow as MainWindow)?.BringToFront("overview");
         };
         switch (await dialog.ShowAsync())
         {

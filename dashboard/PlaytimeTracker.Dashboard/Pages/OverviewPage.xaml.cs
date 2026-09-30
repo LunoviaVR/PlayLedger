@@ -1,21 +1,34 @@
+using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Shapes;
 using Microsoft.UI.Xaml.Navigation;
+using Microsoft.UI.Xaml.Shapes;
 using PlaytimeTracker.Dashboard.Core;
 using PlaytimeTracker.Dashboard.ViewModels;
 
 namespace PlaytimeTracker.Dashboard.Pages;
 
+/// <summary>
+/// Totals, what's playing, the 30-day chart, every game and every session. Choosing a game shows only that game
+/// across the whole page (as in the original dashboard); "All games" goes back.
+/// </summary>
 public sealed partial class OverviewPage : Page
 {
-    private const int RecentSessions = 25;
+    private const int PageSize = 50;
+    private int _shown = PageSize;
 
     public OverviewPage()
     {
         InitializeComponent();
+    }
+
+    /// <summary>The game the page is showing, or null for all games. Also set by the Games page ("Show on Overview").</summary>
+    private static string? Game
+    {
+        get => App.State.OverviewGame;
+        set => App.State.OverviewGame = value;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -30,29 +43,58 @@ public sealed partial class OverviewPage : Page
     {
         if (App.State.Snapshot is not { } s)
             return;
-        var culture = System.Globalization.CultureInfo.CurrentCulture;
-        var total = s.Games.Sum(g => g.TotalSeconds);
-        var count = s.Sessions.Count;
+        var culture = CultureInfo.CurrentCulture;
+        var game = Game is { } g ? s.Games.FirstOrDefault(x => string.Equals(x.Name, g, StringComparison.OrdinalIgnoreCase)) : null;
+        if (Game is not null && game is null)
+            Game = null; // the game's history was deleted
+        var sessions = SessionMath.ForGame(s.Sessions, game?.Name).ToList();
+        var today = DateOnly.FromDateTime(s.Now.ToLocalTime().DateTime);
+        var todayStart = new DateTimeOffset(s.Now.ToLocalTime().Date, s.Now.ToLocalTime().Offset);
+
+        PageTitle.Text = game?.Name ?? "Overview";
+        AllGames.Visibility = game is null ? Visibility.Collapsed : Visibility.Visible;
+        GamesPanel.Visibility = game is null ? Visibility.Visible : Visibility.Collapsed;
+
+        var total = sessions.Sum(x => x.Seconds);
+        var count = sessions.Count;
         TotalText.Text = Format.Duration(total);
-        TotalDetail.Text = s.Games.Count == 1 ? "1 game" : $"{s.Games.Count.ToString(culture)} games";
+        TotalDetail.Text = game is null
+            ? (s.Games.Count == 1 ? "1 game" : $"{s.Games.Count.ToString(culture)} games")
+            : $"Since {Format.Day(game.FirstPlayed, s.Now)}";
         SessionsText.Text = count.ToString(culture);
         SessionsDetail.Text = count > 0 ? $"{Format.Duration(total / count)} on average" : "";
-        WeekText.Text = Format.Duration(s.PastWeekSeconds);
+        WeekText.Text = Format.Duration(game is null ? s.PastWeekSeconds : SessionMath.TotalSince(sessions, todayStart.AddDays(-6)));
         WeekDetail.Text = "Today and the 6 days before";
-        var top = s.Games.FirstOrDefault();
-        TopText.Text = top?.Name ?? "–";
-        TopDetail.Text = top is null ? "" : Format.Duration(top.TotalSeconds);
+        if (game is null)
+        {
+            var top = s.Games.FirstOrDefault();
+            FourthCaption.Text = "Most played";
+            TopText.Text = top?.Name ?? "–";
+            TopDetail.Text = top is null ? "" : Format.Duration(top.TotalSeconds);
+        }
+        else
+        {
+            FourthCaption.Text = "Longest session";
+            TopText.Text = Format.Duration(game.LongestSeconds);
+            TopDetail.Text = game.IsLive ? "Playing now" : $"Last played {Format.Day(game.LastPlayed, s.Now)}";
+        }
 
-        LivePanel.Visibility = s.Live.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        LiveList.ItemsSource = s.Live.Select(l => new SessionItem(l, s.Now)).ToList();
+        var live = sessions.Where(x => x.IsLive).ToList();
+        LivePanel.Visibility = live.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        LiveList.ItemsSource = live.Select(l => new SessionItem(l, s.Now)).ToList();
 
-        var today = DateOnly.FromDateTime(s.Now.ToLocalTime().DateTime);
-        var busiest = s.Daily.Count == 0 ? 0 : s.Daily.Max(d => d.Seconds);
-        RenderChart(s.Daily.Select(d => new DayBar(d, busiest, today)).ToList());
+        var daily = game is null ? s.Daily : SessionMath.DailyTotals(sessions, s.Now);
+        var busiest = daily.Count == 0 ? 0 : daily.Max(d => d.Seconds);
+        RenderChart(daily.Select(d => new DayBar(d, busiest, today)).ToList());
 
-        var recent = s.Sessions.Where(x => !x.IsLive).Take(RecentSessions).Select(x => new SessionItem(x, s.Now)).ToList();
-        SessionsList.ItemsSource = recent;
-        EmptyText.Visibility = recent.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        GamesList.ItemsSource = s.Games.Select(x => new GameRow(x, s.Now)).ToList();
+
+        var finished = sessions.Where(x => !x.IsLive).ToList();
+        SessionsHeader.Text = finished.Count > 0 ? $"Sessions ({finished.Count.ToString(culture)})" : "Sessions";
+        SessionsList.ItemsSource = finished.Take(_shown).Select(x => new SessionItem(x, s.Now, showGame: game is null)).ToList();
+        ShowMore.Visibility = finished.Count > _shown ? Visibility.Visible : Visibility.Collapsed;
+        ShowMore.Content = $"Show more ({(finished.Count - _shown).ToString(culture)} older)";
+        EmptyText.Visibility = finished.Count == 0 && live.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void RenderChart(IReadOnlyList<DayBar> bars)
@@ -78,9 +120,20 @@ public sealed partial class OverviewPage : Page
                 Opacity = bar.Opacity,
                 Fill = accent,
             };
-            // A transparent cell makes the whole column hoverable for the tooltip, not just the bar.
-            var cell = new Grid { Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent) };
-            cell.Children.Add(rectangle);
+            // Each day is a button: hover for its time, select to list its sessions (keyboard and screen readers too).
+            var cell = new Button
+            {
+                Content = rectangle,
+                Padding = new Thickness(0),
+                BorderThickness = new Thickness(0),
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Bottom,
+                Tag = bar.Day,
+            };
+            cell.Click += Day_Click;
             ToolTipService.SetToolTip(cell, bar.Tooltip);
             AutomationProperties.SetName(cell, bar.AutomationName);
             Grid.SetColumn(cell, i);
@@ -110,6 +163,36 @@ public sealed partial class OverviewPage : Page
                 Chart.Children.Add(label);
             }
         }
+    }
+
+    private async void Day_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not DateOnly day || App.State.Snapshot is not { } s)
+            return;
+        var sessions = SessionMath.On(SessionMath.ForGame(s.Sessions, Game), day);
+        await Dialogs.ShowDayAsync(XamlRoot, day, sessions, s.Now);
+    }
+
+    private void Game_Click(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not GameRow row)
+            return;
+        Game = row.Name;
+        _shown = PageSize;
+        Render();
+    }
+
+    private void AllGames_Click(object sender, RoutedEventArgs e)
+    {
+        Game = null;
+        _shown = PageSize;
+        Render();
+    }
+
+    private void ShowMore_Click(object sender, RoutedEventArgs e)
+    {
+        _shown += PageSize;
+        Render();
     }
 
     private async void Session_Click(object sender, ItemClickEventArgs e)

@@ -109,7 +109,11 @@ now, 30-day chart, recent sessions), **Games** (cover art or icon tiles, search 
 tracking and Delete history), **History** (the last 30 days, each expandable into its sessions), **Statistics**
 (days played, longest session, most played, by weekday and time of day) and **Settings** (theme, notifications,
 detection, tracking timings, online artwork and the SteamGridDB key, custom games, game folders, ignored games and
-programs, rescan, CSV export). Every control has an accessible name; deletions ask for confirmation.
+programs, rescan, CSV export, open the report). Every control has an accessible name; deletions ask for
+confirmation. Everything the C# dashboard does is kept: choosing a game on the Overview shows only that game across
+the page (tiles with its longest session, chart, sessions); a chart bar opens that day's sessions; the Overview lists
+every session (fifty at a time); session details show the session number (#3 of 12), the game's and the day's totals,
+*Show program*, and count up live for a running game.
 
 It holds no data of its own. Everything comes from the tracker over the pipe through
 `PlaytimeTracker.Dashboard.Core`, which checks that the pipe's server runs as the current user
