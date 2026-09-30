@@ -172,6 +172,7 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 12 | Remove C# after parity is verified | Planned |
 | 13 | Game context menu: change artwork, stop tracking, delete history | Planned, not started: see *Game context menu* below |
 | 14 | Tip or donate section in Settings | Planned, not started: see *Tip or donate* below |
+| 15 | Glass look in the Windows 11 design language | Planned, not started: see *Glass look* below |
 
 ## Game context menu (phase 13, planned)
 
@@ -223,6 +224,27 @@ browser.
   check that it's that exact `https://cash.app/` address, and the app neither sees nor handles any payment.
 - The button has an accessible name ("Tip or donate with Cash App, opens in your browser") and works with the
   keyboard like every other control.
+
+## Glass look (phase 15, planned)
+
+Not started. A glassmorphism look, still clearly Windows 11: the Task Manager layout (custom title bar, left
+navigation, cards) and WinUI 3's controls, type (Segoe UI Variable), spacing, corner radii and motion all stay. The
+glass comes from Windows' own materials rather than painted imitations, so it looks and performs like the rest of the
+system:
+
+- **Window:** Mica Alt (or Desktop Acrylic as a setting) behind everything, so the wallpaper's colour shows through.
+- **Surfaces in three levels,** like the C# app's glass design system (`Ui/Glass.cs`: panels, cards, controls): the
+  navigation pane and page stay clear, cards and tiles become frosted in-app acrylic with a soft tint of the
+  accent colour, and controls sit on the card material. A thin light edge and a subtle shadow keep each card's
+  outline readable against any wallpaper.
+- **Readable first:** text keeps at least WCAG AA contrast (4.5:1) on every surface in light and dark, with the tint
+  and opacity chosen for the worst-case wallpaper. Game artwork on tiles stays opaque.
+- **Follows Windows:** with *Transparency effects* off, in Battery/Energy saver, or when the window isn't focused,
+  surfaces fall back to solid colours, as Windows' materials do. High-contrast themes get plain system colours.
+- **A switch in Settings** (Appearance → Glass effects: on, off) for people who prefer the plain look.
+
+It would be checked with screenshots of every page in light and dark, over a bright and a dark wallpaper, plus a
+contrast check on the text colours used on each surface.
 
 ## Checks
 
