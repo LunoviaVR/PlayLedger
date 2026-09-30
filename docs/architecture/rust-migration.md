@@ -194,6 +194,9 @@ Not started. On the **Games** page, right-clicking a game tile opens a menu. The
 - **600 × 900 pixels**, portrait (2:3), PNG, JPEG or WebP. Game tiles are 160 × 240 (2:3), so this stays sharp on
   displays scaled up to 375%. It's also the size of Steam's library covers and SteamGridDB's standard grids, so
   artwork made for those fits exactly.
+- **PNG is fully supported, including transparency.** Transparent areas show the tile's own background (which
+  follows the light or dark theme), so a logo or character cut-out on a transparent PNG sits cleanly on the tile.
+  The file is kept exactly as chosen: it's checked, not re-compressed, so PNG stays lossless.
 - The smallest that still looks sharp is **320 × 480** (up to 200% scaling). Anything up to 8192 pixels a side and
   16 MB is accepted, the limits every artwork image already has.
 - Other shapes are scaled to fill the tile and cropped at the edges, so keep the important part in the middle.
