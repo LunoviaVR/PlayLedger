@@ -1,8 +1,0 @@
-# Keeps the GitHub Actions used by the workflows up to date, including security fixes. Rust dependencies are
-# pinned in Cargo.lock and checked by cargo audit in the Rust workflow.
-version: 2
-updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"

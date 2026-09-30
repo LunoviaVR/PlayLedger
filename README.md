@@ -47,6 +47,14 @@ In a light Windows theme (or with **Theme → Light**) it looks like this:
 
 ![Session details](docs/session-details.png)
 
+With **Glass effects** on (the default), Windows' own Mica material shows your wallpaper's colour through the
+window, and cards are see-through, as in Windows 11's own apps. These two are mock-ups: the backdrop is drawn from a
+sample wallpaper, while on your PC Windows draws it from yours.
+
+| Glass, dark (mock-up) | Glass, light (mock-up) |
+| --- | --- |
+| ![Overview with glass effects, dark theme (mock-up)](docs/glass.png) | ![Games with glass effects, light theme (mock-up)](docs/glass-light.png) |
+
 **Session details** (click any session, finished or still running) show when the game was **opened** and **closed**
 (to the second), how long it ran, the program that was tracked (with **Show program** to open its folder), which session
 it was for that game (e.g. *#3 of 12*), the game's total, and that day's total. A running session keeps updating while

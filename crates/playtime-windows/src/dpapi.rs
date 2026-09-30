@@ -92,7 +92,7 @@ mod tests {
             decode(&Dpapi, Purpose::Settings, &bytes, "t").is_err(),
             "wrong purpose"
         );
-        let mut tampered = bytes.clone();
+        let mut tampered = bytes;
         let middle = tampered.len() / 2;
         tampered[middle] ^= 0x01;
         assert!(decode(&Dpapi, Purpose::Sessions, &tampered, "t").is_err());

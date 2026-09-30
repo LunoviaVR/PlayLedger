@@ -43,7 +43,9 @@ jobs:
             @('games', 'docs\games.png', '--dark'),
             @('history', 'docs\history.png', '--dark'),
             @('settings', 'docs\settings.png', '--dark'),
-            @('overview', 'docs\session-details.png', '--dark', '--dialog', 'session')
+            @('overview', 'docs\session-details.png', '--dark', '--dialog', 'session'),
+            @('overview', 'docs\glass.png', '--dark', '--glass'),
+            @('games', 'docs\glass-light.png', '--glass')
           )
           foreach ($s in $shots) {
             $extra = @($s[2..($s.Count - 1)] | Where-Object { $_ })

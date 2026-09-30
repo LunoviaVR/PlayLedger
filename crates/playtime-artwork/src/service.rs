@@ -411,7 +411,7 @@ mod tests {
         });
         let service = ArtworkService::new(
             ArtworkCache::new(dir.path()),
-            vec![html.clone() as Arc<dyn ArtworkProvider>, offline.clone()],
+            vec![html as Arc<dyn ArtworkProvider>, offline.clone()],
         );
         service.set_online_allowed(true);
 
@@ -480,7 +480,7 @@ mod tests {
     fn the_users_choice_wins_and_can_be_undone() {
         let dir = TempDir::new("service-override");
         let auto = Stub::new("auto", false, png);
-        let service = with_overrides(&dir, vec![auto.clone() as Arc<dyn ArtworkProvider>]);
+        let service = with_overrides(&dir, vec![auto as Arc<dyn ArtworkProvider>]);
         assert_eq!(
             service
                 .get_at(&request(), ArtworkKind::Cover, 1)
