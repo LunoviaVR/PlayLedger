@@ -152,7 +152,7 @@ if "Delete my play history" is ticked, the saved SteamGridDB key too.
 **Releases still ship the C# app.** Switching them over (having the release job attach the preview installer as
 `Setup.exe`) is a one-line change, but it updates every existing user automatically, so it waits until the preview
 has been installed over a real 2.x install and checked: tracking, the tray, the dashboard pages, settings, updates
-and uninstall.
+and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the checklist for that.
 
 ## Phases
 
@@ -164,10 +164,10 @@ and uninstall.
 | 4 | Game detection | Done: matching rules |
 | 5 | Launcher integrations (discovery on disk/registry) | Done: `playtime_core::discovery` (Steam, Epic, GOG, Ubisoft, EA/Origin, Xbox, Riot, `X:\Games`, extra folders, Windows game list) over a `DiscoveryHost` trait; `playtime_windows::discovery::WindowsHost` |
 | 6 | Artwork service | Done: see *Artwork* below |
-| 7 | Tray/background tracker in Rust | Done: see *The tracker service* above (built and checked in CI; not installed yet) |
-| 8 | WinUI 3 dashboard | Built: see *The dashboard* above (checked in CI; not installed yet) |
+| 7 | Tray/background tracker in Rust | Done: see *The tracker service* above; installed by the preview installer and smoke-tested in CI |
+| 8 | WinUI 3 dashboard | Done: see *The dashboard* above; installed by the preview installer and smoke-tested in CI |
 | 9 | Migrations (verify-then-switch, logs, backups) | Done: see *Migrations* above |
-| 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing |
+| 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing: [`testing-the-preview.md`](../testing-the-preview.md) |
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove C# after parity is verified | Planned |
 
