@@ -533,7 +533,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let tracker = Arc::new(Tracker::default());
     let refresh = start_fetcher(tracker.clone(), window.as_weak());
-    let art_loader = start_art_loader(tracker.clone(), window.as_weak());
+    let art_loader = start_art_loader(tracker, window.as_weak());
     APP.with_borrow_mut(|app| app.art_loader = Some(art_loader.clone()));
     let _ = refresh.send(Refresh::Full);
     settings_actions::wire(&window, &refresh);
@@ -547,7 +547,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if matches!(wake, instance::Wake::ShowSettings) {
                 window.set_page(4);
                 rerender(&window);
-                settings_actions::load(weak.clone());
+                settings_actions::load(weak);
             }
             let _ = window.show();
             instance::bring_to_front(owner_of(&window));
@@ -573,7 +573,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 // New or changed artwork: show it on the game's tile.
                 if let Event::ArtworkReady { game, kind } = event {
                     if kind == "cover" || kind == "icon" {
-                        let _ = art_loader.send(game.clone());
+                        let _ = art_loader.send(game);
                     }
                 }
             },
@@ -797,7 +797,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    let refresh_after_start = refresh.clone();
+    let refresh_after_start = refresh;
     window.on_start_tracker(move || {
         if let Some(path) = tracker_path() {
             let _ = std::process::Command::new(path).spawn();

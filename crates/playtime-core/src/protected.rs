@@ -228,7 +228,7 @@ pub fn load_with_recovery<T, E: std::fmt::Display>(
             }
         } else {
             Recovery::RestoredFromBackup {
-                set_aside: set_aside_main.clone().unwrap_or_default(),
+                set_aside: set_aside_main.unwrap_or_default(),
             }
         };
         fs::copy(&backup, path).map_err(|source| StoreError::Io {
