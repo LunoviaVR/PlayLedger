@@ -56,8 +56,10 @@ struct PipeSecurity {
 
 impl PipeSecurity {
     fn for_user(sid: &str) -> Option<Self> {
-        // D:P = protected DACL; one ACE: allow Generic All to the user.
-        let sddl = HSTRING::from(format!("D:P(A;;GA;;;{sid})"));
+        // O: = owned by the user (without it, an elevated admin's objects are owned by BUILTIN\Administrators and the
+        // dashboard, which checks the owner, refuses the pipe). D:P = protected DACL; one ACE: allow Generic All to
+        // the user.
+        let sddl = HSTRING::from(format!("O:{sid}D:P(A;;GA;;;{sid})"));
         let mut descriptor = PSECURITY_DESCRIPTOR::default();
         // SAFETY: parses our SDDL string into a system-allocated descriptor, freed in Drop.
         unsafe {

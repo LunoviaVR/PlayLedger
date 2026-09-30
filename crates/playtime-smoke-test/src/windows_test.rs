@@ -132,9 +132,11 @@ impl Test {
                 .spawn()
                 .map_err(|e| format!("the tracker didn't start: {e}"))?,
         );
+        let mut last_error = String::new();
         let mut client = wait_for("the tracker's pipe", Duration::from_secs(30), || {
-            Client::connect().ok()
-        })?;
+            Client::connect().map_err(|e| last_error = e).ok()
+        })
+        .map_err(|e| format!("{e} (last error: {last_error})"))?;
         match client.request(&Request::Hello {
             protocol: ipc::PROTOCOL_VERSION,
         })? {
