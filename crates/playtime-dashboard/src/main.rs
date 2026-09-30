@@ -839,12 +839,29 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    // Shown first, so the window has a handle for the glass look; the settings then keep it up to date.
-    let result = window.show().and_then(|()| {
-        let theme = window.global::<ui::Theme>();
-        theme.set_glass(glass::apply(owner_of(&window), true, theme.get_dark()));
-        slint::run_event_loop()
-    });
+    // The native window only exists once the event loop runs, so the glass look is applied as soon as it has a
+    // handle (with the saved choice, or on until the settings arrive); the settings then keep it up to date.
+    let glass_start = std::rc::Rc::new(slint::Timer::default());
+    let (weak, timer) = (window.as_weak(), std::rc::Rc::downgrade(&glass_start));
+    glass_start.start(
+        slint::TimerMode::Repeated,
+        std::time::Duration::from_millis(50),
+        move || {
+            let Some(window) = weak.upgrade() else {
+                return;
+            };
+            let hwnd = owner_of(&window);
+            if hwnd != 0 {
+                let theme = window.global::<ui::Theme>();
+                theme.set_glass(glass::apply(hwnd, glass::wanted(), theme.get_dark()));
+                if let Some(timer) = timer.upgrade() {
+                    timer.stop();
+                }
+            }
+        },
+    );
+    let result = window.show().and_then(|()| slint::run_event_loop());
+    drop(glass_start);
     // The GPU renderer can also fail once the window opens (a broken graphics driver): start again on the CPU.
     if result.is_err() && gpu && !args.iter().any(|a| a == "--software") {
         crash_log::write(

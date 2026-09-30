@@ -11,9 +11,18 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// Whether this window draws with the GPU (set once at start).
 pub static GPU: AtomicBool = AtomicBool::new(false);
 
+/// The user's Glass effects choice: on until the settings say otherwise, so the window starts with the glass look.
+static WANTED: AtomicBool = AtomicBool::new(true);
+
+/// The Glass effects choice last applied (on before the settings arrive).
+pub fn wanted() -> bool {
+    WANTED.load(Ordering::Relaxed)
+}
+
 /// Turns the material on or off for the window with handle `hwnd`, with a dark or light title bar. Returns whether
 /// the glass look is in use (so the page draws see-through surfaces).
 pub fn apply(hwnd: isize, wanted: bool, dark: bool) -> bool {
+    WANTED.store(wanted, Ordering::Relaxed);
     let on = wanted && GPU.load(Ordering::Relaxed) && hwnd != 0 && system::allows_transparency();
     system::set_backdrop(hwnd, on, dark) && on
 }
