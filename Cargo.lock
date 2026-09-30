@@ -3407,6 +3407,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 name = "playtime-artwork"
 version = "3.0.0"
 dependencies = [
+ "miniz_oxide 0.8.9",
  "playtime-core",
  "serde",
  "serde_json",
