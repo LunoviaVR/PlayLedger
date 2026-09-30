@@ -568,8 +568,8 @@ mod native {
     };
     use windows::Win32::UI::Shell::ExtractIconExW;
     use windows::Win32::UI::WindowsAndMessaging::{
-        DestroyIcon, EnumWindows, GetWindowRect, GetWindowThreadProcessId, IsWindowVisible,
-        SetForegroundWindow, SetWindowPos, SWP_NOZORDER,
+        DestroyIcon, EnumWindows, GetSystemMetrics, GetWindowRect, GetWindowThreadProcessId,
+        IsWindowVisible, SetForegroundWindow, SetWindowPos, SM_CXSCREEN, SM_CYSCREEN, SWP_NOZORDER,
     };
 
     /// The exe's version strings (FileDescription, ProductName, ProductVersion, …).
@@ -690,10 +690,14 @@ mod native {
             find_dashboard().is_some_and(|(_, pid)| pid == self.pid)
         }
 
-        /// Sets the window's size, even beyond the (small) CI screen; the capture still renders all of it.
+        /// Sets the window's size, as far as the screen allows.
         pub fn resize(&self, width: i32, height: i32) {
             // SAFETY: plain calls on the dashboard's window.
             unsafe {
+                // Windows only draws the part of a window that's on screen (CI's is 1024 × 768), so the window is
+                // kept within it.
+                let width = width.min(GetSystemMetrics(SM_CXSCREEN).max(500));
+                let height = height.min((GetSystemMetrics(SM_CYSCREEN) - 48).max(500));
                 let _ = SetWindowPos(self.hwnd, None, 0, 0, width, height, SWP_NOZORDER);
                 let _ = SetForegroundWindow(self.hwnd);
             }
