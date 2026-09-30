@@ -76,9 +76,16 @@ jobs:
           }
           Capture "$out\background.png"
 
+          # Windows draws backdrops only for the active window (inactive ones get a plain fallback colour), so each
+          # dashboard is brought to the front first: a synthetic Alt press lets this script take the foreground.
+          Add-Type -Namespace Lab -Name User32 -MemberDefinition @'
+          [DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr h);
+          [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, System.UIntPtr extra);
+          [DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow();
+          '@
           $variants = [ordered]@{
-            'shipped' = ''; 'noblur' = 'noblur'; 'noextend' = 'noextend'; 'noblur-noextend' = 'noblur,noextend';
-            'mica' = 'mica'; 'mica-noblur' = 'mica,noblur'
+            'shipped' = ''; 'noblur' = 'noblur'; 'noextend' = 'noextend';
+            'mica' = 'mica'; 'swca' = 'swca'; 'blur3' = 'blur3'
           }
           $env:GALLIUM_DRIVER = 'llvmpipe'
           foreach ($name in $variants.Keys) {
@@ -86,7 +93,13 @@ jobs:
             $env:PLAYTIME_GLASS_LOG = (Join-Path $PWD "$out\$name-glass.txt")
             $env:PLAYTIME_RENDERER_LOG = (Join-Path $PWD "$out\$name-renderer.txt")
             $p = Start-Process target\release\playtime-dashboard.exe -PassThru
-            Start-Sleep 10
+            Start-Sleep 6
+            $p.Refresh()
+            [Lab.User32]::keybd_event(0x12, 0, 0, [System.UIntPtr]::Zero)
+            [Lab.User32]::SetForegroundWindow($p.MainWindowHandle) | Out-Null
+            [Lab.User32]::keybd_event(0x12, 0, 2, [System.UIntPtr]::Zero)
+            Start-Sleep 4
+            "$name foreground: $([Lab.User32]::GetForegroundWindow() -eq $p.MainWindowHandle)" | Tee-Object -Append "$out\foreground.txt"
             Capture "$out\$name.png"
             Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
             Start-Sleep 2

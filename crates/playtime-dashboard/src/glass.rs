@@ -87,7 +87,8 @@ mod system {
         let dark = BOOL::from(dark);
         // LAB (temporary, for reproducing the glass on CI): PLAYTIME_GLASS_LAB=mica,noextend,noblur.
         let lab = std::env::var("PLAYTIME_GLASS_LAB").unwrap_or_default();
-        let kind: DWM_SYSTEMBACKDROP_TYPE = if !on {
+        let custom = lab.contains("swca") || lab.contains("blur3");
+        let kind: DWM_SYSTEMBACKDROP_TYPE = if !on || custom {
             DWMSBT_NONE
         } else if lab.contains("mica") {
             windows::Win32::Graphics::Dwm::DWMSBT_MAINWINDOW
@@ -95,7 +96,7 @@ mod system {
             DWMSBT_TRANSIENTWINDOW
         };
         // -1 on every side extends the frame, and with it the backdrop, over the whole client area.
-        let edge = if on && !lab.contains("noextend") {
+        let edge = if on && !lab.contains("noextend") && !custom {
             -1
         } else {
             0
@@ -122,6 +123,10 @@ mod system {
                 std::mem::size_of::<DWM_SYSTEMBACKDROP_TYPE>() as u32,
             )
             .is_ok();
+            // LAB: Windows' blur-behind (SetWindowCompositionAttribute) with our own tint instead of a system backdrop.
+            if on && custom {
+                super::swca_blur(hwnd, if lab.contains("blur3") { 3 } else { 4 }, 0x6620_2020);
+            }
             if on && lab.contains("noblur") {
                 let off = windows::Win32::Graphics::Dwm::DWM_BLURBEHIND {
                     dwFlags: windows::Win32::Graphics::Dwm::DWM_BB_ENABLE,
@@ -150,6 +155,50 @@ mod system {
             );
             accepted
         }
+    }
+}
+
+#[cfg(windows)]
+/// LAB: `SetWindowCompositionAttribute` accent (3 blur, 4 acrylic blur) with an AABBGGRR tint.
+fn swca_blur(hwnd: windows::Win32::Foundation::HWND, state: u32, tint: u32) {
+    #[repr(C)]
+    struct AccentPolicy {
+        state: u32,
+        flags: u32,
+        gradient: u32,
+        animation: u32,
+    }
+    #[repr(C)]
+    struct Data {
+        attribute: u32,
+        data: *mut core::ffi::c_void,
+        size: usize,
+    }
+    type Swca = unsafe extern "system" fn(windows::Win32::Foundation::HWND, *mut Data) -> i32;
+    // SAFETY: user32 is loaded in every GUI process; the function is looked up by name and called with the layout
+    // Windows uses for WCA_ACCENT_POLICY (19); both structs outlive the call.
+    unsafe {
+        use windows::core::s;
+        use windows::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
+        let Ok(user32) = GetModuleHandleA(s!("user32.dll")) else {
+            return;
+        };
+        let Some(proc) = GetProcAddress(user32, s!("SetWindowCompositionAttribute")) else {
+            return;
+        };
+        let swca: Swca = std::mem::transmute(proc);
+        let mut policy = AccentPolicy {
+            state,
+            flags: 2,
+            gradient: tint,
+            animation: 0,
+        };
+        let mut data = Data {
+            attribute: 19,
+            data: (&mut policy as *mut AccentPolicy).cast(),
+            size: std::mem::size_of::<AccentPolicy>(),
+        };
+        swca(hwnd, &mut data);
     }
 }
 
