@@ -204,6 +204,12 @@ pub fn apply_appearance(window: &AppWindow, settings: &Settings) {
     let theme = window.global::<Theme>();
     theme.set_accent_on_light(color(on_light));
     theme.set_accent_on_dark(color(on_dark));
+    let glass = crate::glass::apply(
+        crate::owner_of(window),
+        settings.glass_effects,
+        theme.get_dark(),
+    );
+    theme.set_glass(glass);
 }
 
 /// "You're up to date (3.0.0). Last checked today at 9:00 AM."

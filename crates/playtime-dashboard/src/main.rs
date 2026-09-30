@@ -16,6 +16,7 @@ mod client;
 mod dialogs;
 mod format;
 mod games;
+mod glass;
 mod history;
 mod offscreen;
 mod open;
@@ -505,6 +506,7 @@ fn main() -> Result<(), slint::PlatformError> {
         return Ok(());
     }
     let gpu = select_renderer(&args);
+    glass::GPU.store(gpu, std::sync::atomic::Ordering::Relaxed);
     let window = AppWindow::new()?;
     APP.with_borrow_mut(|app| app.settings.drawn_with_gpu = gpu);
     if let Some(page) = args
@@ -774,7 +776,12 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    let result = window.run();
+    // Shown first, so the window has a handle for the glass look; the settings then keep it up to date.
+    let result = window.show().and_then(|()| {
+        let theme = window.global::<ui::Theme>();
+        theme.set_glass(glass::apply(owner_of(&window), true, theme.get_dark()));
+        slint::run_event_loop()
+    });
     // The GPU renderer can also fail once the window opens (a broken graphics driver): start again on the CPU.
     if result.is_err() && gpu && !args.iter().any(|a| a == "--software") {
         eprintln!("The GPU renderer failed; reopening with the software renderer.");
