@@ -481,6 +481,9 @@ fn game_action(
 }
 
 fn main() -> Result<(), slint::PlatformError> {
+    // Slint draws context menus itself, in the app's Fluent style and light or dark theme, instead of handing them to
+    // Windows, whose native menus are always light. Set before any other thread starts.
+    std::env::set_var("SLINT_NO_MUDA", "1");
     let args: Vec<String> = std::env::args().collect();
     if let Some(i) = args.iter().position(|a| a == "--render") {
         let result = offscreen::RenderArgs::parse(&args[i + 1..], &PAGES).and_then(|render| {
