@@ -170,6 +170,30 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing: [`testing-the-preview.md`](../testing-the-preview.md) |
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove C# after parity is verified | Planned |
+| 13 | Game context menu: change artwork, stop tracking, delete history | Planned, not started: see *Game context menu* below |
+
+## Game context menu (phase 13, planned)
+
+Not started. On the **Games** page, right-clicking a game tile opens a menu. The same menu opens with the keyboard
+(the Menu key or Shift+F10) and with press-and-hold on touch screens:
+
+- **Change artwork ▸** a cascading submenu:
+  - **Choose an image file…** picks a PNG, JPEG or WebP from the PC. It goes through the same checks as downloaded
+    artwork (format sniffed from the bytes, size and dimension limits), is copied into the artwork cache, and is
+    never uploaded.
+  - **Pick from SteamGridDB…** shows the images SteamGridDB has for the game, to choose one. It's only there when
+    *Online artwork* is on and the user has entered their own API key, and sends only what artwork lookups already
+    send: the Steam app ID, or the game's name.
+  - **Use automatic artwork** removes the override and goes back to the sources under *Artwork* above.
+- **Stop tracking**, as in the game's details now: it moves the game to *Settings → Ignored games* and keeps its
+  history.
+- **Delete history…**, as in the game's details now, after the same confirmation.
+
+The tracker would keep each game's chosen artwork locally, as an override the artwork service checks before its
+automatic sources. The dashboard would reach it through new pipe requests (setting and resetting a game's
+artwork, and listing SteamGridDB candidates), added to `dashboard/fixtures/responses.jsonl` so both sides agree.
+It would come with Rust unit tests for the override and the file checks, and a smoke-test step that sets a
+game's artwork from a file and resets it.
 
 ## Checks
 
