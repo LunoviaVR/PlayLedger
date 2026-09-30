@@ -95,12 +95,17 @@ public sealed partial class OverviewPage : Page
                     Text = bar.Label,
                     FontSize = 11,
                     Foreground = secondary,
-                    HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 6, 0, 0),
                     TextWrapping = TextWrapping.NoWrap,
                 };
                 AutomationProperties.SetAccessibilityView(label, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
-                Grid.SetColumn(label, i);
+                // A label spans three columns so it has room ("Today" is wider than one bar); the last one is
+                // right-aligned so it stays inside the chart.
+                var first = Math.Max(0, i - 1);
+                var span = Math.Min(bars.Count, i + 2) - first;
+                label.HorizontalAlignment = fromToday == 0 ? HorizontalAlignment.Right : HorizontalAlignment.Center;
+                Grid.SetColumn(label, fromToday == 0 ? Math.Max(0, i - 2) : first);
+                Grid.SetColumnSpan(label, fromToday == 0 ? Math.Min(3, bars.Count) : span);
                 Grid.SetRow(label, 1);
                 Chart.Children.Add(label);
             }

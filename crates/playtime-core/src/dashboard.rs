@@ -208,7 +208,15 @@ impl DashboardModel {
         let mut per_day: HashMap<NaiveDate, Vec<(String, Duration)>> = HashMap::new();
         let mut counts: HashMap<NaiveDate, usize> = HashMap::new();
         for s in &self.sessions {
-            for (day, time) in split_by_day(s.start, s.end, tz) {
+            let mut parts = split_by_day(s.start, s.end, tz);
+            if parts.is_empty() {
+                // A session seen by a single poll lasts no time, but it still happened on its start day.
+                parts.push((
+                    s.start.as_datetime().with_timezone(tz).date_naive(),
+                    Duration::zero(),
+                ));
+            }
+            for (day, time) in parts {
                 if day < first || day > today {
                     continue;
                 }
@@ -416,6 +424,18 @@ mod tests {
             model.sessions_on(today, Some("beat saber"), &utc()).count(),
             2
         );
+
+        // A session seen by a single poll (no length) still counts on its day.
+        let blip = [session(
+            "Cookie Clicker",
+            "2026-09-29T08:30:00+00:00",
+            "2026-09-29T08:30:00+00:00",
+        )];
+        let history =
+            DashboardModel::new(&blip, &[], at("2026-09-29T09:00:00+00:00")).history(&utc());
+        assert_eq!(history[0].session_count, 1);
+        assert_eq!(history[0].games[0].game, "Cookie Clicker");
+        assert_eq!(history[0].total_seconds, 0);
         assert_eq!(
             model.total_since(None, at("2026-09-29T00:00:00+00:00")),
             Duration::minutes(30 + 10 + 20)
