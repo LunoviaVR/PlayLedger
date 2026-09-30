@@ -13,7 +13,7 @@ use windows::Win32::UI::Shell::Common::COMDLG_FILTERSPEC;
 use windows::Win32::UI::Shell::{
     FileOpenDialog, FileSaveDialog, IFileDialog, IFileOpenDialog, IFileSaveDialog,
     FOS_FILEMUSTEXIST, FOS_FORCEFILESYSTEM, FOS_OVERWRITEPROMPT, FOS_PATHMUSTEXIST,
-    SIGDN_FILESYSPATH,
+    FOS_PICKFOLDERS, SIGDN_FILESYSPATH,
 };
 
 /// A file type in the dialog's list: its name ("Pictures") and patterns ("*.png;*.jpg").
@@ -41,6 +41,29 @@ pub fn open(owner: isize, title: &str, filters: &[Filter]) -> Option<PathBuf> {
                     .ok()?;
             }
             show(&dialog.into(), owner, &title, &filters)
+        })
+    })
+    .join()
+    .ok()
+    .flatten()
+}
+
+/// Asks for a folder.
+pub fn folder(owner: isize, title: &str) -> Option<PathBuf> {
+    let title = title.to_string();
+    std::thread::spawn(move || {
+        with_com(|| {
+            // SAFETY: COM is initialised on this thread; the dialog is released before COM is.
+            let dialog: IFileOpenDialog =
+                unsafe { CoCreateInstance(&FileOpenDialog, None, CLSCTX_INPROC_SERVER) }.ok()?;
+            // SAFETY: plain calls on a live dialog.
+            unsafe {
+                let options = dialog.GetOptions().ok()?;
+                dialog
+                    .SetOptions(options | FOS_FORCEFILESYSTEM | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST)
+                    .ok()?;
+            }
+            show(&dialog.into(), owner, &title, &[])
         })
     })
     .join()

@@ -28,14 +28,14 @@ pub struct RenderArgs {
     pub out: String,
     pub snapshot: String,
     pub dark: bool,
-    /// `--dialog session|day|game`: open that dialog (the newest session, today, the most played game).
+    /// `--dialog session|day|game|name`: open that dialog (the newest session, today, the most played game).
     pub dialog: Option<String>,
 }
 
 impl RenderArgs {
     /// Parses the arguments after `--render`.
     pub fn parse(args: &[String], pages: &[&str]) -> Result<Self, String> {
-        let usage = "usage: --render <page> <width>x<height> <out.png> <snapshot file> [--dark] [--dialog session|day|game]";
+        let usage = "usage: --render <page> <width>x<height> <out.png> <snapshot file> [--dark] [--dialog session|day|game|name]";
         let [page, size, out, snapshot, rest @ ..] = args else {
             return Err(usage.into());
         };
@@ -78,6 +78,33 @@ pub fn render(
     }))
     .map_err(|e| format!("{e:?}"))?;
     let window = AppWindow::new().map_err(|e| e.to_string())?;
+    // The settings too, when the file has them (the fixture's second line).
+    let text = std::fs::read_to_string(&args.snapshot).unwrap_or_default();
+    for line in text.lines() {
+        if let Ok(Response::Settings {
+            settings,
+            has_steam_grid_db_key,
+            start_with_windows,
+            is_installed_copy,
+        }) = serde_json::from_str(line)
+        {
+            crate::APP.with_borrow_mut(|app| {
+                app.settings.drawn_with_gpu = settings.hardware_acceleration;
+                crate::settings::fill(
+                    &window,
+                    &mut app.settings,
+                    *settings,
+                    has_steam_grid_db_key,
+                    start_with_windows,
+                    is_installed_copy,
+                )
+            });
+            window.global::<crate::ui::SettingsData>().set_about(
+                "Playtime Tracker 3.0.0 (dashboard 3.0.0). Your play history stays on this PC."
+                    .into(),
+            );
+        }
+    }
     if args.dark {
         window
             .global::<Palette>()

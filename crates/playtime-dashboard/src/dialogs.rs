@@ -31,6 +31,10 @@ pub enum Dialog {
     Busy(String, String),
     /// Pictures from SteamGridDB to choose a game's cover from (the pictures themselves are set by `main.rs`).
     Choices(String),
+    /// Something done, to acknowledge (title, message).
+    Info(String, String),
+    /// Naming a custom game picked from this exe.
+    NameGame(String),
 }
 
 /// What a button asks for.
@@ -43,6 +47,8 @@ pub enum Outcome {
     ShowProgram(String),
     /// Show only this game on the Overview.
     ShowOnOverview(String),
+    /// Add a custom game for this exe, with the name typed in.
+    AddCustomGame(String),
 }
 
 fn s(text: impl Into<SharedString>) -> SharedString {
@@ -87,6 +93,7 @@ fn current(snapshot: &DashboardSnapshot, session: &SessionView) -> Option<Sessio
 }
 
 struct Content {
+    input_label: String,
     title: String,
     message: String,
     rows: Vec<DetailRow>,
@@ -100,6 +107,7 @@ struct Content {
 impl Default for Content {
     fn default() -> Self {
         Self {
+            input_label: String::new(),
             title: String::new(),
             message: String::new(),
             rows: Vec::new(),
@@ -219,6 +227,20 @@ fn content(dialog: &Dialog, snapshot: &DashboardSnapshot) -> Content {
             close: "Cancel".into(),
             ..Content::default()
         },
+        Dialog::Info(title, message) => Content {
+            title: title.clone(),
+            message: message.clone(),
+            close: "OK".into(),
+            ..Content::default()
+        },
+        Dialog::NameGame(path) => Content {
+            title: "Add a game".into(),
+            message: path.clone(),
+            input_label: "Name to show".into(),
+            primary: "Add".into(),
+            close: "Cancel".into(),
+            ..Content::default()
+        },
         Dialog::Choices(game) => Content {
             title: format!("Choose artwork for {game}"),
             message: "Pictures from SteamGridDB. Choosing one downloads it and makes it the game's cover.".into(),
@@ -290,6 +312,7 @@ pub fn show(window: &AppWindow, dialog: &Dialog, snapshot: &DashboardSnapshot) -
     window.set_dialog_primary(s(c.primary));
     window.set_dialog_secondary(s(c.secondary));
     window.set_dialog_close(s(c.close));
+    window.set_dialog_input_label(s(c.input_label));
     window.set_dialog_open(true);
     c.list
 }
@@ -317,6 +340,7 @@ pub fn button(dialog: &Dialog, which: i32) -> Outcome {
             Outcome::Open(Dialog::Confirm(Confirm::DeleteHistory(game.clone())))
         }
         (Dialog::Game(game), 3) => Outcome::ShowOnOverview(game.clone()),
+        (Dialog::NameGame(path), 0) => Outcome::AddCustomGame(path.clone()),
         (Dialog::Confirm(Confirm::DeleteSession(session)), 0) => {
             Outcome::Run(Request::DeleteSession {
                 game: session.game.clone(),

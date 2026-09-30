@@ -2,15 +2,16 @@
 import { Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Line, Caption, FluentButton } from "controls.slint";
-import { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow, GameTile } from "data.slint";
+import { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow, GameTile, ListEntry } from "data.slint";
 import { OverviewPage } from "overview.slint";
 import { StatisticsPage } from "statistics.slint";
 import { HistoryPage } from "history.slint";
 import { GamesPage, GameAction } from "games.slint";
+import { SettingsPage, SettingsData } from "settings.slint";
 import { Dialog } from "dialog.slint";
 
-export { Theme, Palette }
-export { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow, GameTile, GameAction }
+export { Theme, Palette, SettingsData }
+export { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow, GameTile, GameAction, ListEntry }
 
 component NavItem inherits Rectangle {
     in property <string> glyph;
@@ -121,6 +122,8 @@ export component AppWindow inherits Window {
     in property <string> dialog-close: "Close";
     callback dialog-button(int);
     callback dialog-list-clicked(int);
+    in property <string> dialog-input-label;
+    in-out property <string> dialog-input-text;
     in property <[image]> dialog-pictures;
     in property <[string]> dialog-picture-names;
     callback dialog-picture-clicked(int);
@@ -238,7 +241,7 @@ export component AppWindow inherits Window {
                     clicked(section, i) => { root.games-clicked(section, i); }
                     action(section, i, a) => { root.games-action(section, i, a); }
                 }
-                if root.page == 4: Rectangle { }
+                if root.page == 4: SettingsPage { }
             }
         }
     }
@@ -255,6 +258,8 @@ export component AppWindow inherits Window {
         close: root.dialog-close;
         button(i) => { root.dialog-button(i); }
         list-clicked(i) => { root.dialog-list-clicked(i); }
+        input-label: root.dialog-input-label;
+        input-text <=> root.dialog-input-text;
         pictures: root.dialog-pictures;
         picture-names: root.dialog-picture-names;
         picture-clicked(i) => { root.dialog-picture-clicked(i); }

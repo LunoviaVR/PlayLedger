@@ -11,13 +11,17 @@ mod ui {
     slint::include_modules!();
 }
 
+mod accent;
 mod client;
 mod dialogs;
 mod format;
 mod games;
 mod history;
 mod offscreen;
+mod open;
 mod overview;
+mod settings;
+mod settings_actions;
 mod statistics;
 
 use client::{ClientError, Tracker};
@@ -48,6 +52,11 @@ struct App {
     /// The open dialog, and the sessions its list stands for.
     dialog: Option<dialogs::Dialog>,
     dialog_list: Vec<playtime_core::dashboard::SessionView>,
+    settings: settings::SettingsState,
+    /// Saves the Tracking numbers a moment after the last change.
+    save_timer: slint::Timer,
+    /// Keeps an update check's status current while it runs.
+    update_timer: slint::Timer,
 }
 
 thread_local! {
@@ -229,31 +238,79 @@ fn start_art_loader(tracker: Arc<Tracker>, window: slint::Weak<AppWindow>) -> mp
 }
 
 /// Sends `request` to the tracker off the UI thread, on a connection of its own so a slow one (downloading
-/// artwork) doesn't hold up the page. Then closes the dialog and reloads, or shows what went wrong.
-fn run_in_background(
-    window: slint::Weak<AppWindow>,
-    refresh: mpsc::Sender<Refresh>,
+/// artwork) doesn't hold up the page, then hands the answer to `done` on the UI thread.
+fn request_in_background(
     request: Request,
+    done: impl FnOnce(Result<Response, ClientError>) + Send + 'static,
 ) {
     let _ = std::thread::Builder::new()
         .name("request".into())
         .spawn(move || {
             let result = Tracker::default().request(&request);
-            let _ = slint::invoke_from_event_loop(move || {
-                let Some(window) = window.upgrade() else {
-                    return;
-                };
-                match result {
-                    Ok(_) => {
-                        close_dialog(&window);
-                        let _ = refresh.send(Refresh::Full);
-                    }
-                    Err(e) => open_dialog(&window.as_weak(), |_| {
-                        Some(dialogs::Dialog::Error(e.to_string()))
-                    }),
-                }
-            });
+            let _ = slint::invoke_from_event_loop(move || done(result));
         });
+}
+
+/// Sends `request` in the background, then closes the dialog and reloads, or shows what went wrong.
+fn run_in_background(
+    window: slint::Weak<AppWindow>,
+    refresh: mpsc::Sender<Refresh>,
+    request: Request,
+) {
+    request_in_background(request, move |result| {
+        let Some(window) = window.upgrade() else {
+            return;
+        };
+        match result {
+            Ok(_) => {
+                close_dialog(&window);
+                let _ = refresh.send(Refresh::Full);
+            }
+            Err(e) => open_dialog(&window.as_weak(), |_| {
+                Some(dialogs::Dialog::Error(e.to_string()))
+            }),
+        }
+    });
+}
+
+/// Starts a new dashboard on the Settings page and closes this one ("Reopen now", after changing the renderer).
+fn reopen() {
+    if let Ok(exe) = std::env::current_exe() {
+        if std::process::Command::new(exe)
+            .args(["--page", "settings"])
+            .spawn()
+            .is_ok()
+        {
+            let _ = slint::quit_event_loop();
+        }
+    }
+}
+
+/// Picks how the window draws: with the GPU (femtovg, OpenGL) when hardware acceleration is on, else on the CPU.
+/// Returns whether the GPU is used.
+fn select_renderer(args: &[String]) -> bool {
+    let gpu = !args.iter().any(|a| a == "--software")
+        && match Tracker::default().request(&Request::GetSettings) {
+            Ok(Response::Settings { settings, .. }) => settings.hardware_acceleration,
+            // No tracker (yet): the default.
+            _ => true,
+        };
+    let select = |renderer: &str| {
+        slint::BackendSelector::new()
+            .backend_name("winit".into())
+            .renderer_name(renderer.into())
+            .select()
+    };
+    if gpu {
+        match select("femtovg") {
+            Ok(()) => return true,
+            Err(e) => {
+                eprintln!("The GPU renderer couldn't start ({e}); drawing on the CPU instead.")
+            }
+        }
+    }
+    let _ = select("software");
+    false
 }
 
 /// The window's handle, to make the Open dialog modal to it (0 if unknown).
@@ -428,6 +485,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         .cloned()
                         .map(dialogs::Dialog::Session),
                     Some("day") => Some(dialogs::Dialog::Day(format::local_date(model.now))),
+                    Some("name") => Some(dialogs::Dialog::NameGame(
+                        "C:\\Games\\Hades\\Hades.exe".into(),
+                    )),
                     Some("game") => model
                         .games
                         .first()
@@ -444,7 +504,9 @@ fn main() -> Result<(), slint::PlatformError> {
         }
         return Ok(());
     }
+    let gpu = select_renderer(&args);
     let window = AppWindow::new()?;
+    APP.with_borrow_mut(|app| app.settings.drawn_with_gpu = gpu);
     if let Some(page) = args
         .iter()
         .position(|a| a == "--page")
@@ -459,11 +521,14 @@ fn main() -> Result<(), slint::PlatformError> {
     let art_loader = start_art_loader(tracker.clone(), window.as_weak());
     APP.with_borrow_mut(|app| app.art_loader = Some(art_loader.clone()));
     let _ = refresh.send(Refresh::Full);
+    settings_actions::wire(&window, &refresh);
+    settings_actions::load(window.as_weak());
 
     // Events: anything that changed the data reloads it.
     {
         let events = refresh.clone();
         let connection = refresh.clone();
+        let settings_window = window.as_weak();
         client::watch_events(
             move |event| {
                 if matches!(
@@ -481,8 +546,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
             },
-            move |_connected| {
+            move |connected| {
                 let _ = connection.send(Refresh::Full);
+                // The tracker came back: its settings (theme, accent) may be new to this window.
+                if connected {
+                    settings_actions::load(settings_window.clone());
+                }
             },
         );
     }
@@ -512,6 +581,9 @@ fn main() -> Result<(), slint::PlatformError> {
         if let Some(window) = weak.upgrade() {
             window.set_page(page);
             rerender(&window);
+            if page == 4 {
+                settings_actions::load(weak.clone());
+            }
         }
     });
 
@@ -628,6 +700,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 window.set_page(0);
                 rerender(&window);
             }
+            dialogs::Outcome::AddCustomGame(path) => {
+                if settings_actions::add_custom_game(&window, &dialog_refresh, path) {
+                    close_dialog(&window);
+                }
+            }
             dialogs::Outcome::Run(request) => {
                 run_in_background(weak.clone(), dialog_refresh.clone(), request)
             }
@@ -697,5 +774,17 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    window.run()
+    let result = window.run();
+    // The GPU renderer can also fail once the window opens (a broken graphics driver): start again on the CPU.
+    if result.is_err() && gpu && !args.iter().any(|a| a == "--software") {
+        eprintln!("The GPU renderer failed; reopening with the software renderer.");
+        if let Ok(exe) = std::env::current_exe() {
+            let _ = std::process::Command::new(exe)
+                .args(args.iter().skip(1))
+                .arg("--software")
+                .spawn();
+            return Ok(());
+        }
+    }
+    result
 }

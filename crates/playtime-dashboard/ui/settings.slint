@@ -1,0 +1,611 @@
+// Settings, in the Windows 11 Settings style: a heading per section and a card per setting. Headings are in title
+// case; setting names and descriptions are in sentence case. Every value lives in the SettingsData global, which the
+// Rust side fills and reads.
+import { ScrollView, Switch, ComboBox, SpinBox, LineEdit } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Card, Line, Caption, SectionHeader, FluentButton } from "controls.slint";
+import { ListEntry } from "data.slint";
+
+export global SettingsData {
+    // Until the tracker has answered, the page is shown but can't be changed.
+    in property <bool> loaded;
+    in property <string> problem;
+
+    // Appearance
+    in-out property <int> theme;
+    in property <[string]> accent-names;
+    in-out property <int> accent;
+    in-out property <string> custom-accent;
+    in property <bool> custom-accent-valid: true;
+    in-out property <bool> glass;
+    in-out property <bool> hardware-acceleration;
+    // Set when the switch no longer matches how this window draws.
+    in property <bool> reopen-needed;
+    // Startup
+    in-out property <bool> start-with-windows;
+    in property <bool> installed;
+    // General
+    in-out property <bool> notifications;
+    in-out property <bool> windows-game-list;
+    // Tracking
+    in-out property <int> poll;
+    in-out property <int> minimum;
+    in-out property <int> grace;
+    // Artwork
+    in-out property <bool> online-artwork;
+    in property <bool> has-key;
+    in-out property <string> key-text;
+    // Lists: 0 custom games, 1 game folders, 2 ignored games, 3 ignored programs.
+    in property <[ListEntry]> custom-games;
+    in property <[ListEntry]> folders;
+    in property <[ListEntry]> ignored-games;
+    in property <[ListEntry]> ignored-programs;
+    in property <string> ignored-games-count;
+    in property <string> ignored-programs-count;
+    in-out property <string> ignored-games-query;
+    in-out property <string> ignored-programs-query;
+    in-out property <string> new-ignored-game;
+    in-out property <string> new-ignored-program;
+    // Updates
+    in-out property <bool> check-updates;
+    in-out property <bool> auto-updates;
+    in property <string> update-status;
+    in property <bool> can-install;
+    in property <bool> update-busy;
+    // About
+    in property <string> about;
+    // The Cash App logo, once the official file is bundled.
+    in property <image> cash-app-logo;
+    in property <bool> has-cash-app-logo;
+
+    callback changed();
+    callback numbers-changed();
+    callback theme-changed();
+    callback accent-changed();
+    callback apply-custom-accent();
+    callback start-with-windows-changed();
+    callback save-key();
+    callback remove-key();
+    callback get-key();
+    callback add-custom-game();
+    callback add-folder();
+    callback add-ignored-game();
+    callback add-ignored-program();
+    callback remove(int, int);
+    callback search-changed();
+    callback check-now();
+    callback install-now();
+    callback rescan();
+    callback export-sessions();
+    callback open-report();
+    callback open-folder();
+    callback reopen();
+    callback donate();
+}
+
+// A setting: its name and description on the left, its control on the right (or below, in a narrow window).
+component Setting inherits Card {
+    in property <string> title;
+    in property <string> description;
+    in property <bool> narrow;
+    min-height: max(68px, layout.min-height);
+    layout := GridLayout {
+        padding: 16px;
+        spacing: 12px;
+        VerticalLayout {
+            row: 0;
+            col: 0;
+            alignment: center;
+            spacing: 2px;
+            min-width: 0;
+            horizontal-stretch: 1;
+            Line { text: root.title; wrap: word-wrap; }
+            if root.description != "": Caption { text: root.description; wrap: word-wrap; }
+        }
+        HorizontalLayout {
+            row: root.narrow ? 1 : 0;
+            col: root.narrow ? 0 : 1;
+            alignment: root.narrow ? start : end;
+            spacing: 8px;
+            @children
+        }
+    }
+}
+
+// A card holding a list: an optional search box, the entries with a Remove button each, then an add row.
+component ListCard inherits Card {
+    in property <string> description;
+    in property <[ListEntry]> entries;
+    in property <string> remove-kind;
+    in property <bool> searchable;
+    in property <string> search-name;
+    in property <string> count;
+    in-out property <string> query;
+    callback remove(int);
+    callback search-changed();
+    VerticalLayout {
+        padding: 16px;
+        spacing: 8px;
+        if root.description != "": Caption { text: root.description; wrap: word-wrap; }
+        if root.searchable: HorizontalLayout {
+            spacing: 8px;
+            LineEdit {
+                max-width: 320px;
+                preferred-width: 320px;
+                min-width: 120px;
+                horizontal-stretch: 1;
+                placeholder-text: "Search";
+                text <=> root.query;
+                accessible-label: root.search-name;
+                edited => { root.search-changed(); }
+            }
+            if root.query != "": FluentButton {
+                text: "Clear";
+                accessible-label: "Clear search";
+                clicked => { root.query = ""; root.search-changed(); }
+            }
+            Caption { text: root.count; vertical-alignment: center; horizontal-stretch: 0; }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        if root.searchable && root.query != "" && root.entries.length == 0: Caption { text: "No matches"; }
+        for entry[i] in root.entries: HorizontalLayout {
+            spacing: 12px;
+            VerticalLayout {
+                alignment: center;
+                min-width: 0;
+                horizontal-stretch: 1;
+                Line { text: entry.text; }
+                if entry.detail != "": Caption { text: entry.detail; }
+            }
+            FluentButton {
+                text: "Remove";
+                horizontal-stretch: 0;
+                accessible-label: "Remove " + entry.text;
+                clicked => { root.remove(i); }
+            }
+        }
+        @children
+    }
+}
+
+export component SettingsPage inherits Rectangle {
+    property <bool> narrow: root.width < 640px;
+
+    ScrollView {
+        VerticalLayout {
+            alignment: start;
+            padding: Theme.gutter;
+            padding-top: 16px;
+            padding-bottom: 32px;
+            spacing: 4px;
+            Line { text: "Settings"; font-size: 28px; font-weight: 600; }
+            if SettingsData.problem != "": Caption { text: SettingsData.problem; wrap: word-wrap; }
+
+            // Appearance
+            SectionHeader { text: "Appearance"; height: 40px; vertical-alignment: bottom; }
+            Setting {
+                title: "Theme";
+                description: "Follow Windows, or always use light or dark.";
+                narrow: root.narrow;
+                ComboBox {
+                    width: 200px;
+                    enabled: SettingsData.loaded;
+                    model: ["Use Windows setting", "Light", "Dark"];
+                    current-index <=> SettingsData.theme;
+                    accessible-label: "Theme";
+                    selected => { SettingsData.theme-changed(); }
+                }
+            }
+            Setting {
+                title: "Accent colour";
+                description: "Used for charts, selection and buttons.";
+                narrow: root.narrow;
+                ComboBox {
+                    width: 200px;
+                    enabled: SettingsData.loaded;
+                    model: SettingsData.accent-names;
+                    current-index <=> SettingsData.accent;
+                    accessible-label: "Accent colour";
+                    selected => { SettingsData.accent-changed(); }
+                }
+            }
+            if SettingsData.accent == SettingsData.accent-names.length - 1: Setting {
+                title: "Custom colour";
+                description: SettingsData.custom-accent-valid ? "A colour as #rrggbb, e.g. #ff8800." : "That isn't a colour. Use #rrggbb, e.g. #ff8800.";
+                narrow: root.narrow;
+                LineEdit {
+                    width: 140px;
+                    text <=> SettingsData.custom-accent;
+                    placeholder-text: "#rrggbb";
+                    accessible-label: "Custom accent colour";
+                    accepted => { SettingsData.apply-custom-accent(); }
+                }
+                FluentButton {
+                    text: "Use this colour";
+                    primary: true;
+                    clicked => { SettingsData.apply-custom-accent(); }
+                }
+            }
+            Setting {
+                title: "Glass effects";
+                description: "Let the desktop show through the window and cards, as Windows' own apps do. Solid colours are used when Windows' transparency effects are off.";
+                narrow: root.narrow;
+                Switch {
+                    enabled: SettingsData.loaded;
+                    checked <=> SettingsData.glass;
+                    accessible-label: "Glass effects";
+                    toggled => { SettingsData.changed(); }
+                }
+            }
+            Setting {
+                title: "Hardware acceleration";
+                description: SettingsData.reopen-needed
+                    ? "Takes effect when the dashboard reopens."
+                    : "Draw with the graphics card. Turn off if the window flickers or stays blank, for example over remote desktop.";
+                narrow: root.narrow;
+                if SettingsData.reopen-needed: FluentButton {
+                    text: "Reopen now";
+                    clicked => { SettingsData.reopen(); }
+                }
+                Switch {
+                    enabled: SettingsData.loaded;
+                    checked <=> SettingsData.hardware-acceleration;
+                    accessible-label: "Hardware acceleration";
+                    toggled => { SettingsData.changed(); }
+                }
+            }
+
+            // Startup
+            SectionHeader { text: "Startup"; height: 40px; vertical-alignment: bottom; }
+            Setting {
+                title: "Start Playtime Tracker when I sign in to Windows";
+                description: SettingsData.installed
+                    ? "You can also change this in Task Manager → Startup apps."
+                    : "Available once Playtime Tracker is installed.";
+                narrow: root.narrow;
+                Switch {
+                    enabled: SettingsData.loaded && SettingsData.installed;
+                    checked <=> SettingsData.start-with-windows;
+                    accessible-label: "Start Playtime Tracker when I sign in to Windows";
+                    toggled => { SettingsData.start-with-windows-changed(); }
+                }
+            }
+
+            // General
+            SectionHeader { text: "General"; height: 40px; vertical-alignment: bottom; }
+            Setting {
+                title: "Notify me when a session is logged";
+                narrow: root.narrow;
+                Switch {
+                    enabled: SettingsData.loaded;
+                    checked <=> SettingsData.notifications;
+                    accessible-label: "Notify me when a session is logged";
+                    toggled => { SettingsData.changed(); }
+                }
+            }
+            Setting {
+                title: "Also count programs Windows (Xbox Game Bar) recognises as games";
+                narrow: root.narrow;
+                Switch {
+                    enabled: SettingsData.loaded;
+                    checked <=> SettingsData.windows-game-list;
+                    accessible-label: "Also count programs Windows (Xbox Game Bar) recognises as games";
+                    toggled => { SettingsData.changed(); }
+                }
+            }
+
+            // Tracking
+            SectionHeader { text: "Tracking"; height: 40px; vertical-alignment: bottom; }
+            Setting {
+                title: "Check for running games every";
+                description: "Seconds, from 1 to 300.";
+                narrow: root.narrow;
+                SpinBox {
+                    width: 140px;
+                    enabled: SettingsData.loaded;
+                    minimum: 1;
+                    maximum: 300;
+                    value <=> SettingsData.poll;
+                    accessible-label: "Check for running games every, seconds";
+                    edited => { SettingsData.numbers-changed(); }
+                }
+            }
+            Setting {
+                title: "Skip sessions shorter than";
+                description: "Seconds; 0 keeps every session.";
+                narrow: root.narrow;
+                SpinBox {
+                    width: 140px;
+                    enabled: SettingsData.loaded;
+                    minimum: 0;
+                    maximum: 3600;
+                    step-size: 10;
+                    value <=> SettingsData.minimum;
+                    accessible-label: "Skip sessions shorter than, seconds";
+                    edited => { SettingsData.numbers-changed(); }
+                }
+            }
+            Setting {
+                title: "Keep one session when a game reopens within";
+                description: "Seconds, from 0 to 600.";
+                narrow: root.narrow;
+                SpinBox {
+                    width: 140px;
+                    enabled: SettingsData.loaded;
+                    minimum: 0;
+                    maximum: 600;
+                    step-size: 5;
+                    value <=> SettingsData.grace;
+                    accessible-label: "Keep one session when a game reopens within, seconds";
+                    edited => { SettingsData.numbers-changed(); }
+                }
+            }
+
+            // Artwork
+            SectionHeader { text: "Artwork"; height: 40px; vertical-alignment: bottom; }
+            Setting {
+                title: "Download missing artwork";
+                description: "Box art comes from Steam's own image cache and each game's icon, without going online. When on, Steam games' pictures are fetched from the Steam store using only the game's Steam ID. Your play history is never sent.";
+                narrow: root.narrow;
+                Switch {
+                    enabled: SettingsData.loaded;
+                    checked <=> SettingsData.online-artwork;
+                    accessible-label: "Download missing artwork";
+                    toggled => { SettingsData.changed(); }
+                }
+            }
+            Card {
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 8px;
+                    Line { text: "SteamGridDB API key (optional)"; }
+                    Caption {
+                        text: "With your own free key from steamgriddb.com, artwork is also found for games outside Steam (by the game's name). The key is kept in Windows Credential Manager on this PC.";
+                        wrap: word-wrap;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        LineEdit {
+                            min-width: 120px;
+                            max-width: 320px;
+                            preferred-width: 320px;
+                            horizontal-stretch: 1;
+                            enabled: SettingsData.loaded;
+                            input-type: password;
+                            placeholder-text: "32 letters and digits";
+                            text <=> SettingsData.key-text;
+                            accessible-label: "SteamGridDB API key";
+                            accepted => { SettingsData.save-key(); }
+                        }
+                        FluentButton { text: "Save key"; enabled: SettingsData.loaded; clicked => { SettingsData.save-key(); } }
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        // Only while no key is saved (phase 16).
+                        if !SettingsData.has-key: FluentButton {
+                            text: "Get API key";
+                            accessible-label: "Get a SteamGridDB API key, opens in your browser";
+                            clicked => { SettingsData.get-key(); }
+                        }
+                        if SettingsData.has-key: FluentButton { text: "Remove key"; clicked => { SettingsData.remove-key(); } }
+                        Caption { text: SettingsData.has-key ? "A key is saved." : "No key saved."; vertical-alignment: center; }
+                    }
+                }
+            }
+
+            // Custom Games
+            SectionHeader { text: "Custom Games"; height: 40px; vertical-alignment: bottom; }
+            ListCard {
+                description: "Pick a game's .exe to track something Playtime Tracker doesn't find on its own.";
+                entries: SettingsData.custom-games;
+                remove(i) => { SettingsData.remove(0, i); }
+                HorizontalLayout {
+                    alignment: start;
+                    FluentButton { text: "Add a game…"; enabled: SettingsData.loaded; clicked => { SettingsData.add-custom-game(); } }
+                }
+            }
+
+            // Game Folders
+            SectionHeader { text: "Game Folders"; height: 40px; vertical-alignment: bottom; }
+            ListCard {
+                description: "Folders where every sub-folder is a game, e.g. D:\\Games.";
+                entries: SettingsData.folders;
+                remove(i) => { SettingsData.remove(1, i); }
+                HorizontalLayout {
+                    alignment: start;
+                    FluentButton { text: "Add a folder…"; enabled: SettingsData.loaded; clicked => { SettingsData.add-folder(); } }
+                }
+            }
+
+            // Your Data (directly below Game Folders, phase 17)
+            SectionHeader { text: "Your Data"; height: 40px; vertical-alignment: bottom; }
+            Card {
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 12px;
+                    Caption { text: "Your play history stays on this PC, protected so it can't be edited by hand."; wrap: word-wrap; }
+                    // Two rows, so the buttons fit a narrow window.
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        FluentButton { text: "Rescan installed games"; clicked => { SettingsData.rescan(); } }
+                        FluentButton { text: "Export sessions…"; clicked => { SettingsData.export-sessions(); } }
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        FluentButton {
+                            text: "Open report";
+                            accessible-label: "Open report: Game Stats.txt, every game and session as plain text";
+                            clicked => { SettingsData.open-report(); }
+                        }
+                        FluentButton { text: "Open data folder"; clicked => { SettingsData.open-folder(); } }
+                    }
+                }
+            }
+
+            // Ignored Games
+            SectionHeader { text: "Ignored Games"; height: 40px; vertical-alignment: bottom; }
+            ListCard {
+                entries: SettingsData.ignored-games;
+                searchable: true;
+                search-name: "Search ignored games";
+                count: SettingsData.ignored-games-count;
+                query <=> SettingsData.ignored-games-query;
+                search-changed => { SettingsData.search-changed(); }
+                remove(i) => { SettingsData.remove(2, i); }
+                HorizontalLayout {
+                    spacing: 8px;
+                    LineEdit {
+                        min-width: 120px;
+                        max-width: 320px;
+                        preferred-width: 320px;
+                        horizontal-stretch: 1;
+                        placeholder-text: "Game or folder name";
+                        text <=> SettingsData.new-ignored-game;
+                        accessible-label: "Game to ignore";
+                        accepted => { SettingsData.add-ignored-game(); }
+                    }
+                    FluentButton { text: "Ignore"; enabled: SettingsData.loaded; clicked => { SettingsData.add-ignored-game(); } }
+                    Rectangle { horizontal-stretch: 1; }
+                }
+            }
+
+            // Ignored Programs
+            SectionHeader { text: "Ignored Programs"; height: 40px; vertical-alignment: bottom; }
+            ListCard {
+                description: "Launchers, crash reporters and anti-cheat that should never count as playing.";
+                entries: SettingsData.ignored-programs;
+                searchable: true;
+                search-name: "Search ignored programs";
+                count: SettingsData.ignored-programs-count;
+                query <=> SettingsData.ignored-programs-query;
+                search-changed => { SettingsData.search-changed(); }
+                remove(i) => { SettingsData.remove(3, i); }
+                HorizontalLayout {
+                    spacing: 8px;
+                    LineEdit {
+                        min-width: 120px;
+                        max-width: 320px;
+                        preferred-width: 320px;
+                        horizontal-stretch: 1;
+                        placeholder-text: "e.g. launcher.exe";
+                        text <=> SettingsData.new-ignored-program;
+                        accessible-label: "Program to ignore";
+                        accepted => { SettingsData.add-ignored-program(); }
+                    }
+                    FluentButton { text: "Ignore"; enabled: SettingsData.loaded; clicked => { SettingsData.add-ignored-program(); } }
+                    Rectangle { horizontal-stretch: 1; }
+                }
+            }
+
+            // Updates
+            SectionHeader { text: "Updates"; height: 40px; vertical-alignment: bottom; }
+            Setting {
+                title: "Check for updates";
+                narrow: root.narrow;
+                Switch {
+                    enabled: SettingsData.loaded;
+                    checked <=> SettingsData.check-updates;
+                    accessible-label: "Check for updates";
+                    toggled => { SettingsData.changed(); }
+                }
+            }
+            Setting {
+                title: "Install updates automatically";
+                description: "Never while a game is running.";
+                narrow: root.narrow;
+                Switch {
+                    enabled: SettingsData.loaded;
+                    checked <=> SettingsData.auto-updates;
+                    accessible-label: "Install updates automatically";
+                    toggled => { SettingsData.changed(); }
+                }
+            }
+            Card {
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 12px;
+                    Caption {
+                        text: "Updates come from this project's GitHub releases and are installed only if their size and checksum match what GitHub recorded.";
+                        wrap: word-wrap;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        FluentButton { text: "Check now"; enabled: !SettingsData.update-busy; clicked => { SettingsData.check-now(); } }
+                        if SettingsData.can-install && !SettingsData.update-busy: FluentButton {
+                            text: "Install update";
+                            primary: true;
+                            clicked => { SettingsData.install-now(); }
+                        }
+                    }
+                    if SettingsData.update-status != "": Line { text: SettingsData.update-status; wrap: word-wrap; }
+                }
+            }
+
+            // About
+            SectionHeader { text: "About"; height: 40px; vertical-alignment: bottom; }
+            Card {
+                VerticalLayout {
+                    padding: 16px;
+                    Line { text: SettingsData.about; wrap: word-wrap; }
+                }
+            }
+
+            // Support Playtime Tracker (phase 14)
+            SectionHeader { text: "Support Playtime Tracker"; height: 40px; vertical-alignment: bottom; }
+            Card {
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 12px;
+                    Caption { text: "Playtime Tracker is free. If it's useful to you, a tip helps keep it going."; wrap: word-wrap; }
+                    HorizontalLayout {
+                        alignment: start;
+                        donate := Rectangle {
+                            height: 36px;
+                            min-width: donate-row.preferred-width + 24px;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: Theme.card-border;
+                            background: donate-touch.pressed || donate-touch.has-hover ? Theme.subtle : Theme.card;
+                            accessible-role: button;
+                            accessible-label: "Tip or donate with Cash App, opens in your browser";
+                            accessible-action-default => { SettingsData.donate(); }
+                            forward-focus: donate-focus;
+                            donate-row := HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                spacing: 8px;
+                                alignment: center;
+                                if SettingsData.has-cash-app-logo: Image {
+                                    source: SettingsData.cash-app-logo;
+                                    height: 20px;
+                                    width: 20px;
+                                    image-fit: contain;
+                                    y: (parent.height - self.height) / 2;
+                                    accessible-role: none;
+                                }
+                                Line { text: "Tip or Donate"; vertical-alignment: center; }
+                            }
+                            donate-touch := TouchArea { mouse-cursor: pointer; clicked => { SettingsData.donate(); } }
+                            donate-focus := FocusScope {
+                                key-pressed(event) => {
+                                    if (event.text == " " || event.text == "\n") { SettingsData.donate(); return accept; }
+                                    reject
+                                }
+                            }
+                            Rectangle {
+                                border-radius: 4px;
+                                border-width: donate-focus.has-focus ? 2px : 0;
+                                border-color: Theme.text;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

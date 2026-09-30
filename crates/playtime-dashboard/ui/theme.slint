@@ -3,10 +3,13 @@
 import { Palette } from "std-widgets.slint";
 
 export global Theme {
-    // Set from the accent setting (for "windows", from Windows' own accent colour).
-    in-out property <color> accent: #005FB8;
-    in-out property <color> accent-text: #FFFFFF;
+    // Set from the accent setting (for "windows", from Windows' own accent colour): a darker shade for light mode
+    // and a lighter one for dark mode, as WinUI uses, so text on the accent stays readable.
+    in-out property <color> accent-on-light: #005FB8;
+    in-out property <color> accent-on-dark: #60CDFF;
     out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    out property <color> accent: dark ? accent-on-dark : accent-on-light;
+    out property <color> accent-text: dark ? #000000 : #FFFFFF;
     out property <brush> window: dark ? #202020 : #F3F3F3;
     out property <brush> card: dark ? #2B2B2B : #FFFFFF;
     out property <brush> card-border: dark ? #FFFFFF14 : #0000000F;

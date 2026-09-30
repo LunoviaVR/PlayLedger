@@ -16,6 +16,8 @@ path = "src/main.rs"
 
 [dependencies]
 playtime-core = { path = "../playtime-core" }
+# Windows integration (pipe, dialogs, folders); builds as stubs elsewhere.
+playtime-windows = { path = "../playtime-windows" }
 # Only its PNG encoder, for rendering pages to images (--render).
 playtime-artwork = { path = "../playtime-artwork" }
 serde_json = "1.0.151"
@@ -29,7 +31,6 @@ slint = { version = "1.18.1", default-features = false, features = ["std", "comp
 slint-build = "1.18.1"
 
 [target."cfg(windows)".dependencies]
-playtime-windows = { path = "../playtime-windows" }
 # The window's handle, so the Open dialog is modal to it.
 raw-window-handle = "0.6.2"
-windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Globalization"] }
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

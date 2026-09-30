@@ -1,6 +1,6 @@
 // One dialog for every purpose (session or game details, a day's sessions, confirmations), in the Fluent style:
 // the page is dimmed behind a centred card. Escape closes it.
-import { ScrollView } from "std-widgets.slint";
+import { ScrollView, LineEdit } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Card, Line, Caption, FluentButton } from "controls.slint";
 import { DetailRow, SessionRow } from "data.slint";
@@ -15,6 +15,9 @@ export component Dialog inherits Rectangle {
     in property <string> primary;
     in property <string> secondary;
     in property <string> close: "Close";
+    // A text box (naming a game), shown when it has a label.
+    in property <string> input-label;
+    in-out property <string> input-text;
     // Pictures to choose from (artwork), shown as a grid of thumbnails.
     in property <[image]> pictures;
     in property <[string]> picture-names;
@@ -56,6 +59,16 @@ export component Dialog inherits Rectangle {
                 height: min(360px, list-content.preferred-height);
                 list-content := VerticalLayout {
                     SessionList { rows: root.list; clicked(i) => { root.list-clicked(i); } }
+                }
+            }
+            if root.input-label != "": VerticalLayout {
+                spacing: 4px;
+                Caption { text: root.input-label; }
+                input := LineEdit {
+                    text <=> root.input-text;
+                    accessible-label: root.input-label;
+                    accepted => { root.button(0); }
+                    init => { self.focus(); }
                 }
             }
             if root.pictures.length > 0: ScrollView {
