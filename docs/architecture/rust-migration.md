@@ -197,8 +197,8 @@ Not started. On the **Games** page, right-clicking a game tile opens a menu. The
 - The smallest that still looks sharp is **320 × 480** (up to 200% scaling). Anything up to 8192 pixels a side and
   16 MB is accepted, the limits every artwork image already has.
 - Other shapes are scaled to fill the tile and cropped at the edges, so keep the important part in the middle.
-- Tiles have rounded corners (about 25 pixels at 600 × 900), and while the game runs a *Playing* badge covers the
-  top-left corner (roughly the top-left 130 × 60 pixels at 600 × 900), so keep text and faces out of the corners.
+- Tiles have rounded corners (about 30 pixels at 600 × 900), and while the game runs a *Playing* badge covers the
+  top-left corner (roughly the top-left 250 × 100 pixels at 600 × 900), so keep text and faces out of the corners.
 - **Delete history…**, as in the game's details now, after the same confirmation.
 
 The tracker would keep each game's chosen artwork locally, as an override the artwork service checks before its
