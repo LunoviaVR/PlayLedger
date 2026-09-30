@@ -54,9 +54,9 @@ export global SettingsData {
     in property <bool> update-busy;
     // About
     in property <string> about;
-    // The Cash App logo, once the official file is bundled.
-    in property <image> cash-app-logo;
-    in property <bool> has-cash-app-logo;
+    // The Cash App logo on the Tip or Donate button (34 × 24).
+    in property <image> cash-app-logo: @image-url("cash-app.png");
+    in property <bool> has-cash-app-logo: true;
 
     callback changed();
     callback numbers-changed();
@@ -583,7 +583,7 @@ export component SettingsPage inherits Rectangle {
                                 if SettingsData.has-cash-app-logo: Image {
                                     source: SettingsData.cash-app-logo;
                                     height: 20px;
-                                    width: 20px;
+                                    width: 28px;
                                     image-fit: contain;
                                     y: (parent.height - self.height) / 2;
                                     accessible-role: none;
