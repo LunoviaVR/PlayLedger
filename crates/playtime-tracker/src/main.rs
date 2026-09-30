@@ -1,4 +1,4 @@
-//! Playtime Tracker's background service. It owns the tray icon, polls for running games, keeps the protected
+//! PlayLedger's background service. It owns the tray icon, polls for running games, keeps the protected
 //! history and settings, finds artwork, and serves the dashboard over a named pipe. It uses the same
 //! single-instance mutex as earlier versions, so an old and a new copy never run (and write the data folder) at the
 //! same time.
@@ -25,6 +25,6 @@ fn main() {
 
 #[cfg(not(windows))]
 fn main() {
-    eprintln!("Playtime Tracker runs on Windows.");
+    eprintln!("PlayLedger runs on Windows.");
     std::process::exit(1);
 }

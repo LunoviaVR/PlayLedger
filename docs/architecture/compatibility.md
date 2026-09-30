@@ -1,8 +1,12 @@
 # What stays the same across versions
 
-The names, files and formats every version of Playtime Tracker shares, so an upgrade (or a downgrade to an earlier
+The names, files and formats every version of PlayLedger shares, so an upgrade (or a downgrade to an earlier
 version) keeps working with the same data and the same Windows entries. Changing any of these needs a migration
 (see [`overview.md`](overview.md#migrations)).
+
+The app was renamed from Playtime Tracker to PlayLedger in 3.1.0. Only what people see changed (window and tray
+text, notifications, exe version info, the installer, the Start menu shortcut and the Apps entry's display name).
+Every name below keeps its Playtime Tracker form, including the DPAPI entropy, which a test pins.
 
 ## Processes and lifecycle
 

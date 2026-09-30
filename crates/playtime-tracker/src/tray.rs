@@ -190,7 +190,7 @@ fn remove_icon(tray: &Tray) {
 }
 
 fn status_tooltip(service: &Service) -> String {
-    format!("Playtime Tracker\n{}", service.status())
+    format!("PlayLedger\n{}", service.status())
 }
 
 /// The dashboard executable next to the tracker, if it's installed.
@@ -398,7 +398,7 @@ pub fn run(
         match CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class,
-            w!("Playtime Tracker"),
+            w!("PlayLedger"),
             WS_OVERLAPPED,
             0,
             0,

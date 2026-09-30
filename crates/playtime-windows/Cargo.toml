@@ -1,6 +1,6 @@
 [package]
 name = "playtime-windows"
-description = "Windows integrations for Playtime Tracker: DPAPI data protection, registry, file locks, game discovery, HTTPS, credentials and icons."
+description = "Windows integrations for PlayLedger: DPAPI data protection, registry, file locks, game discovery, HTTPS, credentials and icons."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

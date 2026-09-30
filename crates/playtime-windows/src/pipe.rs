@@ -154,7 +154,7 @@ pub fn connect() -> io::Result<File> {
     if !served_by_tracker {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
-            "the pipe isn't served by Playtime Tracker",
+            "the pipe isn't served by PlayLedger",
         ));
     }
     Ok(pipe)

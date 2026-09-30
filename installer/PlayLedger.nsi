@@ -1,12 +1,14 @@
-; Installer for Playtime Tracker: the background tracker and the dashboard. build.ps1 runs it; releases ship the
+; Installer for PlayLedger: the background tracker and the dashboard. build.ps1 runs it; releases ship the
 ; result as Setup.exe, the name the app's updater looks for.
 ;
 ; Build: makensis -DVERSION=3.0.0 -DTRACKER_EXE=..\target\release\playtime-tracker.exe
-;                 -DDASHBOARD_DIR=..\publish\dashboard -DOUT_FILE=..\publish\PlaytimeTrackerSetup.exe
-;                 PlaytimeTracker.nsi
+;                 -DDASHBOARD_DIR=..\publish\dashboard -DOUT_FILE=..\publish\PlayLedgerSetup.exe
+;                 PlayLedger.nsi
 ;
 ; Installs per-user (no admin prompt) to %LocalAppData%\Programs\Playtime Tracker, upgrading any earlier version in
-; place: same Apps entry, same Start menu shortcut, same "Start with Windows" entry, same data (untouched by setup).
+; place: same Apps entry, same "Start with Windows" entry, same data (untouched by setup). The app was called Playtime
+; Tracker before 3.1.0: its folders, registry names and exe names are kept so upgrades and history keep working, and
+; its shortcuts are replaced by PlayLedger ones.
 
 Unicode true
 !include "MUI2.nsh"
@@ -22,10 +24,12 @@ Unicode true
   !define DASHBOARD_DIR "..\publish\dashboard"
 !endif
 !ifndef OUT_FILE
-  !define OUT_FILE "..\publish\PlaytimeTrackerSetup.exe"
+  !define OUT_FILE "..\publish\PlayLedgerSetup.exe"
 !endif
 
-!define APP_NAME "Playtime Tracker"
+!define APP_NAME "PlayLedger"
+; The name before 3.1.0, still used for the install folder (so upgrades land in place) and for old shortcuts.
+!define OLD_NAME "Playtime Tracker"
 !define APP_EXE "playtime-tracker.exe"
 !define DASHBOARD_EXE "PlaytimeTracker.Dashboard.exe"
 ; Version 2.x's exe, replaced by this install.
@@ -41,7 +45,7 @@ Unicode true
 
 Name "${APP_NAME}"
 OutFile "${OUT_FILE}"
-InstallDir "$LOCALAPPDATA\Programs\${APP_NAME}"
+InstallDir "$LOCALAPPDATA\Programs\${OLD_NAME}"
 InstallDirRegKey HKCU "${UNINSTALL_KEY}" "InstallLocation"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
@@ -61,7 +65,7 @@ VIAddVersionKey "LegalCopyright" ""
 !define MUI_WELCOMEPAGE_TEXT "This will install ${APP_NAME} ${VERSION}.$\r$\n$\r$\nIt runs quietly in the system tray, notices when you open a game, and keeps track of how long you play. Open the dashboard from the tray icon or the Start menu.$\r$\n$\r$\nIf an earlier version is installed, it's replaced and your history is kept.$\r$\n$\r$\nNo administrator rights are needed.$\r$\n$\r$\nClick Next to continue."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME} now"
-!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been installed.$\r$\n$\r$\nIt will start automatically with Windows and live in the system tray (the controller icon, possibly behind the ^ arrow next to the clock).$\r$\n$\r$\nYour history stays in Documents\Playtime Tracker."
+!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been installed.$\r$\n$\r$\nIt will start automatically with Windows and live in the system tray (the blue book icon, possibly behind the ^ arrow next to the clock).$\r$\n$\r$\nYour history stays in Documents\Playtime Tracker."
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -135,6 +139,11 @@ Section "${APP_NAME}" SecApp
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   CreateShortcut "$SMPROGRAMS\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "${ICON_PATH}" 0
+  ; Shortcuts from before the rename: the Start menu one is replaced; a desktop one is kept, under the new name.
+  Delete "$SMPROGRAMS\${OLD_NAME}.lnk"
+  IfFileExists "$DESKTOP\${OLD_NAME}.lnk" 0 +3
+    Delete "$DESKTOP\${OLD_NAME}.lnk"
+    CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "${ICON_PATH}" 0
 
   ; Start with Windows (can be turned off in the dashboard's Settings or in Task Manager).
   WriteRegStr HKCU "${RUN_KEY}" "PlaytimeTracker" '"$INSTDIR\${APP_EXE}" --startup'
@@ -187,6 +196,8 @@ Section "un.${APP_NAME}" UnSecApp
 
   Delete "$SMPROGRAMS\${APP_NAME}.lnk"
   Delete "$DESKTOP\${APP_NAME}.lnk"
+  Delete "$SMPROGRAMS\${OLD_NAME}.lnk"
+  Delete "$DESKTOP\${OLD_NAME}.lnk"
   Delete "$INSTDIR\${APP_EXE}"
   Delete "$INSTDIR\${OLD_EXE}"
   Delete "$INSTDIR\Uninstall.exe"

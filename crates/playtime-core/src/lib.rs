@@ -1,4 +1,4 @@
-//! Platform-independent core of Playtime Tracker.
+//! Platform-independent core of PlayLedger.
 //!
 //! Everything here is plain Rust with no Windows calls, so it builds and is tested on any OS:
 //! the domain model and its on-disk JSON shape (compatible with earlier versions), session tracking,

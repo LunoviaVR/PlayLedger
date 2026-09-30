@@ -1,6 +1,6 @@
 [package]
 name = "playtime-tracker"
-description = "Playtime Tracker's background service: tray icon, game tracking, storage, artwork and the dashboard's named-pipe API."
+description = "PlayLedger's background service: tray icon, game tracking, storage, artwork and the dashboard's named-pipe API."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

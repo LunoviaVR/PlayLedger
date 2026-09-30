@@ -53,21 +53,27 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: PlaytimeTracker-Setup
-          path: publish/PlaytimeTrackerSetup.exe
+          name: PlayLedger-Setup
+          path: publish/PlayLedgerSetup.exe
           if-no-files-found: error
           retention-days: 30
 
       - name: Install silently
         shell: pwsh
         run: |
-          Start-Process -FilePath publish/PlaytimeTrackerSetup.exe -ArgumentList '/S' -Wait
+          Start-Process -FilePath publish/PlayLedgerSetup.exe -ArgumentList '/S' -Wait
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
           foreach ($file in 'playtime-tracker.exe', 'Uninstall.exe', 'Dashboard\PlaytimeTracker.Dashboard.exe') {
             if (-not (Test-Path (Join-Path $dir $file))) { throw "$file wasn't installed" }
           }
           $run = Get-ItemPropertyValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name PlaytimeTracker
           if ($run -notlike '*playtime-tracker.exe*--startup*') { throw "unexpected Run entry: $run" }
+          # Named PlayLedger since 3.1.0 (the install folder keeps its earlier name so upgrades land in place).
+          $menu = [Environment]::GetFolderPath('Programs')
+          if (-not (Test-Path (Join-Path $menu 'PlayLedger.lnk'))) { throw "the PlayLedger Start menu shortcut is missing" }
+          if (Test-Path (Join-Path $menu 'Playtime Tracker.lnk')) { throw "the old Start menu shortcut is still there" }
+          $apps = Get-ItemPropertyValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PlaytimeTracker' -Name DisplayName
+          if ($apps -ne 'PlayLedger') { throw "the Apps entry is named $apps" }
 
       - name: Smoke test the installed app
         shell: pwsh
@@ -86,7 +92,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: PlaytimeTracker-Screenshots
+          name: PlayLedger-Screenshots
           path: publish/screenshots/*.png
           if-no-files-found: warn
           retention-days: 30
@@ -123,7 +129,7 @@ jobs:
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: PlaytimeTracker-Setup
+          name: PlayLedger-Setup
           path: publish
 
       - name: Prepare Setup.exe and release notes
@@ -150,11 +156,11 @@ jobs:
               echo "::error::The tag $tag already exists (or couldn't be checked: HTTP $status)"; exit 1
             fi
           fi
-          cp publish/PlaytimeTrackerSetup.exe publish/Setup.exe
+          cp publish/PlayLedgerSetup.exe publish/Setup.exe
           notes="docs/releases/${tag}.md"
           if [ ! -f "$notes" ]; then
             notes="$RUNNER_TEMP/notes.md"
-            echo "Playtime Tracker ${tag#v}" > "$notes"
+            echo "PlayLedger ${tag#v}" > "$notes"
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "notes=$notes" >> "$GITHUB_OUTPUT"
@@ -164,7 +170,7 @@ jobs:
         with:
           tag_name: ${{ steps.prepare.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: Playtime Tracker ${{ steps.prepare.outputs.tag }}
+          name: PlayLedger ${{ steps.prepare.outputs.tag }}
           body_path: ${{ steps.prepare.outputs.notes }}
           files: publish/Setup.exe
           fail_on_unmatched_files: true

@@ -111,7 +111,7 @@ fn build_artwork(online: bool) -> Arc<ArtworkService> {
         providers.push(Arc::new(SteamLocalProvider::new(steam)));
     }
     providers.push(Arc::new(ExeIconProvider));
-    if let Ok(http) = WinHttpClient::new(&format!("PlaytimeTracker/{VERSION}")) {
+    if let Ok(http) = WinHttpClient::new(&format!("PlayLedger/{VERSION}")) {
         let http: Arc<WinHttpClient> = Arc::new(http);
         providers.push(Arc::new(SteamCdnProvider::new(http.clone())));
         if let Some(key) = credentials::read(credentials::STEAMGRIDDB_TARGET) {
@@ -168,7 +168,7 @@ impl Service {
         }
         for notice in report.notices {
             notifications.push(Notification {
-                title: "Playtime Tracker".into(),
+                title: "PlayLedger".into(),
                 body: notice,
                 warning: true,
             });
@@ -178,7 +178,7 @@ impl Service {
             Ok(opened) => {
                 for warning in opened.warnings {
                     notifications.push(Notification {
-                        title: "Playtime Tracker".into(),
+                        title: "PlayLedger".into(),
                         body: warning,
                         warning: true,
                     });
@@ -189,7 +189,7 @@ impl Service {
                 if settings.last_run_version != VERSION {
                     if !settings.last_run_version.is_empty() {
                         notifications.push(Notification {
-                            title: "Playtime Tracker updated".into(),
+                            title: "PlayLedger updated".into(),
                             body: format!(
                                 "You're now on version {VERSION} (was {}).",
                                 settings.last_run_version
@@ -212,9 +212,9 @@ impl Service {
                     &format!("Could not open the data folder: {e}"),
                 );
                 notifications.push(Notification {
-                    title: "Playtime Tracker history".into(),
+                    title: "PlayLedger history".into(),
                     body: "Your play history couldn't be opened, so this session won't be saved (your existing \
-                           history is untouched). Restart Playtime Tracker to try again; details are in errors.log."
+                           history is untouched). Restart PlayLedger to try again; details are in errors.log."
                         .into(),
                     warning: true,
                 });
@@ -704,8 +704,7 @@ impl Service {
             Request::InstallUpdate => {
                 if !self.installed {
                     return Response::Error {
-                        message: "Only an installed copy of Playtime Tracker updates itself."
-                            .into(),
+                        message: "Only an installed copy of PlayLedger updates itself.".into(),
                     };
                 }
                 self.request_update(UpdateCommand::InstallNow);
@@ -714,9 +713,8 @@ impl Service {
             Request::SetStartWithWindows { enabled } => {
                 if !self.installed {
                     return Response::Error {
-                        message:
-                            "Only an installed copy of Playtime Tracker can start with Windows."
-                                .into(),
+                        message: "Only an installed copy of PlayLedger can start with Windows."
+                            .into(),
                     };
                 }
                 if startup::set_enabled(enabled) {

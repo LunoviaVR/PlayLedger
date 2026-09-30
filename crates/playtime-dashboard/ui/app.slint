@@ -75,7 +75,7 @@ component NavItem inherits Rectangle {
 }
 
 export component AppWindow inherits Window {
-    title: "Playtime Tracker";
+    title: "PlayLedger";
     icon: @image-url("app-icon.png");
     preferred-width: 1180px;
     preferred-height: 800px;
@@ -199,7 +199,7 @@ export component AppWindow inherits Window {
                         spacing: 12px;
                         Line { text: root.connection-problem; vertical-alignment: center; }
                         FluentButton {
-                            text: "Start Playtime Tracker";
+                            text: "Start PlayLedger";
                             horizontal-stretch: 0;
                             clicked => { root.start-tracker(); }
                         }

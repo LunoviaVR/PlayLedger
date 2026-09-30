@@ -1,6 +1,8 @@
-# Playtime Tracker
+<p align="center"><img src="docs/logo.png" alt="PlayLedger: track, play, organize, enjoy" width="600"></p>
 
-**Know exactly how much you play.** Playtime Tracker is a free, open-source Windows app that sits quietly in the
+# PlayLedger
+
+**Know exactly how much you play.** PlayLedger is a free, open-source Windows app that sits quietly in the
 system tray, recognises your games the moment they start, and records every session: when you opened the game,
 when you closed it, and how long you played. A Windows 11 dashboard turns that into totals, daily charts, a 30-day
 history and statistics, with each game's box art on its own tile.
@@ -9,6 +11,10 @@ It works across every store and launcher at once (Steam, Epic Games, GOG, Ubisof
 Riot Games and more), needs no account, and keeps your history on your own PC.
 
 ![The Overview page in the dark theme](docs/dashboard.png)
+
+> **PlayLedger was called Playtime Tracker** until version 3.1.0. Updating keeps everything: your history, settings
+> and artwork stay where they were (so some folders are still named `Playtime Tracker`), and the Start menu shortcut
+> and Apps entry are renamed for you.
 
 ## Highlights
 
@@ -58,7 +64,7 @@ The installer:
 
 - installs for your Windows account only, to `%LocalAppData%\Programs\Playtime Tracker`
 - adds a Start menu shortcut, and a desktop shortcut if you tick the box
-- sets Playtime Tracker to start when you sign in to Windows
+- sets PlayLedger to start when you sign in to Windows
 - adds it to **Settings → Apps → Installed apps**, so it uninstalls like any other app
 - starts the tracker when you click **Finish**
 
@@ -79,7 +85,7 @@ After installing there's nothing to set up:
 
 1. The controller icon appears in the system tray. Windows 11 may put new icons behind the **^** arrow next to the
    clock; to keep it in view, go to *Settings → Personalization → Taskbar → Other system tray icons* and turn on
-   **Playtime Tracker**.
+   **PlayLedger**.
 2. Open a game. Within a few seconds it's being tracked: hover over the tray icon to see *Playing: …*.
 3. Close the game. A *Session logged* notification shows the game and how long you played.
 4. Click the tray icon to open the dashboard and see it all.
@@ -224,7 +230,7 @@ important out of those areas.
 
 ## How games are found
 
-Playtime Tracker builds a list of your games from several sources, and looks again every 10 minutes and whenever you
+PlayLedger builds a list of your games from several sources, and looks again every 10 minutes and whenever you
 change a detection setting (or click **Rescan installed games**). In order of priority:
 
 1. **Your custom games**: programs you added in Settings, by file name or full path.
@@ -273,7 +279,7 @@ straight away.
 | | Accent colour: Windows', a preset, or any colour | Blue |
 | | AMOLED mode (true black in the dark theme) | Off |
 | | Hardware acceleration (applies when the dashboard reopens; **Reopen now** does it at once) | On |
-| **Startup** | Start Playtime Tracker when you sign in to Windows | On |
+| **Startup** | Start PlayLedger when you sign in to Windows | On |
 | **General** | Show a notification when a session is logged | On |
 | | Use Windows' list of games (Xbox Game Bar) | On |
 | **Tracking** | How often to look for games | 5 seconds |
@@ -289,7 +295,7 @@ straight away.
 | | Install updates automatically | On |
 | | **Check now**, and **Install update** when one is ready | |
 | **About** | The version you're running | |
-| **Support Playtime Tracker** | **Tip** opens [cash.app/$LunoviaVR](https://cash.app/$LunoviaVR) in your browser | |
+| **Support PlayLedger** | **Tip** opens [cash.app/$LunoviaVR](https://cash.app/$LunoviaVR) in your browser | |
 
 Settings are stored in the protected `settings.dat` (see [Your data](#your-data)), so they can only be changed here.
 
@@ -363,11 +369,11 @@ open.
 
 ## Updates
 
-Playtime Tracker checks this project's [GitHub releases](https://github.com/LunoviaVR/PlaytimeTracker/releases) a
+PlayLedger checks this project's [GitHub releases](https://github.com/LunoviaVR/PlaytimeTracker/releases) a
 minute after it starts and every 6 hours after that.
 
 - **Automatic** (the default): when a new version is out and **no game is running**, it downloads and installs it,
-  restarts, and shows *Playtime Tracker updated*. It never updates in the middle of a session.
+  restarts, and shows *PlayLedger updated*. It never updates in the middle of a session.
 - **By hand**: turn off **Install updates automatically** and you'll get a notification and an **Install update x.y.z**
   item in the tray menu instead. Install from there or from **Settings → Updates**, where a progress bar shows the
   download.
@@ -404,13 +410,13 @@ Look in `Documents\Playtime Tracker\errors.log`, and
 
 ## Uninstall
 
-*Settings → Apps → Installed apps → Playtime Tracker → Uninstall.* The tracker is closed (a game in progress is logged
+*Settings → Apps → Installed apps → PlayLedger → Uninstall.* The tracker is closed (a game in progress is logged
 first) and removed, with its shortcuts and startup entry. Your history in `Documents\Playtime Tracker\` is kept, unless
 you tick **Delete my play history and settings** in the uninstaller, which also removes the saved SteamGridDB key.
 
 ## Build it yourself
 
-Playtime Tracker is written in [Rust](https://www.rust-lang.org), with the dashboard built on [Slint](https://slint.dev)
+PlayLedger is written in [Rust](https://www.rust-lang.org), with the dashboard built on [Slint](https://slint.dev)
 in its Fluent style. It's two programs:
 
 - **`playtime-tracker.exe`**: the tray app that detects games, records sessions and keeps the data.
@@ -425,7 +431,7 @@ folder:
 ./build.ps1
 ```
 
-The installer is written to `publish\PlaytimeTrackerSetup.exe`. `cargo test --workspace` runs the tests, and
+The installer is written to `publish\PlayLedgerSetup.exe`. `cargo test --workspace` runs the tests, and
 [`docs/architecture/`](docs/architecture/) explains how the parts fit together. The dashboard can also draw any page to
 an image without a screen, which is how the screenshots here are made:
 
@@ -437,8 +443,8 @@ cargo run -p playtime-dashboard -- --render overview 1180x760 overview.png crate
 
 - **Found a bug or have an idea?** [Open an issue](https://github.com/LunoviaVR/PlaytimeTracker/issues).
 - **Security problem?** Report it privately as described in [SECURITY.md](SECURITY.md).
-- **Enjoying it?** **Settings → Support Playtime Tracker → Tip**, or
+- **Enjoying it?** **Settings → Support PlayLedger → Tip**, or
   [cash.app/$LunoviaVR](https://cash.app/$LunoviaVR).
 
-Playtime Tracker is free software under the GPL-3.0 (see [LICENSE](LICENSE)). The dashboard uses Slint under the
+PlayLedger is free software under the GPL-3.0 (see [LICENSE](LICENSE)). The dashboard uses Slint under the
 GPL-3.0.

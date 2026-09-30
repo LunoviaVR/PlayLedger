@@ -1,6 +1,6 @@
-# How Playtime Tracker is built
+# How PlayLedger is built
 
-Playtime Tracker is two Rust programs and a few shared libraries. [`compatibility.md`](compatibility.md) lists the
+PlayLedger is two Rust programs and a few shared libraries. [`compatibility.md`](compatibility.md) lists the
 files, names and formats that stay the same across versions.
 
 ## Two programs
@@ -63,7 +63,7 @@ normalised path, or built-in key); history stays keyed by display name, and the 
     installed automatically only when no game is running (or from the dashboard / tray menu). `Setup.exe` must come
     from this repository's release URL over HTTPS, with every redirect limited to GitHub's hosts, and match GitHub's
     recorded size and SHA-256 (streamed to disk, hashed with `sha2`); it runs silently with `/S /relaunch`;
-  - after an update, "Playtime Tracker updated: you're now on version X (was Y)".
+  - after an update, "PlayLedger updated: you're now on version X (was Y)".
 
 ## Artwork
 
@@ -111,7 +111,7 @@ icons, cards, and a minimum window size of 500 × 500.
   program*; a running session counts up live), a day's sessions, game details, and a confirmation before anything is
   deleted.
 - **Settings**, in this order: Appearance, Startup, General, Tracking, Artwork, Custom Games, Game Folders, Your Data,
-  Ignored Games, Ignored Programs, Updates, About, Support Playtime Tracker. Headings are in title case; setting names
+  Ignored Games, Ignored Programs, Updates, About, Support PlayLedger. Headings are in title case; setting names
   and descriptions in sentence case. The ignored lists have a search box (case-insensitive, with a count like "3 of
   41", a clear button and "No matches"). *Get API key* shows only while no SteamGridDB key is saved.
 - **Links**: *Get API key* opens `https://www.steamgriddb.com/profile/preferences/api` and *Tip* opens
@@ -152,8 +152,8 @@ new name, and every step is appended to `migration.log` in the data folder.
 
 ## Installer, CI and releases
 
-- `build.ps1` builds both programs (release, `--locked`) and `installer/PlaytimeTracker.nsi` packs them into
-  `publish\PlaytimeTrackerSetup.exe`. The version comes from `Cargo.toml`.
+- `build.ps1` builds both programs (release, `--locked`) and `installer/PlayLedger.nsi` packs them into
+  `publish\PlayLedgerSetup.exe`. The version comes from `Cargo.toml`.
 - The installer installs per user to `%LocalAppData%\Programs\Playtime Tracker` with the Apps entry, Start menu
   shortcut and Run entry, upgrading any earlier version in place: it closes whichever tracker is running (`--exit`),
   removes version 2.x's `PlaytimeTracker.exe`, and puts the dashboard in its own `Dashboard\` folder (the only folder

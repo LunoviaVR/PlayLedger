@@ -1,6 +1,6 @@
 [package]
 name = "playtime-dashboard"
-description = "Playtime Tracker's dashboard window (Slint, Fluent style); all data comes from playtime-tracker.exe over its named pipe."
+description = "PlayLedger's dashboard window (Slint, Fluent style); all data comes from playtime-tracker.exe over its named pipe."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

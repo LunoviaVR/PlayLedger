@@ -72,7 +72,7 @@ pub fn load(weak: Weak<AppWindow>) {
                             )
                         });
                         data.set_about(SharedString::from(format!(
-                            "Playtime Tracker {version} (dashboard {}). Your play history stays on this PC. \
+                            "PlayLedger {version} (dashboard {}). Your play history stays on this PC. \
                              The dashboard is built with Slint (slint.dev), used under the GPL-3.0.",
                             env!("CARGO_PKG_VERSION")
                         )));

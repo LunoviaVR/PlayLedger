@@ -1,4 +1,4 @@
-//! End-to-end smoke test of an installed Playtime Tracker on a real Windows machine:
+//! End-to-end smoke test of an installed PlayLedger on a real Windows machine:
 //!   playtime-smoke-test <install folder> [screenshot folder]
 //! Starts the tracker, talks to it over its pipe exactly as the dashboard does, makes it track a real process,
 //! checks the protected history on disk, restarts the tracker to check the history survives, and (optionally)

@@ -1,5 +1,5 @@
 //! Compiles the Slint UI (Fluent style), and on Windows embeds the app icon and version information into the exe,
-//! so Windows (Task Manager, the taskbar, Apps) shows "Playtime Tracker" with its icon.
+//! so Windows (Task Manager, the taskbar, Apps) shows "PlayLedger" with its icon.
 
 use std::path::PathBuf;
 
@@ -44,12 +44,12 @@ BEGIN
   BEGIN
     BLOCK "040904b0"
     BEGIN
-      VALUE "CompanyName", "Playtime Tracker"
-      VALUE "FileDescription", "Playtime Tracker"
+      VALUE "CompanyName", "PlayLedger"
+      VALUE "FileDescription", "PlayLedger"
       VALUE "FileVersion", "{version}"
       VALUE "InternalName", "PlaytimeTracker.Dashboard"
       VALUE "OriginalFilename", "PlaytimeTracker.Dashboard.exe"
-      VALUE "ProductName", "Playtime Tracker"
+      VALUE "ProductName", "PlayLedger"
       VALUE "ProductVersion", "{version}"
     END
   END
