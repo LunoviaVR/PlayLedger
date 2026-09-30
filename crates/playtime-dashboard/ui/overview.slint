@@ -6,7 +6,7 @@ import { Card, Line, Caption, SectionHeader, LiveDot, FluentButton, RowButton } 
 import { Tile, SessionRow, GameRow, DayBar } from "data.slint";
 
 // Tiles reflow with the width: four across, two by two, or one per row, so nothing is squeezed.
-component Tiles inherits Rectangle {
+export component Tiles inherits Rectangle {
     in property <[Tile]> tiles;
     property <int> columns: root.width >= 880px ? 4 : root.width >= 460px ? 2 : 1;
     property <length> gap: 12px;

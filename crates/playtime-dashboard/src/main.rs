@@ -15,6 +15,7 @@ mod client;
 mod format;
 mod offscreen;
 mod overview;
+mod statistics;
 
 use client::{ClientError, Tracker};
 use overview::OverviewState;
@@ -56,12 +57,11 @@ fn show(window: &AppWindow, snapshot: DashboardSnapshot, kind: Refresh) {
                 old.revision == snapshot.revision
                     && old.model.live.len() == snapshot.model.live.len()
             });
-        if window.get_page() == 0 {
-            if only_times {
-                overview::render_times(window, &snapshot, &mut app.overview);
-            } else {
-                overview::render(window, &snapshot, &mut app.overview);
-            }
+        match window.get_page() {
+            0 if only_times => overview::render_times(window, &snapshot, &mut app.overview),
+            0 => overview::render(window, &snapshot, &mut app.overview),
+            3 if !only_times => statistics::render(window, &snapshot),
+            _ => {}
         }
         app.snapshot = Some(snapshot);
     });
@@ -72,8 +72,10 @@ fn rerender(window: &AppWindow) {
     APP.with_borrow_mut(|app| {
         let App { snapshot, overview } = app;
         if let Some(snapshot) = snapshot.as_ref() {
-            if window.get_page() == 0 {
-                overview::render(window, snapshot, overview);
+            match window.get_page() {
+                0 => overview::render(window, snapshot, overview),
+                3 => statistics::render(window, snapshot),
+                _ => {}
             }
         }
     });

@@ -97,6 +97,18 @@ pub fn range(start: Timestamp, end: Timestamp, now: Timestamp) -> String {
     format!("{} – {end_text}", time(start))
 }
 
+/// The days of the week in the order the user's locale starts them, with their local names ("Monday", …).
+pub fn week() -> Vec<(chrono::Weekday, String)> {
+    let first = locale::first_day_of_week().num_days_from_monday();
+    (0..7)
+        .map(|i| {
+            let day =
+                chrono::Weekday::try_from(((first + i) % 7) as u8).unwrap_or(chrono::Weekday::Mon);
+            (day, locale::day_name(day))
+        })
+        .collect()
+}
+
 /// Midnight today, local time.
 pub fn start_of_today(now: Timestamp) -> Timestamp {
     let date = local_date(now);
@@ -159,6 +171,31 @@ mod locale {
         })
     }
 
+    fn locale_info(kind: u32) -> Option<String> {
+        let mut buffer = [0u16; 128];
+        // SAFETY: `buffer` outlives the call; the user's default locale is used.
+        let written = unsafe {
+            windows::Win32::Globalization::GetLocaleInfoEx(None, kind, Some(&mut buffer))
+        };
+        (written > 1).then(|| String::from_utf16_lossy(&buffer[..written as usize - 1]))
+    }
+
+    pub fn day_name(day: chrono::Weekday) -> String {
+        use windows::Win32::Globalization::LOCALE_SDAYNAME1;
+        // LOCALE_SDAYNAME1 is Monday … LOCALE_SDAYNAME7 is Sunday.
+        locale_info(LOCALE_SDAYNAME1 + day.num_days_from_monday())
+            .unwrap_or_else(|| super::fallback::day_name(day))
+    }
+
+    pub fn first_day_of_week() -> chrono::Weekday {
+        use windows::Win32::Globalization::LOCALE_IFIRSTDAYOFWEEK;
+        // "0" is Monday … "6" is Sunday.
+        locale_info(LOCALE_IFIRSTDAYOFWEEK)
+            .and_then(|v| v.trim().parse::<u8>().ok())
+            .and_then(|n| chrono::Weekday::try_from(n).ok())
+            .unwrap_or_else(super::fallback::first_day_of_week)
+    }
+
     pub fn month_day_year(day: NaiveDate) -> String {
         date(day, "MMM d, yyyy", || super::fallback::month_day_year(day))
     }
@@ -191,6 +228,24 @@ mod fallback {
 
     pub fn month_day_year(day: NaiveDate) -> String {
         day.format("%b %-d, %Y").to_string()
+    }
+
+    pub fn day_name(day: chrono::Weekday) -> String {
+        [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ][day.num_days_from_monday() as usize]
+            .into()
+    }
+
+    #[cfg_attr(windows, allow(dead_code))]
+    pub fn first_day_of_week() -> chrono::Weekday {
+        chrono::Weekday::Sun
     }
 
     #[cfg_attr(windows, allow(dead_code))]

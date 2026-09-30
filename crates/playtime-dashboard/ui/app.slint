@@ -2,11 +2,12 @@
 import { Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Line, Caption, FluentButton } from "controls.slint";
-import { Tile, SessionRow, GameRow, DayBar } from "data.slint";
+import { Tile, SessionRow, GameRow, DayBar, RankRow } from "data.slint";
 import { OverviewPage } from "overview.slint";
+import { StatisticsPage } from "statistics.slint";
 
 export { Theme, Palette }
-export { Tile, SessionRow, GameRow, DayBar }
+export { Tile, SessionRow, GameRow, DayBar, RankRow }
 
 component NavItem inherits Rectangle {
     in property <string> glyph;
@@ -97,6 +98,12 @@ export component AppWindow inherits Window {
     callback overview-day(int);
     callback overview-show-more();
 
+    // Statistics
+    in property <[Tile]> statistics-tiles;
+    in property <[RankRow]> statistics-top-games;
+    in property <[RankRow]> statistics-weekdays;
+    in property <[RankRow]> statistics-day-parts;
+
     HorizontalLayout {
         // Navigation pane (collapses to icons with the ☰ button, as Task Manager's does).
         VerticalLayout {
@@ -156,7 +163,13 @@ export component AppWindow inherits Window {
                     day-clicked(i) => { root.overview-day(i); }
                     show-more => { root.overview-show-more(); }
                 }
-                if root.page != 0: Rectangle { }
+                if root.page == 3: StatisticsPage {
+                    tiles: root.statistics-tiles;
+                    top-games: root.statistics-top-games;
+                    weekdays: root.statistics-weekdays;
+                    day-parts: root.statistics-day-parts;
+                }
+                if root.page == 1 || root.page == 2 || root.page == 4: Rectangle { }
             }
         }
     }
