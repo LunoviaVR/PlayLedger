@@ -61,19 +61,22 @@ pub fn exe_path(pid: u32) -> Option<String> {
     // SAFETY: opening with the least access that allows reading the image name; the handle is owned below.
     let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
     let process = OwnedHandle(process);
-    let mut buffer = vec![0u16; 32_768];
-    let mut size = buffer.len() as u32;
-    // SAFETY: `buffer` holds `size` characters; the API writes at most that and updates `size`.
-    unsafe {
-        QueryFullProcessImageNameW(
-            process.0,
-            PROCESS_NAME_WIN32,
-            PWSTR(buffer.as_mut_ptr()),
-            &mut size,
-        )
-    }
-    .ok()?;
-    String::from_utf16(&buffer[..size as usize]).ok()
+    // Almost every path fits in 1024 characters; a longer one (up to Windows' 32767 limit) is read again.
+    [1024usize, 32_768].into_iter().find_map(|capacity| {
+        let mut buffer = vec![0u16; capacity];
+        let mut size = capacity as u32;
+        // SAFETY: `buffer` holds `size` characters; the API writes at most that and updates `size`.
+        unsafe {
+            QueryFullProcessImageNameW(
+                process.0,
+                PROCESS_NAME_WIN32,
+                PWSTR(buffer.as_mut_ptr()),
+                &mut size,
+            )
+        }
+        .ok()?;
+        String::from_utf16(&buffer[..size as usize]).ok()
+    })
 }
 
 /// Lists processes and reads exe paths, reusing paths already known for the same (pid, name) from `previous`.
