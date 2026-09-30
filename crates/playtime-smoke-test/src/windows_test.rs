@@ -452,7 +452,7 @@ pub fn run() -> ExitCode {
                 settings.accent_color = "rose".into();
                 client.save(settings.clone())?;
                 let result = (|| {
-                    let window = native::DashboardWindow::open(&t.dashboard_exe(), "overview")?;
+                    let window = native::DashboardWindow::open(&t.dashboard_exe(), "settings")?;
                     window.resize(1180, 800);
                     sleep(Duration::from_secs(4));
                     let path = screenshots.join("next-accent.png");

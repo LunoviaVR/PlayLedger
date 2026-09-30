@@ -1,9 +1,9 @@
 // Settings, in the Windows 11 Settings style: a heading per section and a card per setting. Headings are in title
 // case; setting names and descriptions are in sentence case. Every value lives in the SettingsData global, which the
 // Rust side fills and reads.
-import { ScrollView, Switch, ComboBox, SpinBox, LineEdit } from "std-widgets.slint";
+import { ScrollView, ComboBox, SpinBox, LineEdit } from "std-widgets.slint";
 import { Theme } from "theme.slint";
-import { Card, Line, Caption, SectionHeader, FluentButton } from "controls.slint";
+import { Card, Line, Caption, SectionHeader, FluentButton, ToggleSwitch } from "controls.slint";
 import { ListEntry } from "data.slint";
 
 export global SettingsData {
@@ -230,7 +230,7 @@ export component SettingsPage inherits Rectangle {
                 title: "Glass effects";
                 description: "Let the desktop show through the window and cards, as Windows' own apps do. Solid colours are used when Windows' transparency effects are off.";
                 narrow: root.narrow;
-                Switch {
+                ToggleSwitch {
                     enabled: SettingsData.loaded;
                     checked <=> SettingsData.glass;
                     accessible-label: "Glass effects";
@@ -247,7 +247,7 @@ export component SettingsPage inherits Rectangle {
                     text: "Reopen now";
                     clicked => { SettingsData.reopen(); }
                 }
-                Switch {
+                ToggleSwitch {
                     enabled: SettingsData.loaded;
                     checked <=> SettingsData.hardware-acceleration;
                     accessible-label: "Hardware acceleration";
@@ -263,7 +263,7 @@ export component SettingsPage inherits Rectangle {
                     ? "You can also change this in Task Manager → Startup apps."
                     : "Available once Playtime Tracker is installed.";
                 narrow: root.narrow;
-                Switch {
+                ToggleSwitch {
                     enabled: SettingsData.loaded && SettingsData.installed;
                     checked <=> SettingsData.start-with-windows;
                     accessible-label: "Start Playtime Tracker when I sign in to Windows";
@@ -276,7 +276,7 @@ export component SettingsPage inherits Rectangle {
             Setting {
                 title: "Notify me when a session is logged";
                 narrow: root.narrow;
-                Switch {
+                ToggleSwitch {
                     enabled: SettingsData.loaded;
                     checked <=> SettingsData.notifications;
                     accessible-label: "Notify me when a session is logged";
@@ -286,7 +286,7 @@ export component SettingsPage inherits Rectangle {
             Setting {
                 title: "Also count programs Windows (Xbox Game Bar) recognises as games";
                 narrow: root.narrow;
-                Switch {
+                ToggleSwitch {
                     enabled: SettingsData.loaded;
                     checked <=> SettingsData.windows-game-list;
                     accessible-label: "Also count programs Windows (Xbox Game Bar) recognises as games";
@@ -347,7 +347,7 @@ export component SettingsPage inherits Rectangle {
                 title: "Download missing artwork";
                 description: "Box art comes from Steam's own image cache and each game's icon, without going online. When on, Steam games' pictures are fetched from the Steam store using only the game's Steam ID. Your play history is never sent.";
                 narrow: root.narrow;
-                Switch {
+                ToggleSwitch {
                     enabled: SettingsData.loaded;
                     checked <=> SettingsData.online-artwork;
                     accessible-label: "Download missing artwork";
@@ -506,7 +506,7 @@ export component SettingsPage inherits Rectangle {
             Setting {
                 title: "Check for updates";
                 narrow: root.narrow;
-                Switch {
+                ToggleSwitch {
                     enabled: SettingsData.loaded;
                     checked <=> SettingsData.check-updates;
                     accessible-label: "Check for updates";
@@ -517,7 +517,7 @@ export component SettingsPage inherits Rectangle {
                 title: "Install updates automatically";
                 description: "Never while a game is running.";
                 narrow: root.narrow;
-                Switch {
+                ToggleSwitch {
                     enabled: SettingsData.loaded;
                     checked <=> SettingsData.auto-updates;
                     accessible-label: "Install updates automatically";
