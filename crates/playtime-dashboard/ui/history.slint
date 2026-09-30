@@ -1,0 +1,95 @@
+// History: the last 30 days, each expandable into its sessions.
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Card, Line, Caption, RowButton } from "controls.slint";
+import { HistoryDay } from "data.slint";
+import { SessionList } from "overview.slint";
+
+export component HistoryPage inherits Rectangle {
+    in property <[HistoryDay]> days;
+    callback toggle(int);
+    callback session-clicked(int, int);
+    // Below this the games summary moves to its own line under the day, so it always has room.
+    property <bool> narrow: root.width < 700px;
+    ScrollView {
+        VerticalLayout {
+            // Stack from the top; a short page leaves the space below it empty.
+            alignment: start;
+            padding: Theme.gutter;
+            padding-top: 16px;
+            spacing: 4px;
+            Line { text: "History"; font-size: 28px; font-weight: 600; }
+            Caption {
+                text: "The last 30 days. Expand a day to see its sessions; select a session for its details.";
+                wrap: word-wrap;
+            }
+            Rectangle { height: 12px; }
+            for day[d] in root.days: Card {
+                VerticalLayout {
+                    RowButton {
+                        height: root.narrow ? 64px : 52px;
+                        accessible-name: day.accessible + (day.played ? (day.expanded ? ", expanded" : ", collapsed") : "");
+                        clicked => { if (day.played) { root.toggle(d); } }
+                        HorizontalLayout {
+                            padding-left: 16px;
+                            padding-right: 12px;
+                            spacing: 16px;
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 2;
+                                preferred-width: 0;
+                                min-width: 0;
+                                spacing: 2px;
+                                Line { text: day.day; font-weight: 600; color: day.played ? Theme.text : Theme.tertiary-text; }
+                                if root.narrow && day.games != "": Caption { text: day.games; }
+                            }
+                            if !root.narrow: Caption {
+                                text: day.games;
+                                horizontal-stretch: 3;
+                                preferred-width: 0;
+                                min-width: 0;
+                                vertical-alignment: center;
+                            }
+                            Rectangle {
+                                horizontal-stretch: 2;
+                                preferred-width: 0;
+                                min-width: 24px;
+                                Rectangle {
+                                    x: 0;
+                                    width: day.fraction * parent.width;
+                                    height: 8px;
+                                    border-radius: 4px;
+                                    background: Theme.accent;
+                                }
+                            }
+                            Line {
+                                text: day.total;
+                                horizontal-stretch: 0;
+                                width: 72px;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                                color: day.played ? Theme.text : Theme.tertiary-text;
+                            }
+                            Text {
+                                text: day.expanded ? "\u{E70E}" : "\u{E70D}";
+                                font-family: Theme.icons;
+                                font-size: 12px;
+                                width: 16px;
+                                color: day.played ? Theme.text : Theme.tertiary-text;
+                                vertical-alignment: center;
+                                accessible-role: none;
+                            }
+                        }
+                    }
+                    if day.expanded: VerticalLayout {
+                        padding: 4px;
+                        SessionList {
+                            rows: day.sessions;
+                            clicked(i) => { root.session-clicked(d, i); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

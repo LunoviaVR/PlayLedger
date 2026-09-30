@@ -13,6 +13,7 @@ mod ui {
 
 mod client;
 mod format;
+mod history;
 mod offscreen;
 mod overview;
 mod statistics;
@@ -36,6 +37,7 @@ const PAGES: [&str; 5] = ["overview", "games", "history", "statistics", "setting
 struct App {
     snapshot: Option<DashboardSnapshot>,
     overview: OverviewState,
+    history: history::HistoryState,
 }
 
 thread_local! {
@@ -60,6 +62,7 @@ fn show(window: &AppWindow, snapshot: DashboardSnapshot, kind: Refresh) {
         match window.get_page() {
             0 if only_times => overview::render_times(window, &snapshot, &mut app.overview),
             0 => overview::render(window, &snapshot, &mut app.overview),
+            2 if !only_times => history::render(window, &snapshot, &mut app.history),
             3 if !only_times => statistics::render(window, &snapshot),
             _ => {}
         }
@@ -70,10 +73,15 @@ fn show(window: &AppWindow, snapshot: DashboardSnapshot, kind: Refresh) {
 /// Re-renders the current page from the last snapshot (after navigating or changing a filter).
 fn rerender(window: &AppWindow) {
     APP.with_borrow_mut(|app| {
-        let App { snapshot, overview } = app;
+        let App {
+            snapshot,
+            overview,
+            history,
+        } = app;
         if let Some(snapshot) = snapshot.as_ref() {
             match window.get_page() {
                 0 => overview::render(window, snapshot, overview),
+                2 => history::render(window, snapshot, history),
                 3 => statistics::render(window, snapshot),
                 _ => {}
             }
@@ -230,6 +238,20 @@ fn main() -> Result<(), slint::PlatformError> {
     window.on_overview_show_more(move || {
         if let Some(window) = weak.upgrade() {
             APP.with_borrow_mut(|app| app.overview.shown += overview::PAGE_SIZE);
+            rerender(&window);
+        }
+    });
+
+    let weak = window.as_weak();
+    window.on_history_toggle(move |d| {
+        if let Some(window) = weak.upgrade() {
+            APP.with_borrow_mut(|app| {
+                if let Some(day) = app.history.days.get(d as usize).copied() {
+                    if !app.history.expanded.remove(&day) {
+                        app.history.expanded.insert(day);
+                    }
+                }
+            });
             rerender(&window);
         }
     });

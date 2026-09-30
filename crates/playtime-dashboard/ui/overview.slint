@@ -30,7 +30,7 @@ export component Tiles inherits Rectangle {
     }
 }
 
-component SessionList inherits VerticalLayout {
+export component SessionList inherits VerticalLayout {
     in property <[SessionRow]> rows;
     callback clicked(int);
     for row[i] in rows: RowButton {
@@ -122,6 +122,8 @@ export component OverviewPage inherits Rectangle {
 
     ScrollView {
         VerticalLayout {
+            // Stack from the top; a short page leaves the space below it empty.
+            alignment: start;
             padding: Theme.gutter;
             padding-top: 16px;
             spacing: 8px;

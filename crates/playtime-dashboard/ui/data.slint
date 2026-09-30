@@ -40,3 +40,15 @@ export struct RankRow {
     percent: string,
     accessible: string,
 }
+
+export struct HistoryDay {
+    day: string,
+    total: string,
+    games: string,
+    // 0 to 1 of the busiest day.
+    fraction: float,
+    played: bool,
+    expanded: bool,
+    sessions: [SessionRow],
+    accessible: string,
+}

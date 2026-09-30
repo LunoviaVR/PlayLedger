@@ -2,12 +2,13 @@
 import { Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Line, Caption, FluentButton } from "controls.slint";
-import { Tile, SessionRow, GameRow, DayBar, RankRow } from "data.slint";
+import { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay } from "data.slint";
 import { OverviewPage } from "overview.slint";
 import { StatisticsPage } from "statistics.slint";
+import { HistoryPage } from "history.slint";
 
 export { Theme, Palette }
-export { Tile, SessionRow, GameRow, DayBar, RankRow }
+export { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay }
 
 component NavItem inherits Rectangle {
     in property <string> glyph;
@@ -98,6 +99,11 @@ export component AppWindow inherits Window {
     callback overview-day(int);
     callback overview-show-more();
 
+    // History
+    in property <[HistoryDay]> history-days;
+    callback history-toggle(int);
+    callback history-session(int, int);
+
     // Statistics
     in property <[Tile]> statistics-tiles;
     in property <[RankRow]> statistics-top-games;
@@ -169,7 +175,12 @@ export component AppWindow inherits Window {
                     weekdays: root.statistics-weekdays;
                     day-parts: root.statistics-day-parts;
                 }
-                if root.page == 1 || root.page == 2 || root.page == 4: Rectangle { }
+                if root.page == 2: HistoryPage {
+                    days: root.history-days;
+                    toggle(d) => { root.history-toggle(d); }
+                    session-clicked(d, i) => { root.history-session(d, i); }
+                }
+                if root.page == 1 || root.page == 4: Rectangle { }
             }
         }
     }
