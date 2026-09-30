@@ -170,17 +170,17 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing: [`testing-the-preview.md`](../testing-the-preview.md) |
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove all C# (the old app, the WinUI dashboard, its tests and smoke test) and every mention of it, then release 3.0.0 from the Rust installer | Planned: after phase 18 |
-| 13 | Game context menu: change artwork, stop tracking, delete history; fix layouts in narrow windows (History, Statistics, Overview) | Tracker side done (artwork choices, overrides, pipe requests); the menu and layout fixes are built into the Rust dashboard (phase 18). See *Game context menu* below |
-| 14 | Tip or donate section in Settings; search in Ignored Games and Ignored Programs | Planned: built into the Rust dashboard (phase 18). See *Tip or donate* below |
-| 15 | Glass look in the Windows 11 design language | Planned: built into the Rust dashboard (phase 18). See *Glass look* below |
-| 16 | "Get API key" button for SteamGridDB | Planned: built into the Rust dashboard (phase 18). See *Get API key button* below |
-| 17 | Settings: section order and title-case headings | Planned: built into the Rust dashboard (phase 18). See *Settings headings* below |
-| 18 | The dashboard in Rust (Slint), making Playtime Tracker 100% Rust | Planned, next: see *Rust dashboard* below |
-| 19 | Hardware acceleration setting | Planned: built into the Rust dashboard (phase 18). See *Hardware acceleration* below |
+| 13 | Game context menu: change artwork, stop tracking, delete history; fix layouts in narrow windows (History, Statistics, Overview) | Done in the Rust dashboard (phase 18): the Games tile menu and the narrow-window layouts. See *Game context menu* below |
+| 14 | Tip or donate section in Settings; search in Ignored Games and Ignored Programs | Done in the Rust dashboard, except the Cash App logo: this environment can't reach cash.app, so the official file is still to be added (`crates/playtime-dashboard/ui/cash-app-logo.png`). See *Tip or donate* below |
+| 15 | Glass look in the Windows 11 design language | Done in the Rust dashboard: Mica Alt, WinUI's translucent card and layer fills, solid fallbacks. See *Glass look* below |
+| 16 | "Get API key" button for SteamGridDB | Done in the Rust dashboard. See *Get API key button* below |
+| 17 | Settings: section order and title-case headings | Done in the Rust dashboard. See *Settings headings* below |
+| 18 | The dashboard in Rust (Slint), making Playtime Tracker 100% Rust | Done in code: every page and dialog, single instance, crash log; the preview installer ships it and the Rust smoke test (`playtime-smoke-test`) checks it in CI. See *Rust dashboard* below |
+| 19 | Hardware acceleration setting | Done in the Rust dashboard. See *Hardware acceleration* below |
 
-## Game context menu (phase 13, planned)
+## Game context menu (phase 13)
 
-Not started. On the **Games** page, right-clicking a game tile opens a menu. The same menu opens with the keyboard
+Done (in the Rust dashboard). On the **Games** page, right-clicking a game tile opens a menu. The same menu opens with the keyboard
 (the Menu key or Shift+F10) and with press-and-hold on touch screens:
 
 - **Change artwork ▸** a cascading submenu:
@@ -238,9 +238,9 @@ artwork, and listing SteamGridDB candidates), added to `dashboard/fixtures/respo
 It would come with Rust unit tests for the override and the file checks, and a smoke-test step that sets a
 game's artwork from a file and resets it.
 
-## Tip or donate (phase 14, planned)
+## Tip or donate (phase 14)
 
-Not started. A small **Support Playtime Tracker** section in Settings, directly below *About*: one line of text and
+Done (in the Rust dashboard; the Cash App logo is still to be added). A small **Support Playtime Tracker** section in Settings, directly below *About*: one line of text and
 a button with the Cash App logo, labelled **Tip or Donate**. It opens `https://cash.app/$LunoviaVR` in the default
 browser.
 
@@ -259,9 +259,9 @@ only filters what's shown: adding and removing entries works the same, and a rem
 filtered list straight away. The search boxes have accessible names ("Search ignored games", "Search ignored
 programs") and are reachable with the keyboard.
 
-## Glass look (phase 15, planned)
+## Glass look (phase 15)
 
-Not started. A glassmorphism look, still clearly Windows 11: the Task Manager layout (custom title bar, left
+Done (in the Rust dashboard). A glassmorphism look, still clearly Windows 11: the Task Manager layout (custom title bar, left
 navigation, cards) and WinUI 3's controls, type (Segoe UI Variable), spacing, corner radii and motion all stay. The
 glass comes from Windows' own materials rather than painted imitations, so it looks and performs like the rest of the
 system:
@@ -280,9 +280,9 @@ system:
 It would be checked with screenshots of every page in light and dark, over a bright and a dark wallpaper, plus a
 contrast check on the text colours used on each surface.
 
-## Get API key button (phase 16, planned)
+## Get API key button (phase 16)
 
-Not started. In **Settings → Artwork**, next to the SteamGridDB key box, a **Get API key** button for people who
+Done (in the Rust dashboard). In **Settings → Artwork**, next to the SteamGridDB key box, a **Get API key** button for people who
 haven't saved a key yet. It opens SteamGridDB's API key page (`https://www.steamgriddb.com/profile/preferences/api`,
 where a signed-in user creates their free key) in the default browser.
 
@@ -293,9 +293,9 @@ where a signed-in user creates their free key) in the default browser.
   kept in Windows Credential Manager as now.
 - Accessible name: "Get a SteamGridDB API key, opens in your browser"; keyboard reachable like every other control.
 
-## Settings headings (phase 17, planned)
+## Settings headings (phase 17)
 
-Not started. Two changes to the Settings page:
+Done (in the Rust dashboard). Two changes to the Settings page:
 
 - **Move *Your Data* up** to directly below *Game Folders*, so everything about which games are tracked and the data
   they produce sits together.
@@ -317,7 +317,7 @@ Resulting order: Appearance, Startup, General, Tracking, Artwork, Custom Games, 
 Games, Ignored Programs, Updates, About (then *Support Playtime Tracker* from phase 14). Screen readers get the same
 names, and the smoke test's Settings screenshot is checked afterwards.
 
-## Rust dashboard (phase 18, planned, next)
+## Rust dashboard (phase 18)
 
 Playtime Tracker becomes 100% Rust: the WinUI 3 dashboard (C#/.NET) is rebuilt as a Rust program, and all C# goes
 (phase 12). The owner chose this, and chose **Slint** with its **Fluent** style as the toolkit: it's closest to
@@ -338,10 +338,10 @@ credited in *About*.
   several sizes, the accent check), and the dashboard's unit tests become Rust tests.
 - **Mica** comes from Windows (`DwmSetWindowAttribute` on the window), with the solid fallbacks described in phase 15.
 
-## Hardware acceleration (phase 19, planned)
+## Hardware acceleration (phase 19)
 
 A **Hardware acceleration** switch in *Settings → Appearance* (on by default). On, the dashboard draws with the GPU
-(Slint's Skia renderer); off, it draws entirely on the CPU (Slint's software renderer), which helps with graphics
+(Slint's femtovg renderer, OpenGL); off, it draws entirely on the CPU (Slint's software renderer), which helps with graphics
 driver problems, remote desktop or very old GPUs. The choice is saved in the settings and applies the next time the
 dashboard opens; the switch says so ("Takes effect when the dashboard reopens") and offers **Reopen now**. If the GPU
 renderer fails to start, the dashboard falls back to the software renderer on its own and notes it in the crash log.
