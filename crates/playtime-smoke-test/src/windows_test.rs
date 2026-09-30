@@ -186,6 +186,19 @@ impl Test {
     }
 }
 
+/// The folder's full long path. The temp folder often comes as an 8.3 short name (`C:\Users\RUNNER~1\…`), which
+/// wouldn't match the long path Windows reports for the running game.
+fn long_path(dir: &Path) -> PathBuf {
+    let _ = std::fs::create_dir_all(dir);
+    match std::fs::canonicalize(dir) {
+        Ok(full) => {
+            let text = full.to_string_lossy();
+            PathBuf::from(text.strip_prefix(r"\\?\").unwrap_or(&text))
+        }
+        Err(_) => dir.to_path_buf(),
+    }
+}
+
 fn run_step(failed: &mut bool, name: &str, step: impl FnOnce() -> Outcome) {
     if *failed {
         return;
@@ -217,7 +230,7 @@ pub fn run() -> ExitCode {
         tracker: None,
         client: None,
         events: Arc::default(),
-        games_root: std::env::temp_dir().join("PlaytimeTracker-SmokeGames"),
+        games_root: long_path(&std::env::temp_dir().join("PlaytimeTracker-SmokeGames")),
         game: None,
         data: playtime_windows::folders::data_folder(&documents),
     };
