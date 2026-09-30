@@ -262,6 +262,8 @@ if (screenshots is not null)
             var rose = Accent.Shades(Accent.Resolve("rose")!.Value);
             var pixels = Native.CountNear(path, new[] { rose.Dark1, rose.Light2 }, tolerance: 12);
             Console.WriteLine($"      {pixels} pixels in the rose accent");
+            if (pixels < 200)
+                Console.WriteLine($"      most common strong colours: {Native.TopColors(path, 6)}");
             Check(pixels >= 200, "the dashboard doesn't show the chosen accent colour");
         }
         finally
@@ -354,6 +356,25 @@ static class Native
             }
         }
         bitmap.Save(path, ImageFormat.Png);
+    }
+
+    /// <summary>The most common clearly coloured (not grey) pixels, as "#rrggbb×count", for diagnosing a failure.</summary>
+    public static string TopColors(string path, int top)
+    {
+        using var bitmap = new Bitmap(path);
+        var counts = new Dictionary<int, int>();
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var p = bitmap.GetPixel(x, y);
+                if (Math.Max(p.R, Math.Max(p.G, p.B)) - Math.Min(p.R, Math.Min(p.G, p.B)) < 40)
+                    continue;
+                var rgb = (p.R << 16) | (p.G << 8) | p.B;
+                counts[rgb] = counts.GetValueOrDefault(rgb) + 1;
+            }
+        }
+        return string.Join(", ", counts.OrderByDescending(c => c.Value).Take(top).Select(c => $"#{c.Key:x6}×{c.Value}"));
     }
 
     /// <summary>How many pixels of an image are within <paramref name="tolerance"/> of any of the colours.</summary>
