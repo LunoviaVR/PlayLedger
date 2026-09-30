@@ -1,0 +1,211 @@
+// Games: a tile per game with its box art (or icon), search and sort, what's playing first. A tile's menu (right-click,
+// the Menu key, Shift+F10, or press and hold) changes its artwork, stops tracking it or deletes its history.
+import { ScrollView, LineEdit, ComboBox } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Line, Caption, SectionHeader } from "controls.slint";
+import { GameTile } from "data.slint";
+
+// What the tile menu asks for.
+export enum GameAction { choose-file, pick-online, automatic-art, stop-tracking, delete-history }
+
+component GameCard inherits Rectangle {
+    in property <GameTile> tile;
+    callback clicked;
+    callback action(GameAction);
+    width: 160px;
+    height: 240px + 52px;
+    accessible-role: button;
+    accessible-label: tile.accessible;
+    accessible-action-default => { clicked(); }
+    forward-focus: focus;
+    // True once a press has been held long enough to open the menu, so letting go doesn't also open the game.
+    property <bool> held;
+
+    menu := ContextMenuArea {
+        Menu {
+            Menu {
+                title: "Change artwork";
+                MenuItem { title: "Choose an image file…"; activated => { root.action(GameAction.choose-file); } }
+                MenuItem { title: "Pick from SteamGridDB…"; activated => { root.action(GameAction.pick-online); } }
+                MenuItem { title: "Use automatic artwork"; activated => { root.action(GameAction.automatic-art); } }
+            }
+            MenuSeparator { }
+            MenuItem { title: "Stop tracking"; activated => { root.action(GameAction.stop-tracking); } }
+            MenuItem { title: "Delete history…"; activated => { root.action(GameAction.delete-history); } }
+        }
+
+        VerticalLayout {
+            spacing: 6px;
+            Rectangle {
+                width: 160px;
+                height: 240px;
+                border-radius: Theme.radius;
+                clip: true;
+                background: Theme.dark ? #2B2B2B : #F3F3F3;
+                border-width: 1px;
+                border-color: Theme.card-border;
+                if !tile.has-art: Text {
+                    text: tile.initial;
+                    font-size: 56px;
+                    color: Theme.secondary-text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    accessible-role: none;
+                }
+                if tile.has-art && !tile.art-is-icon: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: tile.art;
+                    image-fit: cover;
+                    accessible-role: none;
+                }
+                if tile.has-art && tile.art-is-icon: Image {
+                    width: 64px;
+                    height: 64px;
+                    source: tile.art;
+                    image-fit: contain;
+                    accessible-role: none;
+                }
+                if tile.live: Rectangle {
+                    x: 8px;
+                    y: 8px;
+                    width: badge.preferred-width + 16px;
+                    height: 20px;
+                    border-radius: 4px;
+                    background: Theme.live;
+                    // Dark text on the light green of dark mode, white on the dark green of light mode (both WCAG AA).
+                    badge := Text { text: "Playing"; font-size: 11px; color: Theme.dark ? #000000 : #FFFFFF; }
+                }
+                // Hover and focus, drawn over the art.
+                Rectangle {
+                    background: touch.has-hover ? #FFFFFF14 : transparent;
+                    border-radius: Theme.radius;
+                    border-width: focus.has-focus ? 2px : 0;
+                    border-color: Theme.text;
+                }
+            }
+            Line { text: tile.name; font-weight: 600; }
+            Caption { text: tile.detail; }
+        }
+
+        touch := TouchArea {
+            mouse-cursor: pointer;
+            pointer-event(event) => {
+                if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                    root.held = false;
+                    hold.running = true;
+                } else if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                    hold.running = false;
+                }
+                // Right-click opens the menu where the pointer is (the area underneath doesn't see the click).
+                if (event.kind == PointerEventKind.down && event.button == PointerEventButton.right) {
+                    menu.show({ x: self.mouse-x, y: self.mouse-y });
+                }
+            }
+            clicked => {
+                if (!root.held) { root.clicked(); }
+            }
+        }
+        hold := Timer {
+            interval: 600ms;
+            running: false;
+            triggered => {
+                self.running = false;
+                root.held = true;
+                menu.show({ x: touch.mouse-x, y: touch.mouse-y });
+            }
+        }
+        focus := FocusScope {
+            key-pressed(event) => {
+                if (event.text == " " || event.text == "\n") { root.clicked(); return accept; }
+                // Anything else (the Menu key, Shift+F10) goes on to the menu.
+                reject
+            }
+        }
+    }
+}
+
+// The tiles wrap into as many columns as fit.
+component TileGrid inherits Rectangle {
+    in property <[GameTile]> tiles;
+    callback clicked(int);
+    callback action(int, GameAction);
+    property <length> gap: 16px;
+    property <int> columns: max(1, floor((root.width + gap) / (160px + gap)));
+    property <length> row-height: 240px + 52px + gap;
+    height: ceil(tiles.length / columns) * row-height - (tiles.length > 0 ? gap : 0);
+    for tile[i] in tiles: GameCard {
+        x: mod(i, columns) * (160px + gap);
+        y: floor(i / columns) * row-height;
+        tile: tile;
+        clicked => { root.clicked(i); }
+        action(a) => { root.action(i, a); }
+    }
+}
+
+export component GamesPage inherits Rectangle {
+    in property <[GameTile]> live;
+    in property <[GameTile]> played;
+    in property <bool> empty;
+    in-out property <string> query;
+    in-out property <int> sort;
+    callback search(string);
+    callback sort-changed(int);
+    // 0 playing now, 1 played before; then the tile.
+    callback clicked(int, int);
+    callback action(int, int, GameAction);
+
+    ScrollView {
+        VerticalLayout {
+            alignment: start;
+            padding: Theme.gutter;
+            padding-top: 16px;
+            spacing: 8px;
+            Line { text: "Games"; font-size: 28px; font-weight: 600; }
+            HorizontalLayout {
+                spacing: 12px;
+                alignment: start;
+                // The search box gives way first in a narrow window; the sort list keeps its width.
+                LineEdit {
+                    min-width: 120px;
+                    max-width: 280px;
+                    preferred-width: 280px;
+                    horizontal-stretch: 1;
+                    placeholder-text: "Search games";
+                    text <=> root.query;
+                    accessible-label: "Search games";
+                    edited(text) => { root.search(text); }
+                }
+                ComboBox {
+                    width: 170px;
+                    model: ["Most played", "Recently played", "Name"];
+                    current-index <=> root.sort;
+                    accessible-label: "Sort games";
+                    selected => { root.sort-changed(self.current-index); }
+                }
+            }
+            if root.live.length > 0: VerticalLayout {
+                spacing: 8px;
+                Rectangle { height: 8px; }
+                SectionHeader { text: "Playing now"; }
+                TileGrid {
+                    tiles: root.live;
+                    clicked(i) => { root.clicked(0, i); }
+                    action(i, a) => { root.action(0, i, a); }
+                }
+            }
+            Rectangle { height: 8px; }
+            SectionHeader { text: "Played before"; }
+            TileGrid {
+                tiles: root.played;
+                clicked(i) => { root.clicked(1, i); }
+                action(i, a) => { root.action(1, i, a); }
+            }
+            if root.empty: Line { text: "No games yet. Games you play show up here."; wrap: word-wrap; }
+            if !root.empty && root.live.length == 0 && root.played.length == 0: Line {
+                text: "No games match your search.";
+            }
+            Rectangle { height: 32px; }
+        }
+    }
+}

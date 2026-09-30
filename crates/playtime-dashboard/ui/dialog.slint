@@ -15,9 +15,13 @@ export component Dialog inherits Rectangle {
     in property <string> primary;
     in property <string> secondary;
     in property <string> close: "Close";
+    // Pictures to choose from (artwork), shown as a grid of thumbnails.
+    in property <[image]> pictures;
+    in property <[string]> picture-names;
     // 0 primary, 1 secondary, 2 close, 3 link.
     callback button(int);
     callback list-clicked(int);
+    callback picture-clicked(int);
     background: #0000004D;
     accessible-role: groupbox;
     accessible-label: root.title;
@@ -52,6 +56,39 @@ export component Dialog inherits Rectangle {
                 height: min(360px, list-content.preferred-height);
                 list-content := VerticalLayout {
                     SessionList { rows: root.list; clicked(i) => { root.list-clicked(i); } }
+                }
+            }
+            if root.pictures.length > 0: ScrollView {
+                height: min(360px, grid.height);
+                grid := Rectangle {
+                    property <length> gap: 12px;
+                    property <int> columns: max(1, floor((self.width + gap) / (100px + gap)));
+                    height: ceil(root.pictures.length / columns) * (150px + gap) - gap;
+                    for picture[i] in root.pictures: Rectangle {
+                        x: mod(i, grid.columns) * (100px + grid.gap);
+                        y: floor(i / grid.columns) * (150px + grid.gap);
+                        width: 100px;
+                        height: 150px;
+                        border-radius: 4px;
+                        clip: true;
+                        accessible-role: AccessibleRole.button;
+                        accessible-label: root.picture-names[i];
+                        accessible-action-default => { root.picture-clicked(i); }
+                        forward-focus: pick-focus;
+                        Image { width: parent.width; height: parent.height; source: picture; image-fit: cover; accessible-role: none; }
+                        pick := TouchArea { mouse-cursor: pointer; clicked => { root.picture-clicked(i); } }
+                        pick-focus := FocusScope {
+                            key-pressed(event) => {
+                                if (event.text == " " || event.text == "\n") { root.picture-clicked(i); return accept; }
+                                reject
+                            }
+                        }
+                        Rectangle {
+                            border-radius: 4px;
+                            border-width: pick-focus.has-focus ? 2px : pick.has-hover ? 2px : 0;
+                            border-color: pick-focus.has-focus ? Theme.text : Theme.accent;
+                        }
+                    }
                 }
             }
             if root.link != "": HorizontalLayout {

@@ -27,6 +27,10 @@ pub enum Dialog {
     Confirm(Confirm),
     /// Something the tracker refused, with its message.
     Error(String),
+    /// Waiting on something slow (title, message); Cancel only closes the dialog.
+    Busy(String, String),
+    /// Pictures from SteamGridDB to choose a game's cover from (the pictures themselves are set by `main.rs`).
+    Choices(String),
 }
 
 /// What a button asks for.
@@ -209,6 +213,18 @@ fn content(dialog: &Dialog, snapshot: &DashboardSnapshot) -> Content {
                 ..Content::default()
             }
         }
+        Dialog::Busy(title, message) => Content {
+            title: title.clone(),
+            message: message.clone(),
+            close: "Cancel".into(),
+            ..Content::default()
+        },
+        Dialog::Choices(game) => Content {
+            title: format!("Choose artwork for {game}"),
+            message: "Pictures from SteamGridDB. Choosing one downloads it and makes it the game's cover.".into(),
+            close: "Cancel".into(),
+            ..Content::default()
+        },
         Dialog::Error(message) => Content {
             title: "That didn't work".into(),
             message: message.clone(),
@@ -280,6 +296,8 @@ pub fn show(window: &AppWindow, dialog: &Dialog, snapshot: &DashboardSnapshot) -
 
 pub fn close(window: &AppWindow) {
     window.set_dialog_open(false);
+    window.set_dialog_pictures(ModelRc::default());
+    window.set_dialog_picture_names(ModelRc::default());
 }
 
 /// What pressing a button (0 primary, 1 secondary, 2 close, 3 link) in `dialog` asks for.

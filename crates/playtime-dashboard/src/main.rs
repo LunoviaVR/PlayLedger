@@ -14,6 +14,7 @@ mod ui {
 mod client;
 mod dialogs;
 mod format;
+mod games;
 mod history;
 mod offscreen;
 mod overview;
@@ -38,7 +39,12 @@ const PAGES: [&str; 5] = ["overview", "games", "history", "statistics", "setting
 struct App {
     snapshot: Option<DashboardSnapshot>,
     overview: OverviewState,
+    games: games::GamesState,
     history: history::HistoryState,
+    /// Asks the artwork worker for a game's picture.
+    art_loader: Option<mpsc::Sender<String>>,
+    /// The SteamGridDB choices the open dialog shows, by the tracker's index.
+    choices: Vec<usize>,
     /// The open dialog, and the sessions its list stands for.
     dialog: Option<dialogs::Dialog>,
     dialog_list: Vec<playtime_core::dashboard::SessionView>,
@@ -66,6 +72,10 @@ fn show(window: &AppWindow, snapshot: DashboardSnapshot, kind: Refresh) {
         match window.get_page() {
             0 if only_times => overview::render_times(window, &snapshot, &mut app.overview),
             0 => overview::render(window, &snapshot, &mut app.overview),
+            1 if !only_times => {
+                let wanted = games::render(window, &snapshot, &mut app.games);
+                load_art(app, wanted);
+            }
             2 if !only_times => history::render(window, &snapshot, &mut app.history),
             3 if !only_times => statistics::render(window, &snapshot),
             _ => {}
@@ -81,21 +91,27 @@ fn show(window: &AppWindow, snapshot: DashboardSnapshot, kind: Refresh) {
 /// Re-renders the current page from the last snapshot (after navigating or changing a filter).
 fn rerender(window: &AppWindow) {
     APP.with_borrow_mut(|app| {
-        let App {
-            snapshot,
-            overview,
-            history,
-            ..
-        } = app;
-        if let Some(snapshot) = snapshot.as_ref() {
-            match window.get_page() {
-                0 => overview::render(window, snapshot, overview),
-                2 => history::render(window, snapshot, history),
-                3 => statistics::render(window, snapshot),
-                _ => {}
-            }
+        let Some(snapshot) = app.snapshot.as_ref() else {
+            return;
+        };
+        let mut wanted = Vec::new();
+        match window.get_page() {
+            0 => overview::render(window, snapshot, &mut app.overview),
+            1 => wanted = games::render(window, snapshot, &mut app.games),
+            2 => history::render(window, snapshot, &mut app.history),
+            3 => statistics::render(window, snapshot),
+            _ => {}
         }
+        load_art(app, wanted);
     });
+}
+
+fn load_art(app: &App, games: Vec<String>) {
+    if let Some(loader) = &app.art_loader {
+        for game in games {
+            let _ = loader.send(game);
+        }
+    }
 }
 
 /// Opens the dialog `pick` chooses (if any) with the latest snapshot.
@@ -171,6 +187,233 @@ fn start_fetcher(tracker: Arc<Tracker>, window: slint::Weak<AppWindow>) -> mpsc:
     sender
 }
 
+/// Starts a worker that reads each game's picture (box art, else its icon) and hands it to the Games page.
+fn start_art_loader(tracker: Arc<Tracker>, window: slint::Weak<AppWindow>) -> mpsc::Sender<String> {
+    let (sender, games) = mpsc::channel::<String>();
+    let _ = std::thread::Builder::new()
+        .name("artwork".into())
+        .spawn(move || {
+            while let Ok(game) = games.recv() {
+                let picture = |kind: &str, size| {
+                    let request = Request::GetArtwork {
+                        game: game.clone(),
+                        kind: kind.into(),
+                    };
+                    match tracker.request(&request) {
+                        Ok(Response::Artwork { path: Some(path) }) => {
+                            games::decode(std::path::Path::new(&path), size)
+                        }
+                        _ => None,
+                    }
+                };
+                // A missing cover may still arrive (an `artworkReady` event then asks again); the icon stands in.
+                let found = picture("cover", games::COVER_SIZE)
+                    .map(|p| (p, false))
+                    .or_else(|| picture("icon", games::ICON_SIZE).map(|p| (p, true)));
+                let window = window.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    let Some(window) = window.upgrade() else {
+                        return;
+                    };
+                    let art = found.map(|(pixels, icon)| games::Art {
+                        image: slint::Image::from_rgba8(pixels),
+                        icon,
+                    });
+                    APP.with_borrow_mut(|app| {
+                        games::art_arrived(&window, &mut app.games, &game, art)
+                    });
+                });
+            }
+        });
+    sender
+}
+
+/// Sends `request` to the tracker off the UI thread, on a connection of its own so a slow one (downloading
+/// artwork) doesn't hold up the page. Then closes the dialog and reloads, or shows what went wrong.
+fn run_in_background(
+    window: slint::Weak<AppWindow>,
+    refresh: mpsc::Sender<Refresh>,
+    request: Request,
+) {
+    let _ = std::thread::Builder::new()
+        .name("request".into())
+        .spawn(move || {
+            let result = Tracker::default().request(&request);
+            let _ = slint::invoke_from_event_loop(move || {
+                let Some(window) = window.upgrade() else {
+                    return;
+                };
+                match result {
+                    Ok(_) => {
+                        close_dialog(&window);
+                        let _ = refresh.send(Refresh::Full);
+                    }
+                    Err(e) => open_dialog(&window.as_weak(), |_| {
+                        Some(dialogs::Dialog::Error(e.to_string()))
+                    }),
+                }
+            });
+        });
+}
+
+/// The window's handle, to make the Open dialog modal to it (0 if unknown).
+fn owner_of(window: &AppWindow) -> isize {
+    #[cfg(windows)]
+    {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        if let Ok(handle) = window.window().window_handle().window_handle() {
+            if let RawWindowHandle::Win32(h) = handle.as_raw() {
+                return h.hwnd.get();
+            }
+        }
+    }
+    let _ = window;
+    0
+}
+
+/// Carries out a Games tile's menu choice.
+fn game_action(
+    window: &AppWindow,
+    refresh: &mpsc::Sender<Refresh>,
+    game: String,
+    action: ui::GameAction,
+) {
+    use ui::GameAction;
+    let weak = window.as_weak();
+    match action {
+        GameAction::ChooseFile => {
+            #[cfg(windows)]
+            {
+                let owner = owner_of(window);
+                let refresh = refresh.clone();
+                let _ = std::thread::Builder::new()
+                    .name("open".into())
+                    .spawn(move || {
+                        use playtime_windows::file_dialogs::{open, Filter};
+                        let filters = [Filter {
+                            name: "Pictures (PNG, JPEG)",
+                            patterns: "*.png;*.jpg;*.jpeg",
+                        }];
+                        let Some(path) =
+                            open(owner, &format!("Choose artwork for {game}"), &filters)
+                        else {
+                            return;
+                        };
+                        let request = Request::SetArtworkFromFile {
+                            game,
+                            kind: "cover".into(),
+                            path: path.to_string_lossy().into_owned(),
+                        };
+                        let _ = slint::invoke_from_event_loop(move || {
+                            run_in_background(weak, refresh, request);
+                        });
+                    });
+            }
+            #[cfg(not(windows))]
+            let _ = (game, weak, owner_of(window));
+        }
+        GameAction::PickOnline => {
+            let busy = dialogs::Dialog::Busy(
+                format!("Choose artwork for {game}"),
+                "Looking for pictures on SteamGridDB…".into(),
+            );
+            open_dialog(&weak, |_| Some(busy.clone()));
+            let _ = std::thread::Builder::new()
+                .name("choices".into())
+                .spawn(move || {
+                    let request = Request::ListArtworkChoices {
+                        game: game.clone(),
+                        kind: "cover".into(),
+                    };
+                    let result =
+                        Tracker::default()
+                            .request(&request)
+                            .map(|response| match response {
+                                Response::ArtworkChoices { choices } => choices
+                                    .into_iter()
+                                    .filter_map(|c| {
+                                        games::decode(
+                                            std::path::Path::new(&c.path),
+                                            games::PREVIEW_SIZE,
+                                        )
+                                        .map(|pixels| {
+                                            (c.index, format!("{} × {}", c.width, c.height), pixels)
+                                        })
+                                    })
+                                    .collect::<Vec<_>>(),
+                                _ => Vec::new(),
+                            });
+                    let _ = slint::invoke_from_event_loop(move || {
+                        let Some(window) = weak.upgrade() else {
+                            return;
+                        };
+                        // Cancelled meanwhile: leave whatever is open now alone.
+                        let still_waiting = APP.with_borrow(|app| {
+                        matches!(&app.dialog, Some(d) if matches!(d, dialogs::Dialog::Busy(..)))
+                    });
+                        if !still_waiting {
+                            return;
+                        }
+                        match result {
+                            Ok(choices) if choices.is_empty() => open_dialog(&weak, |_| {
+                                Some(dialogs::Dialog::Error(format!(
+                                    "SteamGridDB has no pictures for {game}."
+                                )))
+                            }),
+                            Ok(choices) => {
+                                open_dialog(&weak, |_| {
+                                    Some(dialogs::Dialog::Choices(game.clone()))
+                                });
+                                let names: Vec<slint::SharedString> = choices
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, (_, size, _))| {
+                                        format!("Picture {} of {}, {size}", i + 1, choices.len())
+                                            .into()
+                                    })
+                                    .collect();
+                                APP.with_borrow_mut(|app| {
+                                    app.choices = choices.iter().map(|c| c.0).collect()
+                                });
+                                let pictures: Vec<slint::Image> = choices
+                                    .into_iter()
+                                    .map(|(_, _, pixels)| slint::Image::from_rgba8(pixels))
+                                    .collect();
+                                window.set_dialog_pictures(slint::ModelRc::new(
+                                    slint::VecModel::from(pictures),
+                                ));
+                                window.set_dialog_picture_names(slint::ModelRc::new(
+                                    slint::VecModel::from(names),
+                                ));
+                            }
+                            Err(e) => {
+                                open_dialog(&weak, |_| Some(dialogs::Dialog::Error(e.to_string())))
+                            }
+                        }
+                    });
+                });
+        }
+        GameAction::AutomaticArt => run_in_background(
+            weak,
+            refresh.clone(),
+            Request::ResetArtwork {
+                game,
+                kind: "cover".into(),
+            },
+        ),
+        GameAction::StopTracking => open_dialog(&weak, |_| {
+            Some(dialogs::Dialog::Confirm(dialogs::Confirm::StopTracking(
+                game,
+            )))
+        }),
+        GameAction::DeleteHistory => open_dialog(&weak, |_| {
+            Some(dialogs::Dialog::Confirm(dialogs::Confirm::DeleteHistory(
+                game,
+            )))
+        }),
+    }
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let args: Vec<String> = std::env::args().collect();
     if let Some(i) = args.iter().position(|a| a == "--render") {
@@ -213,6 +456,8 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let tracker = Arc::new(Tracker::default());
     let refresh = start_fetcher(tracker.clone(), window.as_weak());
+    let art_loader = start_art_loader(tracker.clone(), window.as_weak());
+    APP.with_borrow_mut(|app| app.art_loader = Some(art_loader.clone()));
     let _ = refresh.send(Refresh::Full);
 
     // Events: anything that changed the data reloads it.
@@ -228,6 +473,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         | Event::DataChanged { .. }
                 ) {
                     let _ = events.send(Refresh::Full);
+                }
+                // New or changed artwork: show it on the game's tile.
+                if let Event::ArtworkReady { game, kind } = event {
+                    if kind == "cover" || kind == "icon" {
+                        let _ = art_loader.send(game.clone());
+                    }
                 }
             },
             move |_connected| {
@@ -358,7 +609,6 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     });
     let weak = window.as_weak();
-    let dialog_tracker = tracker.clone();
     let dialog_refresh = refresh.clone();
     window.on_dialog_button(move |which| {
         let Some(window) = weak.upgrade() else { return };
@@ -378,13 +628,64 @@ fn main() -> Result<(), slint::PlatformError> {
                 window.set_page(0);
                 rerender(&window);
             }
-            dialogs::Outcome::Run(request) => match dialog_tracker.request(&request) {
-                Ok(_) => {
-                    close_dialog(&window);
-                    let _ = dialog_refresh.send(Refresh::Full);
-                }
-                Err(e) => open_dialog(&weak, |_| Some(dialogs::Dialog::Error(e.to_string()))),
+            dialogs::Outcome::Run(request) => {
+                run_in_background(weak.clone(), dialog_refresh.clone(), request)
+            }
+        }
+    });
+
+    let weak = window.as_weak();
+    let picture_refresh = refresh.clone();
+    window.on_dialog_picture_clicked(move |i| {
+        let Some(dialogs::Dialog::Choices(game)) = APP.with_borrow(|app| app.dialog.clone()) else {
+            return;
+        };
+        let Some(index) = APP.with_borrow(|app| app.choices.get(i as usize).copied()) else {
+            return;
+        };
+        let busy = dialogs::Dialog::Busy(
+            format!("Choose artwork for {game}"),
+            "Downloading the picture…".into(),
+        );
+        open_dialog(&weak, |_| Some(busy));
+        run_in_background(
+            weak.clone(),
+            picture_refresh.clone(),
+            Request::ApplyArtworkChoice {
+                game,
+                kind: "cover".into(),
+                index,
             },
+        );
+    });
+
+    // Games
+    let weak = window.as_weak();
+    window.on_games_search(move |text| {
+        if let Some(window) = weak.upgrade() {
+            APP.with_borrow_mut(|app| app.games.query = text.to_string());
+            rerender(&window);
+        }
+    });
+    let weak = window.as_weak();
+    window.on_games_sort_changed(move |sort| {
+        if let Some(window) = weak.upgrade() {
+            APP.with_borrow_mut(|app| app.games.sort = sort);
+            rerender(&window);
+        }
+    });
+    let weak = window.as_weak();
+    window.on_games_clicked(move |section, i| {
+        open_dialog(&weak, |app| {
+            games::game_at(&app.games, section, i).map(dialogs::Dialog::Game)
+        });
+    });
+    let weak = window.as_weak();
+    let action_refresh = refresh.clone();
+    window.on_games_action(move |section, i, action| {
+        let Some(window) = weak.upgrade() else { return };
+        if let Some(game) = APP.with_borrow(|app| games::game_at(&app.games, section, i)) {
+            game_action(&window, &action_refresh, game, action);
         }
     });
 

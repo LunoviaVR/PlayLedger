@@ -2,14 +2,15 @@
 import { Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Line, Caption, FluentButton } from "controls.slint";
-import { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow } from "data.slint";
+import { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow, GameTile } from "data.slint";
 import { OverviewPage } from "overview.slint";
 import { StatisticsPage } from "statistics.slint";
 import { HistoryPage } from "history.slint";
+import { GamesPage, GameAction } from "games.slint";
 import { Dialog } from "dialog.slint";
 
 export { Theme, Palette }
-export { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow }
+export { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow, GameTile, GameAction }
 
 component NavItem inherits Rectangle {
     in property <string> glyph;
@@ -120,6 +121,20 @@ export component AppWindow inherits Window {
     in property <string> dialog-close: "Close";
     callback dialog-button(int);
     callback dialog-list-clicked(int);
+    in property <[image]> dialog-pictures;
+    in property <[string]> dialog-picture-names;
+    callback dialog-picture-clicked(int);
+
+    // Games
+    in property <[GameTile]> games-live;
+    in property <[GameTile]> games-played;
+    in property <bool> games-empty;
+    in-out property <string> games-query;
+    in-out property <int> games-sort;
+    callback games-search(string);
+    callback games-sort-changed(int);
+    callback games-clicked(int, int);
+    callback games-action(int, int, GameAction);
 
     // History
     in property <[HistoryDay]> history-days;
@@ -212,7 +227,18 @@ export component AppWindow inherits Window {
                     toggle(d) => { root.history-toggle(d); }
                     session-clicked(d, i) => { root.history-session(d, i); }
                 }
-                if root.page == 1 || root.page == 4: Rectangle { }
+                if root.page == 1: GamesPage {
+                    live: root.games-live;
+                    played: root.games-played;
+                    empty: root.games-empty;
+                    query <=> root.games-query;
+                    sort <=> root.games-sort;
+                    search(text) => { root.games-search(text); }
+                    sort-changed(i) => { root.games-sort-changed(i); }
+                    clicked(section, i) => { root.games-clicked(section, i); }
+                    action(section, i, a) => { root.games-action(section, i, a); }
+                }
+                if root.page == 4: Rectangle { }
             }
         }
     }
@@ -229,5 +255,8 @@ export component AppWindow inherits Window {
         close: root.dialog-close;
         button(i) => { root.dialog-button(i); }
         list-clicked(i) => { root.dialog-list-clicked(i); }
+        pictures: root.dialog-pictures;
+        picture-names: root.dialog-picture-names;
+        picture-clicked(i) => { root.dialog-picture-clicked(i); }
     }
 }

@@ -57,3 +57,17 @@ export struct DetailRow {
     label: string,
     value: string,
 }
+
+export struct GameTile {
+    name: string,
+    // "12h 05m · 14 sessions · Sun, Sep 27".
+    detail: string,
+    // Shown when there's no artwork (yet).
+    initial: string,
+    live: bool,
+    art: image,
+    has-art: bool,
+    // An exe icon: drawn small and centred, not stretched over the tile.
+    art-is-icon: bool,
+    accessible: string,
+}
