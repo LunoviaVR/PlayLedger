@@ -173,6 +173,7 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 13 | Game context menu: change artwork, stop tracking, delete history | Planned, not started: see *Game context menu* below |
 | 14 | Tip or donate section in Settings | Planned, not started: see *Tip or donate* below |
 | 15 | Glass look in the Windows 11 design language | Planned, not started: see *Glass look* below |
+| 16 | "Get API key" button for SteamGridDB | Planned, not started: see *Get API key button* below |
 
 ## Game context menu (phase 13, planned)
 
@@ -245,6 +246,19 @@ system:
 
 It would be checked with screenshots of every page in light and dark, over a bright and a dark wallpaper, plus a
 contrast check on the text colours used on each surface.
+
+## Get API key button (phase 16, planned)
+
+Not started. In **Settings → Artwork**, next to the SteamGridDB key box, a **Get API key** button for people who
+haven't saved a key yet. It opens SteamGridDB's API key page (`https://www.steamgriddb.com/profile/preferences/api`,
+where a signed-in user creates their free key) in the default browser.
+
+- It shows only while no key is saved: saving a key hides it straight away, and removing the key brings it back.
+  The dashboard already knows this from the tracker (`hasSteamGridDbKey`), so no new pipe request is needed.
+- The address is fixed in the code and checked to be exactly that `https://www.steamgriddb.com/` page before it's
+  opened. The app sends nothing itself; the browser does the rest, and the key is still pasted into the box and
+  kept in Windows Credential Manager as now.
+- Accessible name: "Get a SteamGridDB API key, opens in your browser"; keyboard reachable like every other control.
 
 ## Checks
 
