@@ -617,20 +617,31 @@ fn main() -> Result<(), slint::PlatformError> {
         );
     }
 
-    // As in the original dashboard, running games count up every second while the window is open.
+    // Running games count up every second where their times show (the Overview page, an open dialog). Each count
+    // fetches a whole snapshot, so it's skipped on other pages and while the window is minimized.
     let clock = slint::Timer::default();
     {
         let refresh = refresh.clone();
+        let weak = window.as_weak();
         clock.start(
             slint::TimerMode::Repeated,
             Duration::from_secs(1),
             move || {
-                let playing = APP.with_borrow(|app| {
-                    app.snapshot
-                        .as_ref()
-                        .is_some_and(|s| !s.model.live.is_empty())
+                let Some(window) = weak.upgrade() else {
+                    return;
+                };
+                if window.window().is_minimized() {
+                    return;
+                }
+                let on_overview = window.get_page() == 0;
+                let wanted = APP.with_borrow(|app| {
+                    (on_overview || app.dialog.is_some())
+                        && app
+                            .snapshot
+                            .as_ref()
+                            .is_some_and(|s| !s.model.live.is_empty())
                 });
-                if playing {
+                if wanted {
                     let _ = refresh.send(Refresh::Times);
                 }
             },

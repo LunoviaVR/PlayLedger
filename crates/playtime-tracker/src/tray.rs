@@ -49,6 +49,8 @@ struct Tray {
     icon: HICON,
     taskbar_created: u32,
     poll_ms: Cell<u32>,
+    /// The tooltip last given to Windows, so an unchanged one isn't sent again every poll.
+    tooltip: RefCell<String>,
 }
 
 thread_local! {
@@ -140,6 +142,7 @@ fn add_icon(tray: &Tray, tooltip: &str) {
     data.uCallbackMessage = WM_TRAY;
     data.hIcon = tray.icon;
     data.szTip = wide(&truncate(tooltip, 127));
+    tooltip.clone_into(&mut tray.tooltip.borrow_mut());
     // SAFETY: `data` is fully initialised for these calls.
     unsafe {
         let _ = Shell_NotifyIconW(NIM_ADD, &data);
@@ -149,6 +152,10 @@ fn add_icon(tray: &Tray, tooltip: &str) {
 }
 
 fn set_tooltip(tray: &Tray, tooltip: &str) {
+    if *tray.tooltip.borrow() == tooltip {
+        return;
+    }
+    tooltip.clone_into(&mut tray.tooltip.borrow_mut());
     let mut data = notify_data(tray);
     data.uFlags = NIF_TIP | NIF_SHOWTIP;
     data.szTip = wide(&truncate(tooltip, 127));
@@ -418,6 +425,7 @@ pub fn run(
         // SAFETY: registering the shell's broadcast message name.
         taskbar_created: unsafe { RegisterWindowMessageW(w!("TaskbarCreated")) },
         poll_ms: Cell::new(poll_ms),
+        tooltip: RefCell::default(),
     };
     add_icon(&tray, &tooltip);
     for notification in &notifications {

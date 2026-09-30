@@ -41,8 +41,8 @@ pub struct Engine {
     settings: Settings,
     catalog: GameCatalog,
     tracker: SessionTracker,
-    /// (pid, image name) → match, so each process is matched once.
-    matches: HashMap<(u32, String), Option<GameMatch>>,
+    /// pid → (image name, match), so each process is matched once. A reused pid with another name is matched again.
+    matches: HashMap<u32, (String, Option<GameMatch>)>,
     /// Game name (lower-case) → how it was identified, for artwork and details.
     identities: HashMap<String, GameMatch>,
     last_poll: Option<Timestamp>,
@@ -206,19 +206,25 @@ impl Engine {
     fn running_games(&mut self, processes: &[ProcessInfo]) -> HashMap<String, String> {
         let mut running: HashMap<String, String> = HashMap::new();
         let mut seen_keys: HashSet<String> = HashSet::new();
-        let mut alive: HashSet<(u32, String)> = HashSet::new();
+        let mut alive: HashSet<u32> = HashSet::with_capacity(processes.len());
         for process in processes {
             if process.pid <= 4 {
                 continue; // System Idle / System
             }
-            let key = (process.pid, process.name.clone());
-            alive.insert(key.clone());
+            alive.insert(process.pid);
             let catalog = &self.catalog;
-            let matched = self
+            let fresh = || process.path.as_deref().and_then(|p| catalog.match_exe(p));
+            let entry = self
                 .matches
-                .entry(key)
-                .or_insert_with(|| process.path.as_deref().and_then(|p| catalog.match_exe(p)));
-            let (Some(game), Some(path)) = (matched.as_ref(), process.path.as_ref()) else {
+                .entry(process.pid)
+                .and_modify(|(name, matched)| {
+                    if *name != process.name {
+                        process.name.clone_into(name);
+                        *matched = fresh();
+                    }
+                })
+                .or_insert_with(|| (process.name.clone(), fresh()));
+            let (Some(game), Some(path)) = (entry.1.as_ref(), process.path.as_ref()) else {
                 continue;
             };
             let game_key = paths::key(&game.name);
@@ -227,7 +233,7 @@ impl Engine {
                 self.identities.insert(game_key, game.clone());
             }
         }
-        self.matches.retain(|key, _| alive.contains(key));
+        self.matches.retain(|pid, _| alive.contains(pid));
         running
     }
 
@@ -341,6 +347,20 @@ mod tests {
         assert_eq!(ended.changes.ended.len(), 1);
         assert_eq!(ended.changes.ended[0].end, t(60));
         assert!(ended.save);
+    }
+
+    #[test]
+    fn a_reused_pid_is_matched_again() {
+        let mut engine = engine(TrackerData::default());
+        engine.tick(t(0), &[process(100, r"C:\Windows\explorer.exe")]);
+        // Windows gave the pid to a game after explorer.exe exited.
+        let after = engine.tick(t(5), &[process(100, r"C:\Games\Hades\Hades.exe")]);
+        assert_eq!(after.changes.started, ["Hades"]);
+        // And back again: the game is gone (it ends once the grace period has passed).
+        let explorer = [process(100, r"C:\Windows\explorer.exe")];
+        engine.tick(t(10), &explorer);
+        assert!(!engine.tick(t(60), &explorer).changes.ended.is_empty());
+        assert!(!engine.is_running("hades"));
     }
 
     #[test]
