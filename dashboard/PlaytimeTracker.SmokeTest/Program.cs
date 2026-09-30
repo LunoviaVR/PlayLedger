@@ -207,8 +207,10 @@ if (screenshots is not null)
             {
                 await Task.Delay(250);
                 window!.Refresh();
+                if (window.HasExited)
+                    throw new InvalidOperationException($"the dashboard exited with code 0x{window.ExitCode:X8} before showing its window");
                 return window.MainWindowHandle != IntPtr.Zero ? (object)window.MainWindowHandle : null;
-            }, TimeSpan.FromSeconds(30), $"the {page} window");
+            }, TimeSpan.FromSeconds(45), $"the {page} window");
             var handle = (IntPtr)hwnd;
             Native.Fit(handle);
             await Task.Delay(TimeSpan.FromSeconds(6)); // connect, load data and artwork, settle animations
@@ -235,9 +237,10 @@ if (game is { HasExited: false })
     game.Kill();
 if (failed)
 {
-    foreach (var log in new[] { "errors.log", "migration.log" })
+    var dashboardLog = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Playtime Tracker", "dashboard-errors.log");
+    foreach (var path in new[] { Path.Combine(dataFolder, "errors.log"), Path.Combine(dataFolder, "migration.log"), dashboardLog })
     {
-        var path = Path.Combine(dataFolder, log);
+        var log = Path.GetFileName(path);
         if (File.Exists(path))
             Console.WriteLine($"\n--- {log} ---\n{File.ReadAllText(path)}");
     }

@@ -119,6 +119,13 @@ jobs:
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
           dotnet run --project dashboard/PlaytimeTracker.SmokeTest --configuration Release -- $dir publish/screenshots
 
+      - name: Show Windows application errors (on failure)
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 1, 2; StartTime = (Get-Date).AddMinutes(-20) } -ErrorAction SilentlyContinue |
+            Select-Object -First 15 | Format-List TimeCreated, ProviderName, Id, Message
+
       - name: Upload dashboard screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
