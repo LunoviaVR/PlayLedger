@@ -1,0 +1,63 @@
+name: Preview screenshots
+
+# Builds and installs the next app (Rust tracker + WinUI 3 dashboard) on Windows, runs the end-to-end smoke test,
+# screenshots every dashboard page, and commits them to docs/next/ on this branch so they can be reviewed without
+# installing anything. Run it by hand from the Actions tab; it also runs when this workflow or the smoke test changes
+# on a branch. Its own commit (docs/next/*.png) doesn't trigger it again.
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths:
+      - "dashboard/PlaytimeTracker.SmokeTest/**"
+      - ".github/workflows/preview-screenshots.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: windows-latest
+    permissions:
+      contents: write # to commit the screenshots to this branch
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { choco install nsis -y --no-progress }
+
+      - name: Build the preview installer
+        shell: pwsh
+        run: |
+          rustup show active-toolchain
+          ./build-next.ps1
+
+      - name: Install, smoke test with screenshots, uninstall
+        shell: pwsh
+        run: |
+          Start-Process -FilePath publish/PlaytimeTrackerSetup-Preview.exe -ArgumentList '/S' -Wait
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
+          dotnet run --project dashboard/PlaytimeTracker.SmokeTest --configuration Release -- $dir docs/next
+          $code = $LASTEXITCODE
+          Start-Process -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '/S' -Wait
+          exit $code
+
+      - name: Commit the screenshots
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/next/*.png
+          if (git diff --cached --quiet) { Write-Host "Screenshots unchanged."; exit 0 }
+          git commit -m "Update preview dashboard screenshots"
+          git push
