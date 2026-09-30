@@ -188,6 +188,17 @@ Not started. On the **Games** page, right-clicking a game tile opens a menu. The
   - **Use automatic artwork** removes the override and goes back to the sources under *Artwork* above.
 - **Stop tracking**, as in the game's details now: it moves the game to *Settings → Ignored games* and keeps its
   history.
+
+**Recommended artwork size**, shown next to *Choose an image file…* so people can make their own:
+
+- **600 × 900 pixels**, portrait (2:3), PNG, JPEG or WebP. Game tiles are 160 × 240 (2:3), so this stays sharp on
+  displays scaled up to 375%. It's also the size of Steam's library covers and SteamGridDB's standard grids, so
+  artwork made for those fits exactly.
+- The smallest that still looks sharp is **320 × 480** (up to 200% scaling). Anything up to 8192 pixels a side and
+  16 MB is accepted, the limits every artwork image already has.
+- Other shapes are scaled to fill the tile and cropped at the edges, so keep the important part in the middle.
+- Tiles have rounded corners (about 25 pixels at 600 × 900), and while the game runs a *Playing* badge covers the
+  top-left corner (roughly the top-left 130 × 60 pixels at 600 × 900), so keep text and faces out of the corners.
 - **Delete history…**, as in the game's details now, after the same confirmation.
 
 The tracker would keep each game's chosen artwork locally, as an override the artwork service checks before its
