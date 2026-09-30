@@ -1,36 +1,43 @@
-; Installer for Playtime Tracker.
-; Build: makensis -DVERSION=1.0.0 -DEXE_PATH=..\publish\PlaytimeTracker.exe PlaytimeTracker.nsi
+; Installer for Playtime Tracker: the background tracker and the dashboard. build.ps1 runs it; releases ship the
+; result as Setup.exe, the name the app's updater looks for.
 ;
-; Two flavours:
-;   default    EXE_PATH is the self-contained exe; works offline, nothing else needed.
-;   -DONLINE   EXE_PATH is the small framework-dependent exe; setup downloads and installs the
-;              .NET 8 Desktop Runtime from Microsoft if the PC doesn't already have it.
-; Installs per-user (no admin prompt) to %LocalAppData%\Programs\Playtime Tracker.
+; Build: makensis -DVERSION=3.0.0 -DTRACKER_EXE=..\target\release\playtime-tracker.exe
+;                 -DDASHBOARD_DIR=..\publish\dashboard -DOUT_FILE=..\publish\PlaytimeTrackerSetup.exe
+;                 PlaytimeTracker.nsi
+;
+; Installs per-user (no admin prompt) to %LocalAppData%\Programs\Playtime Tracker, upgrading any earlier version in
+; place: same Apps entry, same Start menu shortcut, same "Start with Windows" entry, same data (untouched by setup).
 
 Unicode true
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
 
 !ifndef VERSION
-  !define VERSION "2.2.0"
+  !define VERSION "3.0.0"
 !endif
-!ifndef EXE_PATH
-  !define EXE_PATH "..\publish\PlaytimeTracker.exe"
+!ifndef TRACKER_EXE
+  !define TRACKER_EXE "..\target\release\playtime-tracker.exe"
+!endif
+!ifndef DASHBOARD_DIR
+  !define DASHBOARD_DIR "..\publish\dashboard"
 !endif
 !ifndef OUT_FILE
   !define OUT_FILE "..\publish\PlaytimeTrackerSetup.exe"
 !endif
 
 !define APP_NAME "Playtime Tracker"
-!define APP_EXE "PlaytimeTracker.exe"
+!define APP_EXE "playtime-tracker.exe"
+!define DASHBOARD_EXE "PlaytimeTracker.Dashboard.exe"
+; Version 2.x's exe, replaced by this install.
+!define OLD_EXE "PlaytimeTracker.exe"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\PlaytimeTracker"
-; Before the rename, the app was called Game Session Tracker. Setup removes that install (not its data, which the
-; app moves to Documents\Playtime Tracker on first start).
 !define LEGACY_NAME "Game Session Tracker"
 !define LEGACY_EXE "GameSessionTracker.exe"
 !define LEGACY_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\GameSessionTracker"
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 !define APPROVED_KEY "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
+; The dashboard's exe carries the app icon (the tracker has none of its own).
+!define ICON_PATH "$INSTDIR\Dashboard\${DASHBOARD_EXE}"
 
 Name "${APP_NAME}"
 OutFile "${OUT_FILE}"
@@ -47,14 +54,14 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" ""
 
-!define MUI_ICON "..\src\GameSessionTracker\app.ico"
-!define MUI_UNICON "..\src\GameSessionTracker\app.ico"
+!define MUI_ICON "..\assets\app.ico"
+!define MUI_UNICON "..\assets\app.ico"
 !define MUI_ABORTWARNING
 
-!define MUI_WELCOMEPAGE_TEXT "This will install ${APP_NAME} ${VERSION}.$\r$\n$\r$\nIt runs quietly in the system tray, notices when you open a game, and keeps a file with how many times you've played each game and how long every session lasted.$\r$\n$\r$\nNo administrator rights are needed.$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "This will install ${APP_NAME} ${VERSION}.$\r$\n$\r$\nIt runs quietly in the system tray, notices when you open a game, and keeps track of how long you play. Open the dashboard from the tray icon or the Start menu.$\r$\n$\r$\nIf an earlier version is installed, it's replaced and your history is kept.$\r$\n$\r$\nNo administrator rights are needed.$\r$\n$\r$\nClick Next to continue."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME} now"
-!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been installed.$\r$\n$\r$\nIt will start automatically with Windows and live in the system tray (the controller icon, possibly behind the ^ arrow next to the clock).$\r$\n$\r$\nYour stats are saved in Documents\Playtime Tracker."
+!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been installed.$\r$\n$\r$\nIt will start automatically with Windows and live in the system tray (the controller icon, possibly behind the ^ arrow next to the clock).$\r$\n$\r$\nYour history stays in Documents\Playtime Tracker."
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -68,56 +75,27 @@ VIAddVersionKey "LegalCopyright" ""
 
 !insertmacro MUI_LANGUAGE "English"
 
-; Close a running tracker so its files can be replaced. It logs any game in progress before exiting.
-!ifdef ONLINE
-!define DOTNET_URL "https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe"
-
-; Installs the .NET 8 Desktop Runtime if missing (one Windows admin prompt).
-!macro EnsureDotNetRuntime
-  FindFirst $0 $1 "$PROGRAMFILES64\dotnet\shared\Microsoft.WindowsDesktop.App\8.*"
-  FindClose $0
-  StrCmp $1 "" 0 dotnet_done
-
-  DetailPrint "Downloading the .NET 8 Desktop Runtime from Microsoft..."
-  InitPluginsDir
-  ; HTTPS only, including redirects (curl verifies the server certificate).
-  nsExec::ExecToLog '"$SYSDIR\curl.exe" --proto =https --proto-redir =https --tlsv1.2 -L -f -s -S -o "$PLUGINSDIR\dotnet-runtime.exe" "${DOTNET_URL}"'
-  Pop $0
-  StrCmp $0 "0" 0 dotnet_failed
-
-  ; Only run the download if it carries a valid Authenticode signature from Microsoft. The path is passed through an
-  ; environment variable so nothing in it (e.g. an apostrophe in the user name) can change the command.
-  DetailPrint "Checking the download's Microsoft signature..."
-  System::Call 'Kernel32::SetEnvironmentVariable(t "PT_RUNTIME_INSTALLER", t "$PLUGINSDIR\dotnet-runtime.exe")i'
-  ; -ExecutionPolicy Bypass applies to this one process, which runs a fixed inline command and no script files.
-  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$s = Get-AuthenticodeSignature -LiteralPath $$env:PT_RUNTIME_INSTALLER; if ($$s.Status -eq 'Valid' -and $$s.SignerCertificate.Subject -like '*O=Microsoft Corporation*') { exit 0 } else { exit 1 }"`
-  Pop $0
-  StrCmp $0 "0" dotnet_signed
-  Delete "$PLUGINSDIR\dotnet-runtime.exe"
-  DetailPrint "The download isn't signed by Microsoft; not running it."
-  Goto dotnet_failed
-
-dotnet_signed:
-  DetailPrint "Installing the .NET 8 Desktop Runtime (Windows will ask for permission)..."
-  ExecWait '"$PLUGINSDIR\dotnet-runtime.exe" /install /passive /norestart' $0
-  StrCmp $0 "0" dotnet_done
-  StrCmp $0 "3010" dotnet_done ; installed, restart recommended
-
-dotnet_failed:
-  MessageBox MB_ICONEXCLAMATION|MB_OK "Setup couldn't install the .NET 8 Desktop Runtime automatically.$\r$\n$\r$\nPlaytime Tracker will still be installed. When you first start it, Windows will offer a link to download the runtime; or get it from https://dotnet.microsoft.com/download/dotnet/8.0 ($\".NET Desktop Runtime$\", x64)." /SD IDOK
-dotnet_done:
-!macroend
-!endif
-
-!macro CloseRunningTracker
+; Close whichever tracker is running (this version or 2.x; both answer --exit, which saves any game in progress
+; first) and the dashboard, so their files can be replaced.
+!macro CloseRunning
   IfFileExists "$INSTDIR\${APP_EXE}" 0 +2
     ExecWait '"$INSTDIR\${APP_EXE}" --exit'
-  ; Fallback for a copy running from somewhere else (e.g. the Downloads folder). Full path to taskkill, so a file
-  ; of that name next to the installer (e.g. in Downloads) can't be run instead.
+  IfFileExists "$INSTDIR\${OLD_EXE}" 0 +2
+    ExecWait '"$INSTDIR\${OLD_EXE}" --exit'
+  ; Fallback for copies running from elsewhere. Full path to taskkill, so a file of that name next to the
+  ; installer (e.g. in Downloads) can't be run instead.
   nsExec::Exec '"$SYSDIR\taskkill.exe" /IM "${APP_EXE}"'
+  Pop $0
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /IM "${OLD_EXE}"'
+  Pop $0
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /IM "${DASHBOARD_EXE}"'
   Pop $0
   Sleep 1000
   nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${APP_EXE}"'
+  Pop $0
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${OLD_EXE}"'
+  Pop $0
+  nsExec::Exec '"$SYSDIR\taskkill.exe" /F /IM "${DASHBOARD_EXE}"'
   Pop $0
 !macroend
 
@@ -142,26 +120,31 @@ legacy_done:
 Section "${APP_NAME}" SecApp
   SectionIn RO
   SetOutPath "$INSTDIR"
-!ifdef ONLINE
-  !insertmacro EnsureDotNetRuntime
-!endif
-  !insertmacro CloseRunningTracker
+  !insertmacro CloseRunning
   !insertmacro RemoveLegacyInstall
 
-  File "${EXE_PATH}"
+  ; Version 2.x's program (its data format is the same; nothing to convert).
+  Delete "$INSTDIR\${OLD_EXE}"
+
+  File "${TRACKER_EXE}"
+  ; A fresh copy of the dashboard each time, so no files from an older version linger.
+  RMDir /r "$INSTDIR\Dashboard"
+  SetOutPath "$INSTDIR\Dashboard"
+  File /r "${DASHBOARD_DIR}\*.*"
+  SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
+  CreateShortcut "$SMPROGRAMS\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "${ICON_PATH}" 0
 
-  ; Start with Windows (can be turned off later from the tray menu).
+  ; Start with Windows (can be turned off in the dashboard's Settings or in Task Manager).
   WriteRegStr HKCU "${RUN_KEY}" "PlaytimeTracker" '"$INSTDIR\${APP_EXE}" --startup'
   DeleteRegValue HKCU "${APPROVED_KEY}" "PlaytimeTracker"
 
-  ; Apps & features entry
+  ; Apps & features entry (the same one earlier versions used, so this is an upgrade, not a second app)
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "${APP_NAME}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\${APP_EXE}"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "${ICON_PATH}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
@@ -172,8 +155,8 @@ Section "${APP_NAME}" SecApp
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" "$0"
 SectionEnd
 
-; The app's own updater runs this installer silently with /relaunch; start the updated app again afterwards.
-; --updated keeps it in the tray (like a sign-in start) and it shows an "updated" notification.
+; The tracker's updater runs this installer silently with /relaunch; start the updated tracker again afterwards.
+; --updated keeps it in the tray and it shows an "updated" notification.
 Function .onInstSuccess
   ${GetParameters} $R0
   ClearErrors
@@ -184,11 +167,11 @@ relaunch_done:
 FunctionEnd
 
 Section /o "Desktop shortcut" SecDesktop
-  CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "$INSTDIR\${APP_EXE}" 0
+  CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}" "" "${ICON_PATH}" 0
 SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecApp} "The tracker itself, a Start menu shortcut, and starting with Windows."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecApp} "The tracker, the dashboard, a Start menu shortcut, and starting with Windows."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} "Put a shortcut on the desktop."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
@@ -196,7 +179,7 @@ SectionEnd
 
 Section "un.${APP_NAME}" UnSecApp
   SectionIn RO
-  !insertmacro CloseRunningTracker
+  !insertmacro CloseRunning
 
   DeleteRegValue HKCU "${RUN_KEY}" "PlaytimeTracker"
   DeleteRegValue HKCU "${APPROVED_KEY}" "PlaytimeTracker"
@@ -205,8 +188,14 @@ Section "un.${APP_NAME}" UnSecApp
   Delete "$SMPROGRAMS\${APP_NAME}.lnk"
   Delete "$DESKTOP\${APP_NAME}.lnk"
   Delete "$INSTDIR\${APP_EXE}"
+  Delete "$INSTDIR\${OLD_EXE}"
   Delete "$INSTDIR\Uninstall.exe"
+  ; Only our own sub-folder is removed recursively; the install folder itself only if it's then empty.
+  RMDir /r "$INSTDIR\Dashboard"
   RMDir "$INSTDIR"
+  ; Downloaded and extracted artwork (a cache; nothing personal).
+  RMDir /r "$LOCALAPPDATA\Playtime Tracker\Cache"
+  RMDir "$LOCALAPPDATA\Playtime Tracker"
 SectionEnd
 
 Section /o "un.Delete my play history and settings" UnSecData
@@ -214,9 +203,12 @@ Section /o "un.Delete my play history and settings" UnSecData
   SetFileAttributes "$DOCUMENTS\Playtime Tracker\Game Stats.txt" NORMAL
   SetFileAttributes "$DOCUMENTS\Playtime Tracker\Sessions.csv" NORMAL
   RMDir /r "$DOCUMENTS\Playtime Tracker"
+  ; The SteamGridDB key, if one was saved (Windows Credential Manager).
+  nsExec::Exec '"$SYSDIR\cmdkey.exe" /delete:"Playtime Tracker/SteamGridDB API key"'
+  Pop $0
 SectionEnd
 
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${UnSecApp} "Remove the program, its shortcuts and its startup entry."
-  !insertmacro MUI_DESCRIPTION_TEXT ${UnSecData} "Also delete Documents\Playtime Tracker (your stats, session log and settings). Leave unticked to keep them."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UnSecApp} "Remove the program, its shortcuts, its startup entry and its artwork cache."
+  !insertmacro MUI_DESCRIPTION_TEXT ${UnSecData} "Also delete Documents\Playtime Tracker (your history, backups and settings) and a saved SteamGridDB key. Leave unticked to keep them."
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_END

@@ -433,7 +433,7 @@ pub fn run() -> ExitCode {
                             window.alive(),
                             &format!("the dashboard closed on the {page} page"),
                         )?;
-                        window.capture(&screenshots.join(format!("next-{page}{name}.png")))?;
+                        window.capture(&screenshots.join(format!("{page}{name}.png")))?;
                     }
                     window.close();
                 }
@@ -455,7 +455,7 @@ pub fn run() -> ExitCode {
                     let window = native::DashboardWindow::open(&t.dashboard_exe(), "settings")?;
                     window.resize(1180, 800);
                     sleep(Duration::from_secs(4));
-                    let path = screenshots.join("next-accent.png");
+                    let path = screenshots.join("accent.png");
                     let pixels = window.capture(&path)?;
                     window.close();
                     // The accent on light surfaces is WinUI's "dark 1" shade, on dark ones "light 2".

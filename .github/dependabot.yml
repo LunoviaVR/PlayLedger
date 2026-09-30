@@ -1,13 +1,8 @@
-# Keeps the GitHub Actions used by the Build workflow (and any NuGet packages, should the app ever take one) up to
-# date, including security fixes.
+# Keeps the GitHub Actions used by the workflows up to date, including security fixes. Rust dependencies are
+# pinned in Cargo.lock and checked by cargo audit in the Rust workflow.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule:
-      interval: "weekly"
-
-  - package-ecosystem: "nuget"
-    directory: "/src/GameSessionTracker"
     schedule:
       interval: "weekly"

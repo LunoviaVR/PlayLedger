@@ -6,7 +6,7 @@ use windows::Win32::Security::Cryptography::{
     CryptProtectData, CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
 };
 
-/// DPAPI with `CurrentUser` scope, the same as .NET's `ProtectedData` with `DataProtectionScope.CurrentUser`.
+/// DPAPI with `CurrentUser` scope, as earlier versions used it, so their protected files still open.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Dpapi;
 

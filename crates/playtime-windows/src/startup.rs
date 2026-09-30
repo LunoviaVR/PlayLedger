@@ -1,4 +1,4 @@
-//! "Start with Windows" (per user, no admin), exactly as the C# app does it: the value `PlaytimeTracker` under
+//! "Start with Windows" (per user, no admin), as earlier versions did it: the value `PlaytimeTracker` under
 //! `HKCU\...\CurrentVersion\Run` = `"<exe>" --startup`, respecting Task Manager's on/off switch
 //! (`...\Explorer\StartupApproved\Run`), and moving the pre-rename `GameSessionTracker` entry over once.
 
@@ -78,7 +78,7 @@ pub fn migrate_legacy_entry() {
     }
 }
 
-/// If startup is on but points somewhere else (e.g. the old C# exe after an upgrade), point it at this exe.
+/// If startup is on but points somewhere else (e.g. the 2.x exe after an upgrade), point it at this exe.
 pub fn refresh_path_if_enabled() {
     let (Some(run), Some(command)) = (RegKey::open_current_user_writable(RUN_KEY), command())
     else {

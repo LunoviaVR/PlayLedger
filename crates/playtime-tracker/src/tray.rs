@@ -41,7 +41,7 @@ const ICON_ID: u32 = 1;
 const DASHBOARD_EXE: &str = "PlaytimeTracker.Dashboard.exe";
 const DASHBOARD_FOLDER: &str = "Dashboard";
 
-static APP_ICON: &[u8] = include_bytes!("../../../src/GameSessionTracker/app.ico");
+static APP_ICON: &[u8] = include_bytes!("../../../assets/app.ico");
 
 struct Tray {
     hwnd: HWND,
@@ -454,7 +454,7 @@ pub fn run(
             }
         });
 
-    // First poll right away, like the C# app.
+    // First poll right away.
     with_tray(poll);
 
     let mut message = MSG::default();

@@ -5,12 +5,20 @@ on:
     branches: ["**"]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "To publish a release, the version (x.y.z, the same as Cargo.toml). It creates the tag vX.Y.Z on this commit. Leave empty to only build and test."
+        required: false
+        type: string
 
 # Least privilege: jobs get read-only access unless they ask for more (only the release job does).
 permissions:
   contents: read
 
 jobs:
+  # Builds the tracker, the dashboard and the installer, then installs it on this real Windows machine and runs the
+  # end-to-end smoke test (tracking a real process, protected storage, restart, dashboard screenshots), then
+  # uninstalls it.
   build:
     runs-on: windows-latest
     permissions:
@@ -19,55 +27,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false # later steps never need the token, so don't leave it in .git/config
-
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          dotnet-version: 8.0.x
-
-      - name: Install NSIS
-        shell: pwsh
-        run: |
-          if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { choco install nsis -y --no-progress }
-
-      - name: Check for vulnerable NuGet packages
-        shell: pwsh
-        run: |
-          dotnet restore src/GameSessionTracker
-          $report = dotnet list src/GameSessionTracker package --vulnerable --include-transitive
-          $report
-          if ($report -match 'has the following vulnerable packages') { exit 1 }
-
-      - name: Build app and installers
-        shell: pwsh
-        # Ref values are passed as environment variables, never pasted into the script text, so a branch or tag
-        # name can't inject PowerShell. build.ps1 also rejects anything that isn't a plain x.y.z version.
-        env:
-          GIT_REF: ${{ github.ref }}
-          GIT_REF_NAME: ${{ github.ref_name }}
-        run: |
-          $version = if ($env:GIT_REF -like 'refs/tags/v*') { $env:GIT_REF_NAME.Substring(1) } else { '2.2.0' }
-          ./build.ps1 -Version $version
-
-      - name: Upload installers
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: PlaytimeTracker-Installers
-          path: |
-            publish/PlaytimeTrackerSetup.exe
-            publish/PlaytimeTrackerSetup-Online.exe
-          if-no-files-found: error
-          retention-days: 30
-
-  # The next app (Rust tracker + Rust dashboard) as a preview installer artifact, for testing on real PCs.
-  # Not attached to releases: those keep shipping the C# app above until the new one is verified.
-  preview:
-    runs-on: windows-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
 
       - name: Install NSIS
         shell: pwsh
@@ -79,29 +38,30 @@ jobs:
         shell: pwsh
         run: rustup show active-toolchain
 
-      - name: Build tracker, dashboard and preview installer
+      - name: Build the app and installer
         shell: pwsh
+        # Ref names and inputs are passed as environment variables, never pasted into the script text, so they can't
+        # inject PowerShell. build.ps1 also rejects anything that isn't a plain x.y.z matching Cargo.toml.
         env:
           GIT_REF: ${{ github.ref }}
           GIT_REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          $version = if ($env:GIT_REF -like 'refs/tags/v*') { $env:GIT_REF_NAME.Substring(1) } else { '2.2.0' }
-          ./build-next.ps1 -Version $version
+          $version = if ($env:GIT_REF -like 'refs/tags/v*') { $env:GIT_REF_NAME.Substring(1) } else { $env:INPUT_VERSION }
+          if ($version) { ./build.ps1 -Version $version } else { ./build.ps1 }
 
-      - name: Upload preview installer
+      - name: Upload installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: PlaytimeTracker-Preview
-          path: publish/PlaytimeTrackerSetup-Preview.exe
+          name: PlaytimeTracker-Setup
+          path: publish/PlaytimeTrackerSetup.exe
           if-no-files-found: error
           retention-days: 30
 
-      # End-to-end on this real Windows machine: install silently, drive the installed tracker over its pipe
-      # (tracking a real process, protected storage, restart), screenshot the dashboard, then uninstall.
-      - name: Install the preview silently
+      - name: Install silently
         shell: pwsh
         run: |
-          Start-Process -FilePath publish/PlaytimeTrackerSetup-Preview.exe -ArgumentList '/S' -Wait
+          Start-Process -FilePath publish/PlaytimeTrackerSetup.exe -ArgumentList '/S' -Wait
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
           foreach ($file in 'playtime-tracker.exe', 'Uninstall.exe', 'Dashboard\PlaytimeTracker.Dashboard.exe') {
             if (-not (Test-Path (Join-Path $dir $file))) { throw "$file wasn't installed" }
@@ -126,7 +86,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: PlaytimeTracker-Preview-Screenshots
+          name: PlaytimeTracker-Screenshots
           path: publish/screenshots/*.png
           if-no-files-found: warn
           retention-days: 30
@@ -147,9 +107,10 @@ jobs:
           Write-Host 'Uninstalled; play history kept.'
 
   release:
-    # Only version tags publish a release, and only this job can write to the repository.
-    # The release carries a single installer, Setup.exe (the online installer); the app's updater looks for that name.
-    if: startsWith(github.ref, 'refs/tags/v')
+    # A version tag, or a manual run given a version, publishes a release; only this job can write to the repository.
+    # The release carries a single installer, Setup.exe: the name the app's updater looks for, so earlier
+    # versions upgrade in place.
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -162,26 +123,48 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: PlaytimeTracker-Installers
+          name: PlaytimeTracker-Setup
           path: publish
 
       - name: Prepare Setup.exe and release notes
         id: prepare
         env:
-          TAG: ${{ github.ref_name }}
+          GIT_REF: ${{ github.ref }}
+          GIT_REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
-          cp publish/PlaytimeTrackerSetup-Online.exe publish/Setup.exe
-          notes="docs/releases/${TAG}.md"
+          set -euo pipefail
+          if [[ "$GIT_REF" == refs/tags/v* ]]; then
+            tag="$GIT_REF_NAME"
+          else
+            if ! [[ "$INPUT_VERSION" =~ ^[0-9]{1,5}\.[0-9]{1,5}\.[0-9]{1,5}$ ]]; then
+              echo "::error::The version must look like 3.0.0"; exit 1
+            fi
+            tag="v$INPUT_VERSION"
+            # Never move or reuse an existing tag.
+            status=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/git/ref/tags/$tag")
+            if [ "$status" != "404" ]; then
+              echo "::error::The tag $tag already exists (or couldn't be checked: HTTP $status)"; exit 1
+            fi
+          fi
+          cp publish/PlaytimeTrackerSetup.exe publish/Setup.exe
+          notes="docs/releases/${tag}.md"
           if [ ! -f "$notes" ]; then
             notes="$RUNNER_TEMP/notes.md"
-            echo "Playtime Tracker ${TAG#v}" > "$notes"
+            echo "Playtime Tracker ${tag#v}" > "$notes"
           fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "notes=$notes" >> "$GITHUB_OUTPUT"
 
       - name: Publish release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          name: Playtime Tracker ${{ github.ref_name }}
+          tag_name: ${{ steps.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Playtime Tracker ${{ steps.prepare.outputs.tag }}
           body_path: ${{ steps.prepare.outputs.notes }}
           files: publish/Setup.exe
           fail_on_unmatched_files: true

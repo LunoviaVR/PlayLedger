@@ -1,9 +1,7 @@
-//! Playtime Tracker's background service (the Rust replacement for the C# tray app; see
-//! `docs/architecture/rust-migration.md`). It owns the tray icon, polls for running games, keeps the protected
-//! history and settings, finds artwork, and serves the dashboard over a named pipe.
-//!
-//! Until phase 10 it is built and tested but not installed: the C# app remains the shipping tracker. Both use the
-//! same single-instance mutex, so they never run (and write the data folder) at the same time.
+//! Playtime Tracker's background service. It owns the tray icon, polls for running games, keeps the protected
+//! history and settings, finds artwork, and serves the dashboard over a named pipe. It uses the same
+//! single-instance mutex as earlier versions, so an old and a new copy never run (and write the data folder) at the
+//! same time.
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 

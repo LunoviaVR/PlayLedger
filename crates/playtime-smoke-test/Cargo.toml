@@ -1,6 +1,6 @@
 [package]
 name = "playtime-smoke-test"
-description = "End-to-end test of an installed Playtime Tracker on a real Windows machine (run by CI after installing the preview)."
+description = "End-to-end test of an installed Playtime Tracker on a real Windows machine (run by CI after installing it)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

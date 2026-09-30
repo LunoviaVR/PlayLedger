@@ -1,4 +1,4 @@
-//! Decides whether a running executable is a game, and which one. A port of the C# `GameCatalog.Match`
+//! Decides whether a running executable is a game, and which one. The same matching as earlier versions
 //! with the same priority order, plus a source and (where known) a stable [`GameId`] for each match.
 //!
 //! Discovery (reading launchers' files and the registry) fills a [`CatalogBuilder`]; this module only matches.

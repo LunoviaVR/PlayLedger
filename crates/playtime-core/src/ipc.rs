@@ -285,8 +285,8 @@ mod tests {
         assert!(parse_request("not json").is_err());
     }
 
-    /// Messages as the dashboard receives them. The same file is read by the C# dashboard's tests, so a change on
-    /// either side that breaks the protocol fails a test. Regenerate with `PT_UPDATE_FIXTURES=1 cargo test`.
+    /// Messages as the dashboard receives them, kept in the dashboard crate (which renders its screenshots from
+    /// them), so a protocol change shows up as a failing test. Regenerate with `PT_UPDATE_FIXTURES=1 cargo test`.
     #[test]
     fn dashboard_fixture_matches() {
         use crate::dashboard::DashboardModel;
@@ -395,7 +395,7 @@ mod tests {
             actual.push('\n');
         }
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../dashboard/fixtures/responses.jsonl");
+            .join("../playtime-dashboard/fixtures/responses.jsonl");
         if std::env::var_os("PT_UPDATE_FIXTURES").is_some() {
             std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
             std::fs::write(&path, &actual).expect("written");

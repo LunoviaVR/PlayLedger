@@ -1,7 +1,7 @@
 name: Rust
 
-# Checks the Rust rewrite (crates/). Runs on Windows so the DPAPI, registry and file-lock code is compiled and tested
-# for real. The shipping C# app is still built by build.yml.
+# Checks the Rust code (crates/): format, lints, tests and advisories. Runs on Windows so the DPAPI, registry and
+# file-lock code is compiled and tested for real. The installer is built and smoke-tested by build.yml.
 on:
   push:
     branches: ["**"]
@@ -12,7 +12,6 @@ on:
       - "rust-toolchain.toml"
       - "clippy.toml"
       - ".cargo/**"
-      - "dashboard/fixtures/**"
       - ".github/workflows/rust.yml"
   workflow_dispatch:
 

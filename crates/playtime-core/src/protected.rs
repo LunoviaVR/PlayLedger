@@ -1,4 +1,4 @@
-//! The protected-file format shared with the C# app, and the rules for recovering from edited or
+//! The protected-file format (the same as earlier versions), and the rules for recovering from edited or
 //! rolled-back files. The actual encryption (Windows DPAPI) and the generation store (HKCU registry)
 //! are supplied by the platform through [`DataProtector`] and [`GenerationStore`].
 //!
@@ -173,7 +173,7 @@ pub struct Loaded<T> {
     pub recovery: Recovery,
 }
 
-/// Loads the newest verified copy among `path` and `path.bak`, following the same rules as the C# app:
+/// Loads the newest verified copy among `path` and `path.bak`, following these rules:
 /// a file that fails verification (or that `parse` rejects) is renamed aside (never deleted); an older genuine
 /// copy put back over a newer one is detected by generation; and the recorded generation catches a rollback of
 /// both copies. Returns `value: None` if there's nothing usable.

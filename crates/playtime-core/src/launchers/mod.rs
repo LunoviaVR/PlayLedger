@@ -53,7 +53,7 @@ impl fmt::Display for GameSource {
 }
 
 /// A stable identity for a game, used for artwork lookups and to survive renames/moves.
-/// Session history stays keyed by display name, as in the C# app, for compatibility.
+/// Session history stays keyed by display name, as in earlier versions, for compatibility.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum GameId {
     Steam {

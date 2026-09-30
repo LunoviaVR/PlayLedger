@@ -1,6 +1,6 @@
 //! Start-up: command-line arguments, single instance, then the service, the dashboard pipe and the tray.
 //!
-//! Arguments (as the C# app): `--startup` / `--updated` start quietly in the tray; `--exit` asks a running copy to
+//! Arguments (the same as earlier versions): `--startup` / `--updated` start quietly in the tray; `--exit` asks a running copy to
 //! save and quit (used by the installer); otherwise the dashboard opens.
 
 use crate::service::{EventHub, Service};

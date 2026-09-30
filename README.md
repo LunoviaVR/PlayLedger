@@ -15,23 +15,26 @@ how many times you've played each game and how long every session lasted.
   Bedrock), Genshin Impact, Honkai: Star Rail, Zenless Zone Zero, osu!, League of Legends, VALORANT and Fortnite.
   You can add anything else yourself (see [Settings](#settings)).
 - **Updates itself** from this repository's GitHub releases (see [Updates](#updates)).
+- **Small and self-contained**: two native programs, nothing else to install.
 
 ## The dashboard
 
-The window has four pages, switched at the top right (or with Tab then ←/→):
+A Windows 11 window in the style of Task Manager, with a navigation pane on the left (the ☰ button folds it to icons;
+in a narrow window it folds on its own). It works with the keyboard and screen readers throughout.
 
 - **Overview**
   - **Top row**: total playtime, number of sessions (and the average length), the past 7 days, and your most-played game.
-  - **Daily playtime**: a bar per day for the last 30 days. Hover a bar to see the exact time; **click a bar** to see that day's sessions.
-  - **Games**: every game with its total time, session count and when you last played it. Click a game to filter the whole
-    page (tiles, chart and sessions) to that game; click **All games** to go back.
-  - **Sessions**: every session, newest first, with date, start and end time, and length. A game you're playing right now
-    shows at the top and counts up live. **Click a session** (or select it and press Enter) for its details.
-- **Games**: what you're **playing now** (with when you opened it and how long it's been running) and every game you've
-  **played before**, most recent first, with total and average time, session count, and first and last played.
-  Click a game to open it on the Overview.
-- **History**: the **last 30 days**, one row per day: total playtime, which games you played and for how long, and a bar
-  compared with your busiest day. Click a day to list its sessions, then click a session for its details.
+  - **Daily playtime**: a bar per day for the last 30 days. **Click a bar** to see that day's sessions.
+  - **Games**: every game with its total time, session count and when you last played it. Click a game to show only that
+    game across the page (tiles, chart and sessions); click **All games** to go back.
+  - **Sessions**: every session, newest first (fifty at a time), with date, start and end time, and length. A game you're
+    playing right now shows at the top and counts up live. **Click a session** for its details.
+- **Games**: a tile per game with its box art (or its icon), with search and sort (most played, recently played, name).
+  What you're **playing now** comes first. Click a game for its details: totals, average and longest session, first and
+  last played, **Show on Overview**, **Stop tracking** and **Delete history**.
+- **History**: the **last 30 days**, one card per day: total playtime, which games you played and for how long, and a
+  bar compared with your busiest day. Expand a day to list its sessions, then click a session for its details.
+- **Statistics**: your most-played games, which weekdays and times of day you play most.
 - **Settings**: see [Settings](#settings).
 
 In a light Windows theme (or with **Theme → Light**) it looks like this:
@@ -49,21 +52,20 @@ In a light Windows theme (or with **Theme → Light**) it looks like this:
 it was for that game (e.g. *#3 of 12*), the game's total, and that day's total. A running session keeps updating while
 the window is open. Finished sessions can be deleted from here too.
 
-**Right-click a game** to stop tracking it (or track it again), or to delete its history.
-**Right-click a session** for its details or to delete it.
+**Right-click a game tile** (or press the Menu key or Shift+F10, or press and hold) for:
+- **Change artwork ▸** **Choose an image file…**, **Pick from SteamGridDB…** or **Use automatic artwork**.
+- **Stop tracking** and **Delete history…**
 
-When a game is selected, the tiles also show its average and longest session, and when you first played it.
+**Your own artwork**: box art is shown at 2:3. The best size is **600 × 900** pixels (at least 320 × 480; at most
+8192 pixels a side and 16 MB). PNG (transparency is kept), JPEG and WebP all work. Corners are rounded by about 30 pixels at
+600 × 900, and while a game is running a *Playing* badge covers about the top-left 250 × 100, so keep anything important
+out of those spots.
 
 Closing the window doesn't stop tracking; the app keeps running in the tray.
 
 ## Install
 
 1. Download **`Setup.exe`** from the [latest release](https://github.com/LunoviaVR/PlaytimeTracker/releases/latest).
-   It's small; if your PC doesn't already have Microsoft's .NET 8 Desktop Runtime, setup downloads it from Microsoft
-   (over HTTPS, and only runs it if it's signed by Microsoft) and installs it for you. Windows asks for permission once.
-
-   An offline installer with everything built in (`PlaytimeTrackerSetup.exe`, about 48 MB) is also produced by the
-   **Build** workflow on GitHub (Actions tab → latest run → *Artifacts*).
 2. Double-click it and click through **Next → Next → Install → Finish**. No admin rights, no command prompt.
 
 The installer:
@@ -73,7 +75,9 @@ The installer:
 - adds it to **Settings → Apps → Installed apps** so you can uninstall it like any other app
 - starts the tracker when you click **Finish**
 
-Running the installer again upgrades in place and keeps your history.
+Running the installer again upgrades in place and keeps your history. Version 2.x upgrades itself to 3.0 the same
+way, with your history and settings unchanged; before the new version first runs, it backs them up to
+`Documents\Playtime Tracker\Backups`.
 
 **Coming from Game Session Tracker?** This is the same app under a new name. The installer closes and removes the old
 version (its shortcuts, startup entry and Apps list entry), and on first start the app moves your history from
@@ -86,7 +90,7 @@ Click **More info → Run anyway**.
 
 ## Your files
 
-Everything lives in `Documents\Playtime Tracker\` (dashboard → **Settings** → **Your data** → **Open folder**):
+Everything lives in `Documents\Playtime Tracker\` (dashboard → **Settings** → **Your Data** → **Open data folder**):
 
 | File | What it is |
 | --- | --- |
@@ -95,18 +99,22 @@ Everything lives in `Documents\Playtime Tracker\` (dashboard → **Settings** �
 | `sessions.dat` | Your play history, protected (see below). |
 | `settings.dat` | Your settings, protected (see below). |
 | `*.bak` | The previous saved copy of each protected file, used to recover if a file is damaged or changed. |
+| `Backups\` | Copies of your history and settings, taken before a new version first runs. |
 | `errors.log` | Only written if something goes wrong. |
+
+Downloaded artwork is a cache in `%LocalAppData%\Playtime Tracker\Cache`; if the dashboard ever fails to start, it leaves
+a note in `%LocalAppData%\Playtime Tracker\dashboard-errors.log`.
 
 **Your history and settings can't be edited by hand.** `sessions.dat` and `settings.dat` are encrypted and
 integrity-checked with Windows' built-in data protection (DPAPI) for your Windows account, so playtimes can't be
-changed outside the app. Change settings in the dashboard, and remove sessions with right-click → **Delete**.
+changed outside the app. Change settings in the dashboard, and delete sessions from their details.
 If a protected file is changed anyway, the app notices, keeps the changed file as `….unverified-<date>`, and
 goes back to the last saved copy. Older versions' `sessions.json` and `settings.json` are converted automatically
 the first time the app starts, then removed.
 
 Because the protection is tied to your Windows account on this PC, copying the data folder to another PC or
 account won't carry your history across; it will be set aside there and a new history started. Use
-**Settings → Your data → Export sessions** if you want your own copy of every session.
+**Settings → Your Data → Export sessions** if you want your own copy of every session.
 
 Example `Game Stats.txt`:
 
@@ -135,23 +143,45 @@ Beat Saber
 
 ## Settings
 
-Everything is in the dashboard's **Settings** tab (or tray menu → **Settings**). Changes save and take effect immediately.
+Everything is in the dashboard's **Settings** page (or tray menu → **Settings**). Changes save and take effect immediately.
 
 ![Settings](docs/settings.png)
 
-- **Appearance**: **Theme** (follow Windows' light/dark setting, or always dark or light) and **Accent colour**
-  (blue, violet, teal, green, amber, rose, or **+** to pick any colour). Changes apply instantly to the dashboard, its dialogs and the tray menu.
-- **General**: start with Windows, notifications when a session is logged, and whether to use the Xbox Game Bar's list of games.
-- **Updates**: check for new versions, install them automatically, or check and install by hand (see [Updates](#updates)).
+- **Appearance**: **Theme** (follow Windows' light/dark setting, or always light or dark), **Accent colour** (Windows'
+  own, blue, violet, teal, green, amber, rose, or any colour as `#rrggbb`), **Glass effects** (Windows' Mica material
+  behind the window and see-through cards; solid colours when it's off, when Windows' transparency effects are off, or
+  with a high-contrast theme), and **Hardware acceleration** (draw with the graphics card; turn it off if the window
+  flickers or stays blank, for example over remote desktop; it applies when the dashboard reopens, with a **Reopen
+  now** button).
+- **Startup**: start Playtime Tracker when you sign in to Windows.
+- **General**: notifications when a session is logged, and whether to use the Xbox Game Bar's list of games.
 - **Tracking**: how often to check for games (default 5 seconds), the shortest session worth keeping (off: every session counts),
   and how long a game can be closed before a reopen counts as a new session (20 seconds).
-- **Custom games**: pick any game's `.exe` to track something the app doesn't find on its own (e.g. Minecraft's `javaw.exe`).
-- **Game folders**: add a folder where every sub-folder is a game, e.g. `D:\Games`.
-- **Ignored games / Ignored programs**: things that should never count as playing. Launchers, redistributables, crash reporters,
-  anti-cheat, SteamVR, Wallpaper Engine and the Unity/Unreal editors are there by default; hover a row and click **Remove** to un-ignore one.
-- **Your data**: rescan installed games, export all sessions to a spreadsheet (`.csv`), open the plain-text report, open the data folder.
+- **Artwork**: box art comes from Steam's own image cache and each game's icon, without going online.
+  **Download missing artwork** (off by default) fetches Steam games' pictures from the Steam store using only the
+  game's Steam ID. With your own free **SteamGridDB API key** (the **Get API key** button opens the page where you
+  create one), artwork is also found for games outside Steam, by the game's name, and you can pick from SteamGridDB's
+  pictures in a game's menu. The key is kept in Windows Credential Manager on this PC.
+- **Custom Games**: pick any game's `.exe` to track something the app doesn't find on its own (e.g. Minecraft's `javaw.exe`).
+- **Game Folders**: add a folder where every sub-folder is a game, e.g. `D:\Games`.
+- **Your Data**: rescan installed games, export all sessions to a spreadsheet (`.csv`), open the plain-text report,
+  open the data folder.
+- **Ignored Games / Ignored Programs**: things that should never count as playing. Launchers, redistributables, crash
+  reporters, anti-cheat, SteamVR, Wallpaper Engine and the Unity/Unreal editors are there by default. Each list has a
+  search box; click **Remove** to un-ignore one.
+- **Updates**: check for new versions, install them automatically, or check and install by hand (see [Updates](#updates)).
+- **About**, and **Support Playtime Tracker**: a **Tip or Donate** button that opens
+  [cash.app/$LunoviaVR](https://cash.app/$LunoviaVR) in your browser.
 
-Settings are stored in the protected `settings.dat` (see [Your files](#your-files)), so they're changed only through this tab.
+Settings are stored in the protected `settings.dat` (see [Your files](#your-files)), so they're changed only through this page.
+
+## What goes online
+
+Nothing about your play history ever leaves your PC. The only network requests are:
+- **Update checks** (unless turned off): a request to GitHub's API for the latest release.
+- **Artwork** (only if you turn on **Download missing artwork**): Steam store images by Steam ID, and, with your key,
+  SteamGridDB searches by game name.
+- **Links you click** (Get API key, Tip or Donate) open in your browser; the app sends nothing itself.
 
 ## Updates
 
@@ -178,11 +208,17 @@ and removed along with its shortcuts and startup entry. Your history in `Documen
 
 ## Build it yourself
 
-Install the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) and [NSIS](https://nsis.sourceforge.io)
-(`winget install NSIS.NSIS`), then in PowerShell from this folder:
+Playtime Tracker is written in Rust; the dashboard uses [Slint](https://slint.dev). Install
+[Rust](https://rustup.rs) (the toolchain version is picked by `rust-toolchain.toml`) and
+[NSIS](https://nsis.sourceforge.io) (`winget install NSIS.NSIS`), then in PowerShell from this folder:
 
 ```powershell
 ./build.ps1
 ```
 
-The installers are written to `publish\`.
+The installer is written to `publish\PlaytimeTrackerSetup.exe`. `cargo test --workspace` runs the tests, and
+`docs/architecture/` describes how the parts fit together.
+
+## Licence
+
+GPL-3.0 (see [LICENSE](LICENSE)). The dashboard uses Slint under the GPL-3.0.

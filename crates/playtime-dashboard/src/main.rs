@@ -353,8 +353,8 @@ fn game_action(
                     .spawn(move || {
                         use playtime_windows::file_dialogs::{open, Filter};
                         let filters = [Filter {
-                            name: "Pictures (PNG, JPEG)",
-                            patterns: "*.png;*.jpg;*.jpeg",
+                            name: "Pictures (PNG, JPEG, WebP)",
+                            patterns: "*.png;*.jpg;*.jpeg;*.webp",
                         }];
                         let Some(path) =
                             open(owner, &format!("Choose artwork for {game}"), &filters)
