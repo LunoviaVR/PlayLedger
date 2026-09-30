@@ -23,6 +23,10 @@ pub const FIRST_CHECK: Duration = Duration::from_secs(60);
 pub const CHECK_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 const MAX_API_BYTES: usize = 2 * 1024 * 1024;
 const MAX_INSTALLER_BYTES: u64 = 500 * 1024 * 1024;
+/// Each download goes to a new `%TEMP%\PlaytimeTracker-update-<pid>-<time>` folder.
+const DOWNLOAD_PREFIX: &str = "PlaytimeTracker-update-";
+/// Download folders older than this are left over from an earlier update (the installer has long finished).
+const LEFTOVER_AGE: Duration = Duration::from_secs(10 * 60);
 
 /// Where the updater stands, for the dashboard's Settings page.
 #[derive(Debug, Clone, Default)]
@@ -97,10 +101,8 @@ pub fn download_and_start(update: &UpdateInfo) -> Result<(), String> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or_default();
-    let folder = std::env::temp_dir().join(format!(
-        "PlaytimeTracker-update-{}-{nanos}",
-        std::process::id()
-    ));
+    let folder =
+        std::env::temp_dir().join(format!("{DOWNLOAD_PREFIX}{}-{nanos}", std::process::id()));
     std::fs::create_dir_all(&folder)
         .map_err(|_| "Couldn't prepare the update download.".to_string())?;
     let installer = folder.join(updates::INSTALLER_ASSET);
@@ -185,7 +187,32 @@ pub fn spawn(service: Arc<Mutex<Service>>) {
         .spawn(move || run(&service, &receiver));
 }
 
+/// Removes the download folders earlier updates left in `%TEMP%` (the installer runs from there, so it can't
+/// delete its own). Recent ones are kept, in case an installer is still running from one.
+fn remove_leftover_downloads() {
+    let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let old = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age > LEFTOVER_AGE);
+        let ours = entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(DOWNLOAD_PREFIX)
+            && entry.file_type().is_ok_and(|t| t.is_dir());
+        if ours && old {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
 fn run(service: &Mutex<Service>, commands: &Receiver<UpdateCommand>) {
+    remove_leftover_downloads();
     let mut next_check = Instant::now() + FIRST_CHECK;
     let mut retry_install: Option<Instant> = None;
     loop {

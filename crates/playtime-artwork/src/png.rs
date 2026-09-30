@@ -1,5 +1,5 @@
-//! A minimal PNG encoder for RGBA pixels (used for icons extracted from game executables). Uses uncompressed
-//! ("stored") deflate blocks: icons are at most 256×256, so files stay small, and no compression library is needed.
+//! A minimal PNG encoder for RGBA pixels (icons extracted from game executables, and page screenshots). Rows use
+//! the "up" filter and are deflate-compressed, which keeps flat UI areas small.
 
 /// Encodes `rgba` (row-major, 4 bytes per pixel, top row first) as a PNG. `None` if the sizes don't agree.
 pub fn encode_rgba(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
@@ -7,11 +7,17 @@ pub fn encode_rgba(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
     if width == 0 || height == 0 || rgba.len() != row.checked_mul(height as usize)? {
         return None;
     }
-    // Each scanline is prefixed with filter type 0 (none).
+    // Each scanline is prefixed with filter type 2 ("up": the difference from the row above).
     let mut raw = Vec::with_capacity((row + 1) * height as usize);
+    let mut above: &[u8] = &[];
     for line in rgba.chunks_exact(row) {
-        raw.push(0);
-        raw.extend_from_slice(line);
+        raw.push(2);
+        if above.is_empty() {
+            raw.extend_from_slice(line);
+        } else {
+            raw.extend(line.iter().zip(above).map(|(v, up)| v.wrapping_sub(*up)));
+        }
+        above = line;
     }
 
     let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
@@ -20,7 +26,11 @@ pub fn encode_rgba(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
     ihdr.extend(height.to_be_bytes());
     ihdr.extend([8, 6, 0, 0, 0]); // 8-bit, RGBA, deflate, adaptive filtering, no interlace
     chunk(&mut out, b"IHDR", &ihdr);
-    chunk(&mut out, b"IDAT", &zlib_stored(&raw));
+    chunk(
+        &mut out,
+        b"IDAT",
+        &miniz_oxide::deflate::compress_to_vec_zlib(&raw, 6),
+    );
     chunk(&mut out, b"IEND", &[]);
     Some(out)
 }
@@ -32,23 +42,6 @@ fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
     out.extend_from_slice(data);
     let crc = crc32(&out[start..]);
     out.extend(crc.to_be_bytes());
-}
-
-fn zlib_stored(data: &[u8]) -> Vec<u8> {
-    let mut out = vec![0x78, 0x01];
-    let mut blocks = data.chunks(65_535).peekable();
-    if blocks.peek().is_none() {
-        out.extend([1, 0, 0, 0xFF, 0xFF]);
-    }
-    while let Some(block) = blocks.next() {
-        out.push(u8::from(blocks.peek().is_none()));
-        let len = block.len() as u16;
-        out.extend(len.to_le_bytes());
-        out.extend((!len).to_le_bytes());
-        out.extend_from_slice(block);
-    }
-    out.extend(adler32(data).to_be_bytes());
-    out
 }
 
 fn crc32(data: &[u8]) -> u32 {
@@ -66,28 +59,14 @@ fn crc32(data: &[u8]) -> u32 {
     !crc
 }
 
-fn adler32(data: &[u8]) -> u32 {
-    let (mut a, mut b) = (1u32, 0u32);
-    for chunk in data.chunks(5552) {
-        for &byte in chunk {
-            a += u32::from(byte);
-            b += a;
-        }
-        a %= 65_521;
-        b %= 65_521;
-    }
-    (b << 16) | a
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::image::{validate, ImageFormat};
 
     #[test]
-    fn checksums() {
+    fn checksum() {
         assert_eq!(crc32(b"IEND"), 0xAE42_6082);
-        assert_eq!(adler32(b"Wikipedia"), 0x11E6_0398);
     }
 
     #[test]
@@ -100,6 +79,34 @@ mod tests {
             (ImageFormat::Png, 256, 256)
         );
         assert!(png.ends_with(&[0xAE, 0x42, 0x60, 0x82]));
+        assert!(png.len() < 10_000, "flat pixels compress well");
         assert_eq!(encode_rgba(2, 2, &[0; 3]), None);
+    }
+
+    #[test]
+    fn pixels_round_trip() {
+        let (w, h) = (37u32, 23u32);
+        let pixels: Vec<u8> = (0..w * h * 4).map(|i| (i * 7 % 251) as u8).collect();
+        let png = encode_rgba(w, h, &pixels).expect("encoded");
+        // IHDR ends at 8 + 25; IDAT's length and type follow.
+        let idat_len = u32::from_be_bytes(png[33..37].try_into().unwrap()) as usize;
+        assert_eq!(&png[37..41], b"IDAT");
+        let raw = miniz_oxide::inflate::decompress_to_vec_zlib(&png[41..41 + idat_len])
+            .expect("inflates");
+        let row = w as usize * 4;
+        let mut decoded: Vec<u8> = Vec::new();
+        for line in raw.chunks_exact(row + 1) {
+            assert_eq!(line[0], 2);
+            let start = decoded.len();
+            for (i, v) in line[1..].iter().enumerate() {
+                let up = if start == 0 {
+                    0
+                } else {
+                    decoded[start - row + i]
+                };
+                decoded.push(v.wrapping_add(up));
+            }
+        }
+        assert_eq!(decoded, pixels);
     }
 }

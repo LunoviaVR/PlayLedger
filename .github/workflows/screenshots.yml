@@ -43,12 +43,17 @@ jobs:
             @('games', 'docs\games.png', '--dark'),
             @('history', 'docs\history.png', '--dark'),
             @('settings', 'docs\settings.png', '--dark'),
-            @('overview', 'docs\session-details.png', '--dark', '--dialog', 'session')
+            @('overview', 'docs\session-details.png', '--dark', '--dialog', 'session'),
+            @('overview', 'docs\glass.png', '--dark', '--glass'),
+            @('games', 'docs\glass-light.png', '--glass')
           )
           foreach ($s in $shots) {
             $extra = @($s[2..($s.Count - 1)] | Where-Object { $_ })
-            & $exe --render $s[0] '1180x760' $s[1] $data @extra
-            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            Remove-Item $s[1] -ErrorAction SilentlyContinue
+            # The dashboard is a GUI app, so PowerShell's `&` wouldn't wait for it: wait for each render explicitly.
+            $render = Start-Process -FilePath $exe -ArgumentList (@('--render', $s[0], '1180x760', $s[1], $data) + $extra) -NoNewWindow -Wait -PassThru
+            if ($render.ExitCode) { throw "rendering $($s[1]) failed ($($render.ExitCode))" }
+            if (-not (Test-Path $s[1])) { throw "$($s[1]) wasn't written" }
           }
 
       - name: Keep a copy as an artifact
@@ -64,9 +69,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/*.png
-          if (git diff --cached --quiet) { Write-Host "Screenshots unchanged."; exit 0 }
+          # `if (git ...)` would test the command's output, not its exit code: check the exit code.
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { Write-Host "Screenshots unchanged."; exit 0 }
           git commit -m "Update README screenshots"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           # Other commits may have landed on the branch during the run; put the screenshots on top of them.
           git pull --rebase
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           git push
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
