@@ -105,6 +105,8 @@ await Step("tracker starts and answers over its pipe", async () =>
 
 await Step("settings round-trip (fast polling, a game folder)", async () =>
 {
+    // The folder must exist when it's added: discovery skips folders that don't (as the C# app does).
+    Directory.CreateDirectory(Path.Combine(gamesRoot, GameName));
     var response = await client!.GetSettingsAsync();
     Check(response.IsInstalledCopy, "the installed tracker doesn't recognise itself as installed");
     var settings = response.Settings;
@@ -231,6 +233,15 @@ await Step("the tracker exits cleanly again", StopTracker);
 
 if (game is { HasExited: false })
     game.Kill();
+if (failed)
+{
+    foreach (var log in new[] { "errors.log", "migration.log" })
+    {
+        var path = Path.Combine(dataFolder, log);
+        if (File.Exists(path))
+            Console.WriteLine($"\n--- {log} ---\n{File.ReadAllText(path)}");
+    }
+}
 Console.WriteLine(failed ? "\nSMOKE TEST FAILED" : "\nSMOKE TEST PASSED");
 return failed ? 1 : 0;
 
