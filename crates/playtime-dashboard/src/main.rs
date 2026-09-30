@@ -311,7 +311,12 @@ fn select_renderer(args: &[String]) -> bool {
         // Direct3D path would draw opaque). femtovg is the fallback if Skia can't start.
         for renderer in ["skia-opengl", "femtovg"] {
             match select(renderer) {
-                Ok(()) => return true,
+                Ok(()) => {
+                    if let Ok(log) = std::env::var("PLAYTIME_RENDERER_LOG") {
+                        let _ = std::fs::write(log, renderer); // LAB (temporary)
+                    }
+                    return true;
+                }
                 Err(e) => crash_log::write(
                     "Starting the GPU renderer",
                     &format!("{renderer}: {e}; trying the next one"),

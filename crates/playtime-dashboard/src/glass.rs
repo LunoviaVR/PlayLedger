@@ -76,13 +76,21 @@ mod system {
         }
         let hwnd = HWND(hwnd as *mut core::ffi::c_void);
         let dark = BOOL::from(dark);
-        let kind: DWM_SYSTEMBACKDROP_TYPE = if on {
-            DWMSBT_TRANSIENTWINDOW
-        } else {
+        // LAB (temporary, for reproducing the glass on CI): PLAYTIME_GLASS_LAB=mica,noextend,noblur.
+        let lab = std::env::var("PLAYTIME_GLASS_LAB").unwrap_or_default();
+        let kind: DWM_SYSTEMBACKDROP_TYPE = if !on {
             DWMSBT_NONE
+        } else if lab.contains("mica") {
+            windows::Win32::Graphics::Dwm::DWMSBT_MAINWINDOW
+        } else {
+            DWMSBT_TRANSIENTWINDOW
         };
         // -1 on every side extends the frame, and with it the backdrop, over the whole client area.
-        let edge = if on { -1 } else { 0 };
+        let edge = if on && !lab.contains("noextend") {
+            -1
+        } else {
+            0
+        };
         let margins = MARGINS {
             cxLeftWidth: edge,
             cxRightWidth: edge,
@@ -105,6 +113,23 @@ mod system {
                 std::mem::size_of::<DWM_SYSTEMBACKDROP_TYPE>() as u32,
             )
             .is_ok();
+            if on && lab.contains("noblur") {
+                let off = windows::Win32::Graphics::Dwm::DWM_BLURBEHIND {
+                    dwFlags: windows::Win32::Graphics::Dwm::DWM_BB_ENABLE,
+                    fEnable: false.into(),
+                    ..Default::default()
+                };
+                let _ = windows::Win32::Graphics::Dwm::DwmEnableBlurBehindWindow(hwnd, &off);
+            }
+            if let Ok(log) = std::env::var("PLAYTIME_GLASS_LOG") {
+                let _ = std::fs::write(
+                    log,
+                    format!(
+                        "lab={lab} on={on} dark={} accepted={accepted}\n",
+                        dark.as_bool()
+                    ),
+                );
+            }
             // Only extend the frame when the backdrop is there to fill it (otherwise it would draw black).
             let _ = DwmExtendFrameIntoClientArea(
                 hwnd,
