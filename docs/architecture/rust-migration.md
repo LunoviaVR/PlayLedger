@@ -174,6 +174,7 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 14 | Tip or donate section in Settings | Planned, not started: see *Tip or donate* below |
 | 15 | Glass look in the Windows 11 design language | Planned, not started: see *Glass look* below |
 | 16 | "Get API key" button for SteamGridDB | Planned, not started: see *Get API key button* below |
+| 17 | Settings: section order and title-case headings | Planned, not started: see *Settings headings* below |
 
 ## Game context menu (phase 13, planned)
 
@@ -259,6 +260,30 @@ where a signed-in user creates their free key) in the default browser.
   opened. The app sends nothing itself; the browser does the rest, and the key is still pasted into the box and
   kept in Windows Credential Manager as now.
 - Accessible name: "Get a SteamGridDB API key, opens in your browser"; keyboard reachable like every other control.
+
+## Settings headings (phase 17, planned)
+
+Not started. Two changes to the Settings page:
+
+- **Move *Your Data* up** to directly below *Game Folders*, so everything about which games are tracked and the data
+  they produce sits together.
+- **Title case for every section heading** (capital letter on each word):
+
+  | Now | After |
+  | --- | --- |
+  | Appearance, Startup, General, Tracking, Artwork, Updates, About | unchanged (one word) |
+  | Custom games | Custom Games |
+  | Game folders | Game Folders |
+  | Ignored games | Ignored Games |
+  | Ignored programs | Ignored Programs |
+  | Your data | Your Data |
+
+  Sections added by later phases follow the same rule (phase 14's *Support Playtime Tracker*). Only headings
+  change: setting names, descriptions and buttons stay in sentence case, as in Windows' own Settings.
+
+Resulting order: Appearance, Startup, General, Tracking, Artwork, Custom Games, Game Folders, **Your Data**, Ignored
+Games, Ignored Programs, Updates, About (then *Support Playtime Tracker* from phase 14). Screen readers get the same
+names, and the smoke test's Settings screenshot is checked afterwards.
 
 ## Checks
 
