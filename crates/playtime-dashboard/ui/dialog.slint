@@ -31,6 +31,9 @@ export component Dialog inherits Rectangle {
     // Clicks on the dimmed page do nothing (a dialog is closed with its buttons or Escape).
     TouchArea { }
     keys := FocusScope {
+        // A press gives focus and would otherwise be taken here, so the first click did nothing.
+        focus-on-click: false;
+        focus-gained(reason) => { Theme.focus-visible = reason == FocusReason.tab-navigation; }
         key-pressed(event) => {
             if (event.text == Key.Escape) { root.button(2); return accept; }
             reject
@@ -73,9 +76,17 @@ export component Dialog inherits Rectangle {
                     init => { self.focus(); }
                 }
             }
-            if root.pictures.length > 0: ScrollView {
+            if root.pictures.length > 0: picker := ScrollView {
                 height: min(360px, grid.height);
+                // The grid isn't a layout, so the scrollable area is sized here; without it the grid was centred in
+                // the visible area, cut off at the top and bottom, with nothing to scroll.
+                content-width: self.visible-width;
+                content-height: grid.height;
                 grid := Rectangle {
+                    x: 0;
+                    y: 0;
+                    // Clear of the scroll bar, which is drawn over the content.
+                    width: picker.visible-width - 16px;
                     property <length> gap: 12px;
                     property <int> columns: max(1, floor((self.width + gap) / (100px + gap)));
                     height: ceil(root.pictures.length / columns) * (150px + gap) - gap;
@@ -91,8 +102,11 @@ export component Dialog inherits Rectangle {
                         accessible-action-default => { root.picture-clicked(i); }
                         forward-focus: pick-focus;
                         Image { width: parent.width; height: parent.height; source: picture; image-fit: cover; accessible-role: none; }
-                        pick := TouchArea { mouse-cursor: pointer; clicked => { root.picture-clicked(i); } }
+                        pick := TouchArea { mouse-cursor: pointer; clicked => { Theme.focus-visible = false; root.picture-clicked(i); } }
                         pick-focus := FocusScope {
+                            // A press gives focus and would otherwise be taken here, so the first click did nothing.
+                            focus-on-click: false;
+                            focus-gained(reason) => { Theme.focus-visible = reason == FocusReason.tab-navigation; }
                             key-pressed(event) => {
                                 if (event.text == " " || event.text == "\n") { root.picture-clicked(i); return accept; }
                                 reject
@@ -100,8 +114,8 @@ export component Dialog inherits Rectangle {
                         }
                         Rectangle {
                             border-radius: 4px;
-                            border-width: pick-focus.has-focus ? 2px : pick.has-hover ? 2px : 0;
-                            border-color: pick-focus.has-focus ? Theme.text : Theme.accent;
+                            border-width: pick-focus.has-focus && Theme.focus-visible ? 2px : pick.has-hover ? 2px : 0;
+                            border-color: pick-focus.has-focus && Theme.focus-visible ? Theme.text : Theme.accent;
                         }
                     }
                 }

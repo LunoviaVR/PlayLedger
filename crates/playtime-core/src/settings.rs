@@ -81,7 +81,7 @@ pub struct Settings {
     /// Fetch missing game artwork online (Steam store images, and SteamGridDB if the user added an API key).
     /// Off by default: until the user turns it on, nothing about their games leaves the PC.
     pub online_artwork: bool,
-    /// The dashboard's glass look (Windows' Mica and acrylic materials); off draws plain solid surfaces.
+    /// The dashboard's glass look (Windows' Acrylic material); off draws plain solid surfaces.
     pub glass_effects: bool,
     /// The dashboard draws with the GPU; off draws on the CPU only (for driver trouble or remote desktop).
     pub hardware_acceleration: bool,

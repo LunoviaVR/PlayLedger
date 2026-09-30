@@ -1,7 +1,9 @@
-//! The glass look (phase 15): Windows' own Mica Alt material behind the window, with WinUI's translucent card and
-//! layer colours over it. Windows itself turns the material solid when the window isn't focused or in energy saver;
+//! The glass look (phase 15): Windows' own Acrylic material behind the window, so what's behind it shows through,
+//! blurred, with WinUI's translucent card and layer colours over it. The material is extended over the whole window
+//! (not just the frame), so the page's transparent pixels show it instead of drawing dark. Windows itself turns the
+//! material solid when the window isn't focused or in energy saver;
 //! the dashboard uses plain solid colours when the user turned glass off, when Windows' transparency effects are off,
-//! with a high-contrast theme, on Windows versions without Mica, and with the software renderer (which can't draw
+//! with a high-contrast theme, on Windows versions without Acrylic, and with the software renderer (which can't draw
 //! see-through pixels).
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,11 +24,12 @@ mod system {
     use windows::core::BOOL;
     use windows::Win32::Foundation::HWND;
     use windows::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMSBT_NONE, DWMSBT_TABBEDWINDOW, DWMWA_SYSTEMBACKDROP_TYPE,
-        DWMWA_USE_IMMERSIVE_DARK_MODE, DWM_SYSTEMBACKDROP_TYPE,
+        DwmExtendFrameIntoClientArea, DwmSetWindowAttribute, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW,
+        DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE, DWM_SYSTEMBACKDROP_TYPE,
     };
     use windows::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_DWORD};
     use windows::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW};
+    use windows::Win32::UI::Controls::MARGINS;
     use windows::Win32::UI::WindowsAndMessaging::{
         SystemParametersInfoW, SPI_GETHIGHCONTRAST, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
     };
@@ -73,7 +76,19 @@ mod system {
         }
         let hwnd = HWND(hwnd as *mut core::ffi::c_void);
         let dark = BOOL::from(dark);
-        let kind: DWM_SYSTEMBACKDROP_TYPE = if on { DWMSBT_TABBEDWINDOW } else { DWMSBT_NONE };
+        let kind: DWM_SYSTEMBACKDROP_TYPE = if on {
+            DWMSBT_TRANSIENTWINDOW
+        } else {
+            DWMSBT_NONE
+        };
+        // -1 on every side extends the frame, and with it the backdrop, over the whole client area.
+        let edge = if on { -1 } else { 0 };
+        let margins = MARGINS {
+            cxLeftWidth: edge,
+            cxRightWidth: edge,
+            cyTopHeight: edge,
+            cyBottomHeight: edge,
+        };
         // SAFETY: the window handle belongs to this process's live window; each value outlives its call and the
         // sizes match the values.
         unsafe {
@@ -83,13 +98,23 @@ mod system {
                 (&dark as *const BOOL).cast(),
                 std::mem::size_of::<BOOL>() as u32,
             );
-            DwmSetWindowAttribute(
+            let accepted = DwmSetWindowAttribute(
                 hwnd,
                 DWMWA_SYSTEMBACKDROP_TYPE,
                 (&kind as *const DWM_SYSTEMBACKDROP_TYPE).cast(),
                 std::mem::size_of::<DWM_SYSTEMBACKDROP_TYPE>() as u32,
             )
-            .is_ok()
+            .is_ok();
+            // Only extend the frame when the backdrop is there to fill it (otherwise it would draw black).
+            let _ = DwmExtendFrameIntoClientArea(
+                hwnd,
+                &if accepted {
+                    margins
+                } else {
+                    MARGINS::default()
+                },
+            );
+            accepted
         }
     }
 }

@@ -51,9 +51,9 @@ pub fn session_row(session: &SessionView, now: Timestamp) -> SessionRow {
     let (range, duration, accessible) = if session.is_live {
         (
             format!("Since {}", format::time(session.start)),
-            format!("{} so far", format::live_duration(session.seconds)),
+            format::live_duration(session.seconds),
             format!(
-                "{}, playing now, {} so far",
+                "{}, playing now, {}",
                 session.game,
                 format::spoken_duration(session.seconds)
             ),

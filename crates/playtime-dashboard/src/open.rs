@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-/// Tip or donate (phase 14).
+/// The Tip button (phase 14).
 pub const DONATE_URL: &str = "https://cash.app/$LunoviaVR";
 /// Where a signed-in SteamGridDB user creates their free API key (phase 16).
 pub const STEAMGRIDDB_KEY_URL: &str = "https://www.steamgriddb.com/profile/preferences/api";

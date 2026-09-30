@@ -42,6 +42,7 @@ jobs:
             @('overview', 'docs\dashboard-light.png', $null),
             @('games', 'docs\games.png', '--dark'),
             @('history', 'docs\history.png', '--dark'),
+            @('statistics', 'docs\statistics.png', '--dark'),
             @('settings', 'docs\settings.png', '--dark'),
             @('overview', 'docs\session-details.png', '--dark', '--dialog', 'session'),
             @('overview', 'docs\glass.png', '--dark', '--glass'),

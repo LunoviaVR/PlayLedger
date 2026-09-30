@@ -97,7 +97,7 @@ component Chart inherits Rectangle {
         }
         touch := TouchArea {
             mouse-cursor: pointer;
-            clicked => { root.day-clicked(i); }
+            clicked => { Theme.focus-visible = false; root.day-clicked(i); }
         }
     }
 }

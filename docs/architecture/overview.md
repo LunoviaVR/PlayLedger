@@ -114,14 +114,16 @@ icons, cards, and a minimum window size of 500 × 500.
   Ignored Games, Ignored Programs, Updates, About, Support Playtime Tracker. Headings are in title case; setting names
   and descriptions in sentence case. The ignored lists have a search box (case-insensitive, with a count like "3 of
   41", a clear button and "No matches"). *Get API key* shows only while no SteamGridDB key is saved.
-- **Links**: *Get API key* opens `https://www.steamgriddb.com/profile/preferences/api` and *Tip or Donate* opens
+- **Links**: *Get API key* opens `https://www.steamgriddb.com/profile/preferences/api` and *Tip* opens
   `https://cash.app/$LunoviaVR`, each only after checking it's exactly that address. The app sends nothing itself.
-- **Glass look**: Windows' Mica Alt material behind the window (`DwmSetWindowAttribute`), with WinUI's translucent
+- **Glass look**: Windows' Acrylic material behind the window (`DWMSBT_TRANSIENTWINDOW`), extended over the whole
+  client area (`DwmExtendFrameIntoClientArea`) so the page's transparent pixels show it, with WinUI's translucent
   card and layer fills over it (text stays at WCAG AA contrast), a matching light or dark title bar, and solid
   surfaces when the *Glass effects* switch is off, Windows' transparency effects are off, a high-contrast theme is on,
-  Mica isn't available, or the software renderer is in use. Windows itself turns the material solid when the window
+  Acrylic isn't available, or the software renderer is in use. Windows itself turns the material solid when the window
   isn't focused or in energy saver. Dialogs and game artwork stay opaque.
-- **Hardware acceleration** (on by default): the femtovg renderer (OpenGL) draws with the GPU; off, the software
+- **Hardware acceleration** (on by default): Skia on OpenGL draws with the GPU (smooth, subpixel-positioned text;
+  femtovg, which hints glyphs to the pixel grid, is the fallback if Skia can't start); off, the software
   renderer draws on the CPU. The choice applies when the dashboard reopens (*Reopen now*). If the GPU renderer fails,
   the dashboard falls back to the software renderer on its own and notes it in the crash log.
 - **One window at a time** (`Local\PlaytimeTracker.Dashboard`, with `.Show` / `.ShowSettings` events): the tray's
