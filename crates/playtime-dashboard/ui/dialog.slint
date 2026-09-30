@@ -1,0 +1,122 @@
+// One dialog for every purpose (session or game details, a day's sessions, confirmations), in the Fluent style:
+// the page is dimmed behind a centred card. Escape closes it.
+import { ScrollView, LineEdit } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Card, Line, Caption, FluentButton } from "controls.slint";
+import { DetailRow, SessionRow } from "data.slint";
+import { SessionList } from "overview.slint";
+
+export component Dialog inherits Rectangle {
+    in property <string> title;
+    in property <string> message;
+    in property <[DetailRow]> rows;
+    in property <[SessionRow]> list;
+    in property <string> link;
+    in property <string> primary;
+    in property <string> secondary;
+    in property <string> close: "Close";
+    // A text box (naming a game), shown when it has a label.
+    in property <string> input-label;
+    in-out property <string> input-text;
+    // Pictures to choose from (artwork), shown as a grid of thumbnails.
+    in property <[image]> pictures;
+    in property <[string]> picture-names;
+    // 0 primary, 1 secondary, 2 close, 3 link.
+    callback button(int);
+    callback list-clicked(int);
+    callback picture-clicked(int);
+    background: #0000004D;
+    accessible-role: groupbox;
+    accessible-label: root.title;
+    // Clicks on the dimmed page do nothing (a dialog is closed with its buttons or Escape).
+    TouchArea { }
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) { root.button(2); return accept; }
+            reject
+        }
+    }
+    init => { keys.focus(); }
+    // Dialogs stay solid in the glass look, as WinUI's do.
+    Card {
+        background: Theme.dark ? #2B2B2B : #FFFFFF;
+        width: min(parent.width - 48px, 520px);
+        height: min(parent.height - 48px, content.preferred-height);
+        content := VerticalLayout {
+            padding: 24px;
+            spacing: 16px;
+            Line { text: root.title; font-size: 20px; font-weight: 600; }
+            if root.message != "": Line { text: root.message; wrap: word-wrap; }
+            if root.rows.length > 0: VerticalLayout {
+                spacing: 8px;
+                for row in root.rows: HorizontalLayout {
+                    spacing: 24px;
+                    accessible-role: text;
+                    accessible-label: row.label + ": " + row.value;
+                    Caption { text: row.label; width: 140px; }
+                    Line { text: row.value; wrap: word-wrap; overflow: clip; horizontal-stretch: 1; }
+                }
+            }
+            if root.list.length > 0: ScrollView {
+                height: min(360px, list-content.preferred-height);
+                list-content := VerticalLayout {
+                    SessionList { rows: root.list; clicked(i) => { root.list-clicked(i); } }
+                }
+            }
+            if root.input-label != "": VerticalLayout {
+                spacing: 4px;
+                Caption { text: root.input-label; }
+                input := LineEdit {
+                    text <=> root.input-text;
+                    accessible-label: root.input-label;
+                    accepted => { root.button(0); }
+                    init => { self.focus(); }
+                }
+            }
+            if root.pictures.length > 0: ScrollView {
+                height: min(360px, grid.height);
+                grid := Rectangle {
+                    property <length> gap: 12px;
+                    property <int> columns: max(1, floor((self.width + gap) / (100px + gap)));
+                    height: ceil(root.pictures.length / columns) * (150px + gap) - gap;
+                    for picture[i] in root.pictures: Rectangle {
+                        x: mod(i, grid.columns) * (100px + grid.gap);
+                        y: floor(i / grid.columns) * (150px + grid.gap);
+                        width: 100px;
+                        height: 150px;
+                        border-radius: 4px;
+                        clip: true;
+                        accessible-role: AccessibleRole.button;
+                        accessible-label: root.picture-names[i];
+                        accessible-action-default => { root.picture-clicked(i); }
+                        forward-focus: pick-focus;
+                        Image { width: parent.width; height: parent.height; source: picture; image-fit: cover; accessible-role: none; }
+                        pick := TouchArea { mouse-cursor: pointer; clicked => { root.picture-clicked(i); } }
+                        pick-focus := FocusScope {
+                            key-pressed(event) => {
+                                if (event.text == " " || event.text == "\n") { root.picture-clicked(i); return accept; }
+                                reject
+                            }
+                        }
+                        Rectangle {
+                            border-radius: 4px;
+                            border-width: pick-focus.has-focus ? 2px : pick.has-hover ? 2px : 0;
+                            border-color: pick-focus.has-focus ? Theme.text : Theme.accent;
+                        }
+                    }
+                }
+            }
+            if root.link != "": HorizontalLayout {
+                alignment: start;
+                FluentButton { text: root.link; clicked => { root.button(3); } }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+                if root.primary != "": FluentButton { text: root.primary; primary: true; clicked => { root.button(0); } }
+                if root.secondary != "": FluentButton { text: root.secondary; clicked => { root.button(1); } }
+                FluentButton { text: root.close; clicked => { root.button(2); } }
+            }
+        }
+    }
+}

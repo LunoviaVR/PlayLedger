@@ -1,0 +1,267 @@
+// The dashboard window: a Task Manager-style navigation pane on the left and the chosen page on the right.
+import { Palette } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Line, Caption, FluentButton } from "controls.slint";
+import { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow, GameTile, ListEntry } from "data.slint";
+import { OverviewPage } from "overview.slint";
+import { StatisticsPage } from "statistics.slint";
+import { HistoryPage } from "history.slint";
+import { GamesPage, GameAction } from "games.slint";
+import { SettingsPage, SettingsData } from "settings.slint";
+import { Dialog } from "dialog.slint";
+
+export { Theme, Palette, SettingsData }
+export { Tile, SessionRow, GameRow, DayBar, RankRow, HistoryDay, DetailRow, GameTile, GameAction, ListEntry }
+
+component NavItem inherits Rectangle {
+    in property <string> glyph;
+    in property <string> label;
+    in property <bool> selected;
+    in property <bool> compact;
+    callback clicked;
+    height: 40px;
+    border-radius: 4px;
+    background: selected ? Theme.subtle : touch.has-hover ? Theme.subtle : transparent;
+    accessible-role: tab;
+    accessible-label: label;
+    accessible-item-selected: selected;
+    accessible-action-default => { clicked(); }
+    forward-focus: focus;
+    // The accent pill Windows 11 draws beside the selected item.
+    if selected: Rectangle {
+        x: 0;
+        width: 3px;
+        height: 16px;
+        border-radius: 1.5px;
+        background: Theme.accent;
+    }
+    HorizontalLayout {
+        padding-left: 12px;
+        spacing: 16px;
+        Text {
+            text: root.glyph;
+            font-family: Theme.icons;
+            font-size: 16px;
+            color: Theme.text;
+            vertical-alignment: center;
+            width: 16px;
+            accessible-role: none;
+        }
+        // Always present with a fixed size hint, so folding the pane doesn't feed back into the window's layout.
+        Line {
+            text: root.compact ? "" : root.label;
+            vertical-alignment: center;
+            min-width: 0px;
+            preferred-width: 0px;
+            horizontal-stretch: 1;
+            accessible-role: none;
+        }
+    }
+    touch := TouchArea { clicked => { root.clicked(); } }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") { root.clicked(); return accept; }
+            reject
+        }
+    }
+    Rectangle {
+        border-radius: 4px;
+        border-width: focus.has-focus ? 2px : 0;
+        border-color: Theme.text;
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Playtime Tracker";
+    icon: @image-url("app-icon.png");
+    preferred-width: 1180px;
+    preferred-height: 800px;
+    // Below this the layout stops working, as Task Manager also stops shrinking.
+    min-width: 500px;
+    min-height: 500px;
+    background: Theme.window;
+    default-font-family: Theme.font;
+
+    // 0 Overview, 1 Games, 2 History, 3 Statistics, 4 Settings.
+    in-out property <int> page: 0;
+    // The user's choice with the ☰ button; in a narrow window the pane folds to icons anyway, as Task Manager's does.
+    in-out property <bool> pane-open: true;
+    property <bool> pane-expanded: pane-open && root.width >= 800px;
+    // Shown when the tracker can't be reached, with a button to start it.
+    in property <string> connection-problem;
+    callback navigate(int);
+    callback start-tracker();
+
+    // Overview
+    in property <string> overview-title: "Overview";
+    in property <bool> overview-one-game;
+    in property <[Tile]> overview-tiles;
+    in property <[SessionRow]> overview-live;
+    in property <[DayBar]> overview-bars;
+    in property <[GameRow]> overview-games;
+    in property <[SessionRow]> overview-sessions;
+    in property <string> overview-sessions-header: "Sessions";
+    in property <string> overview-show-more-text;
+    in property <bool> overview-empty;
+    callback overview-all-games();
+    callback overview-game(int);
+    callback overview-live-session(int);
+    callback overview-session(int);
+    callback overview-day(int);
+    callback overview-show-more();
+
+    // The open dialog, if any.
+    in property <bool> dialog-open;
+    in property <string> dialog-title;
+    in property <string> dialog-message;
+    in property <[DetailRow]> dialog-rows;
+    in property <[SessionRow]> dialog-list;
+    in property <string> dialog-link;
+    in property <string> dialog-primary;
+    in property <string> dialog-secondary;
+    in property <string> dialog-close: "Close";
+    callback dialog-button(int);
+    callback dialog-list-clicked(int);
+    in property <string> dialog-input-label;
+    in-out property <string> dialog-input-text;
+    in property <[image]> dialog-pictures;
+    in property <[string]> dialog-picture-names;
+    callback dialog-picture-clicked(int);
+
+    // Games
+    in property <[GameTile]> games-live;
+    in property <[GameTile]> games-played;
+    in property <bool> games-empty;
+    in-out property <string> games-query;
+    in-out property <int> games-sort;
+    callback games-search(string);
+    callback games-sort-changed(int);
+    callback games-clicked(int, int);
+    callback games-action(int, int, GameAction);
+
+    // History
+    in property <[HistoryDay]> history-days;
+    callback history-toggle(int);
+    callback history-session(int, int);
+
+    // Statistics
+    in property <[Tile]> statistics-tiles;
+    in property <[RankRow]> statistics-top-games;
+    in property <[RankRow]> statistics-weekdays;
+    in property <[RankRow]> statistics-day-parts;
+
+    // The pane's width follows the window's, so the two areas are placed by hand rather than in a layout: a layout
+    // would feed the pane's width back into the window's own size.
+    property <length> pane-width: root.pane-expanded ? 220px : 56px;
+    Rectangle {
+        // Navigation pane (collapses to icons with the ☰ button, as Task Manager's does).
+        VerticalLayout {
+            x: 0;
+            y: 0;
+            width: root.pane-width;
+            height: parent.height;
+            padding: 4px;
+            spacing: 2px;
+            NavItem {
+                glyph: "\u{E700}";
+                label: root.pane-expanded ? "Collapse navigation" : "Expand navigation";
+                compact: true;
+                clicked => { root.pane-open = !root.pane-open; }
+            }
+            NavItem { glyph: "\u{E80F}"; label: "Overview"; compact: !root.pane-expanded; selected: root.page == 0; clicked => { root.navigate(0); } }
+            NavItem { glyph: "\u{E7FC}"; label: "Games"; compact: !root.pane-expanded; selected: root.page == 1; clicked => { root.navigate(1); } }
+            NavItem { glyph: "\u{E81C}"; label: "History"; compact: !root.pane-expanded; selected: root.page == 2; clicked => { root.navigate(2); } }
+            NavItem { glyph: "\u{E9D2}"; label: "Statistics"; compact: !root.pane-expanded; selected: root.page == 3; clicked => { root.navigate(3); } }
+            Rectangle { }
+            NavItem { glyph: "\u{E713}"; label: "Settings"; compact: !root.pane-expanded; selected: root.page == 4; clicked => { root.navigate(4); } }
+        }
+        // The page area sits on a slightly raised surface, like Windows 11 Settings.
+        Rectangle {
+            x: root.pane-width;
+            y: 0;
+            width: parent.width - root.pane-width;
+            height: parent.height;
+            background: Theme.layer;
+            border-top-left-radius: 8px;
+            VerticalLayout {
+                if root.connection-problem != "": Rectangle {
+                    background: Theme.dark ? #433519 : #FFF4CE;
+                    border-radius: 4px;
+                    height: 56px;
+                    accessible-role: text;
+                    accessible-label: root.connection-problem;
+                    HorizontalLayout {
+                        padding: 12px;
+                        spacing: 12px;
+                        Line { text: root.connection-problem; vertical-alignment: center; }
+                        FluentButton {
+                            text: "Start Playtime Tracker";
+                            horizontal-stretch: 0;
+                            clicked => { root.start-tracker(); }
+                        }
+                    }
+                }
+                if root.page == 0: OverviewPage {
+                    title: root.overview-title;
+                    one-game: root.overview-one-game;
+                    tiles: root.overview-tiles;
+                    live: root.overview-live;
+                    bars: root.overview-bars;
+                    games: root.overview-games;
+                    sessions: root.overview-sessions;
+                    sessions-header: root.overview-sessions-header;
+                    show-more-text: root.overview-show-more-text;
+                    empty: root.overview-empty;
+                    all-games => { root.overview-all-games(); }
+                    game-clicked(i) => { root.overview-game(i); }
+                    live-clicked(i) => { root.overview-live-session(i); }
+                    session-clicked(i) => { root.overview-session(i); }
+                    day-clicked(i) => { root.overview-day(i); }
+                    show-more => { root.overview-show-more(); }
+                }
+                if root.page == 3: StatisticsPage {
+                    tiles: root.statistics-tiles;
+                    top-games: root.statistics-top-games;
+                    weekdays: root.statistics-weekdays;
+                    day-parts: root.statistics-day-parts;
+                }
+                if root.page == 2: HistoryPage {
+                    days: root.history-days;
+                    toggle(d) => { root.history-toggle(d); }
+                    session-clicked(d, i) => { root.history-session(d, i); }
+                }
+                if root.page == 1: GamesPage {
+                    live: root.games-live;
+                    played: root.games-played;
+                    empty: root.games-empty;
+                    query <=> root.games-query;
+                    sort <=> root.games-sort;
+                    search(text) => { root.games-search(text); }
+                    sort-changed(i) => { root.games-sort-changed(i); }
+                    clicked(section, i) => { root.games-clicked(section, i); }
+                    action(section, i, a) => { root.games-action(section, i, a); }
+                }
+                if root.page == 4: SettingsPage { }
+            }
+        }
+    }
+    if root.dialog-open: Dialog {
+        width: root.width;
+        height: root.height;
+        title: root.dialog-title;
+        message: root.dialog-message;
+        rows: root.dialog-rows;
+        list: root.dialog-list;
+        link: root.dialog-link;
+        primary: root.dialog-primary;
+        secondary: root.dialog-secondary;
+        close: root.dialog-close;
+        button(i) => { root.dialog-button(i); }
+        list-clicked(i) => { root.dialog-list-clicked(i); }
+        input-label: root.dialog-input-label;
+        input-text <=> root.dialog-input-text;
+        pictures: root.dialog-pictures;
+        picture-names: root.dialog-picture-names;
+        picture-clicked(i) => { root.dialog-picture-clicked(i); }
+    }
+}

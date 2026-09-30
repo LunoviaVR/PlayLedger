@@ -1,0 +1,229 @@
+// Overview: totals, what's playing, the 30-day chart, every game and every session. Choosing a game shows only that
+// game across the page; "All games" goes back.
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Card, Line, Caption, SectionHeader, LiveDot, FluentButton, RowButton } from "controls.slint";
+import { Tile, SessionRow, GameRow, DayBar } from "data.slint";
+
+// Tiles reflow with the width: four across, two by two, or one per row, so nothing is squeezed.
+export component Tiles inherits Rectangle {
+    in property <[Tile]> tiles;
+    property <int> columns: root.width >= 880px ? 4 : root.width >= 460px ? 2 : 1;
+    property <length> gap: 12px;
+    property <length> tile-width: (root.width - (columns - 1) * gap) / columns;
+    property <length> tile-height: 96px;
+    height: ceil(tiles.length / columns) * (tile-height + gap) - gap;
+    for tile[i] in tiles: Card {
+        x: mod(i, columns) * (tile-width + gap);
+        y: floor(i / columns) * (tile-height + gap);
+        width: tile-width;
+        height: tile-height;
+        accessible-role: text;
+        accessible-label: tile.caption + ": " + tile.value + (tile.detail == "" ? "" : ", " + tile.detail);
+        VerticalLayout {
+            padding: 16px;
+            spacing: 4px;
+            Caption { text: tile.caption; }
+            Line { text: tile.value; font-size: 20px; font-weight: 600; }
+            Caption { text: tile.detail; }
+        }
+    }
+}
+
+export component SessionList inherits VerticalLayout {
+    in property <[SessionRow]> rows;
+    callback clicked(int);
+    for row[i] in rows: RowButton {
+        height: 56px;
+        accessible-name: row.accessible;
+        clicked => { root.clicked(i); }
+        HorizontalLayout {
+            padding-left: 16px;
+            padding-right: 16px;
+            spacing: 16px;
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                horizontal-stretch: 1;
+                min-width: 0;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    Line { text: row.game; font-weight: 600; }
+                    if row.live: VerticalLayout { alignment: center; LiveDot { } }
+                }
+                Caption { text: row.day + " · " + row.range; }
+            }
+            Line {
+                text: row.duration;
+                horizontal-stretch: 0;
+                min-width: self.preferred-width;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+component Chart inherits Rectangle {
+    in property <[DayBar]> bars;
+    callback day-clicked(int);
+    property <length> bar-area: 150px;
+    property <length> slot: root.width / max(1, bars.length);
+    height: bar-area + 24px;
+    for bar[i] in bars: Rectangle {
+        x: i * slot;
+        width: slot;
+        height: root.height;
+        accessible-role: button;
+        accessible-label: bar.tooltip;
+        accessible-action-default => { root.day-clicked(i); }
+        Rectangle {
+            y: bar-area - self.height;
+            width: min(22px, slot - 4px);
+            height: max(2px, bar.fraction * bar-area);
+            border-radius: 3px;
+            background: Theme.accent;
+            opacity: bar.played ? (touch.has-hover ? 0.8 : 1) : 0.35;
+        }
+        if bar.show-label: Caption {
+            y: bar-area + 6px;
+            width: slot * 3;
+            x: i == bars.length - 1 ? slot - self.width : -slot;
+            horizontal-alignment: i == bars.length - 1 ? right : center;
+            text: bar.label;
+            font-size: 11px;
+            accessible-role: none;
+        }
+        touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.day-clicked(i); }
+        }
+    }
+}
+
+export component OverviewPage inherits Rectangle {
+    in property <string> title: "Overview";
+    in property <bool> one-game;
+    in property <[Tile]> tiles;
+    in property <[SessionRow]> live;
+    in property <[DayBar]> bars;
+    in property <[GameRow]> games;
+    in property <[SessionRow]> sessions;
+    in property <string> sessions-header: "Sessions";
+    in property <string> show-more-text;
+    in property <bool> empty;
+    callback all-games();
+    callback game-clicked(int);
+    callback live-clicked(int);
+    callback session-clicked(int);
+    callback day-clicked(int);
+    callback show-more();
+
+    ScrollView {
+        VerticalLayout {
+            // Stack from the top; a short page leaves the space below it empty.
+            alignment: start;
+            padding: Theme.gutter;
+            padding-top: 16px;
+            spacing: 8px;
+            HorizontalLayout {
+                spacing: 12px;
+                Line { text: root.title; font-size: 28px; font-weight: 600; }
+                if root.one-game: FluentButton {
+                    text: "All games";
+                    horizontal-stretch: 0;
+                    accessible-label: "Show all games";
+                    clicked => { root.all-games(); }
+                }
+            }
+            Rectangle { height: 8px; }
+            Tiles { tiles: root.tiles; }
+
+            if root.live.length > 0: VerticalLayout {
+                spacing: 8px;
+                Rectangle { height: 16px; }
+                SectionHeader { text: "Playing now"; }
+                Card {
+                    VerticalLayout {
+                        padding: 4px;
+                        SessionList { rows: root.live; clicked(i) => { root.live-clicked(i); } }
+                    }
+                }
+            }
+
+            Rectangle { height: 16px; }
+            SectionHeader { text: "Daily playtime (last 30 days)"; }
+            Card {
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 8px;
+                    Chart { bars: root.bars; day-clicked(i) => { root.day-clicked(i); } }
+                    Caption { text: "Select a day to see its sessions."; }
+                }
+            }
+
+            if !root.one-game: VerticalLayout {
+                spacing: 8px;
+                Rectangle { height: 16px; }
+                SectionHeader { text: "Games"; }
+                Card {
+                    VerticalLayout {
+                        padding: 4px;
+                        for game[i] in root.games: RowButton {
+                            height: 56px;
+                            accessible-name: game.accessible;
+                            clicked => { root.game-clicked(i); }
+                            HorizontalLayout {
+                                padding-left: 16px;
+                                padding-right: 16px;
+                                spacing: 16px;
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 2px;
+                                    horizontal-stretch: 1;
+                                    min-width: 0;
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        alignment: start;
+                                        Line { text: game.name; font-weight: 600; }
+                                        if game.live: VerticalLayout { alignment: center; LiveDot { } }
+                                    }
+                                    Caption { text: game.detail; }
+                                }
+                                Line {
+                                    text: game.total;
+                                    horizontal-stretch: 0;
+                                    min-width: self.preferred-width;
+                                    horizontal-alignment: right;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle { height: 16px; }
+            SectionHeader { text: root.sessions-header; }
+            Card {
+                VerticalLayout {
+                    padding: 4px;
+                    SessionList { rows: root.sessions; clicked(i) => { root.session-clicked(i); } }
+                    if root.show-more-text != "": HorizontalLayout {
+                        padding: 8px;
+                        alignment: start;
+                        FluentButton { text: root.show-more-text; clicked => { root.show-more(); } }
+                    }
+                    if root.empty: VerticalLayout {
+                        padding: 12px;
+                        Line {
+                            text: "No sessions yet. Open a game and it will show up here.";
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

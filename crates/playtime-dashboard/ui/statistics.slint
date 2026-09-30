@@ -1,0 +1,69 @@
+// Statistics: days played, averages, the longest session, and where the time goes (by game, weekday, time of day).
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Card, Line, Caption, SectionHeader } from "controls.slint";
+import { Tile, RankRow } from "data.slint";
+import { Tiles } from "overview.slint";
+
+// A labelled bar: the name and the bar share the width, so rows never overflow a narrow window.
+component RankList inherits VerticalLayout {
+    in property <[RankRow]> rows;
+    padding: 12px;
+    spacing: 6px;
+    for row in rows: HorizontalLayout {
+        spacing: 16px;
+        height: 28px;
+        accessible-role: text;
+        accessible-label: row.accessible;
+        // Name and bar split the width 2:3 whatever the text, so every bar starts at the same place.
+        Line { text: row.name; horizontal-stretch: 2; preferred-width: 0; min-width: 0; vertical-alignment: center; }
+        Rectangle {
+            horizontal-stretch: 3;
+            preferred-width: 0;
+            min-width: 40px;
+            Rectangle {
+                x: 0;
+                width: row.fraction * parent.width;
+                height: 10px;
+                border-radius: 5px;
+                background: Theme.accent;
+            }
+        }
+        Line { text: row.value; horizontal-stretch: 0; width: 72px; horizontal-alignment: right; vertical-alignment: center; }
+        Caption {
+            text: row.percent;
+            horizontal-stretch: 0;
+            width: 40px;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component StatisticsPage inherits Rectangle {
+    in property <[Tile]> tiles;
+    in property <[RankRow]> top-games;
+    in property <[RankRow]> weekdays;
+    in property <[RankRow]> day-parts;
+    ScrollView {
+        VerticalLayout {
+            // Stack from the top; a short page leaves the space below it empty.
+            alignment: start;
+            padding: Theme.gutter;
+            padding-top: 16px;
+            spacing: 8px;
+            Line { text: "Statistics"; font-size: 28px; font-weight: 600; }
+            Rectangle { height: 8px; }
+            Tiles { tiles: root.tiles; }
+            Rectangle { height: 16px; }
+            SectionHeader { text: "Most played"; }
+            Card { RankList { rows: root.top-games; } }
+            Rectangle { height: 16px; }
+            SectionHeader { text: "By day of the week"; }
+            Card { RankList { rows: root.weekdays; } }
+            Rectangle { height: 16px; }
+            SectionHeader { text: "By time of day"; }
+            Card { RankList { rows: root.day-parts; } }
+        }
+    }
+}

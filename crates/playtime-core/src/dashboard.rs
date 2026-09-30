@@ -7,13 +7,13 @@ use crate::model::{ActiveSession, SessionRecord};
 use crate::paths;
 use crate::time::Timestamp;
 use chrono::{Duration, NaiveDate, NaiveDateTime, TimeZone};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Days shown in the chart and on the History page.
 pub const CHART_DAYS: usize = 30;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionView {
     pub game: String,
@@ -31,7 +31,7 @@ impl SessionView {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameView {
     /// The newest spelling of the name.
@@ -45,21 +45,21 @@ pub struct GameView {
     pub is_live: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DayTotal {
     pub day: NaiveDate,
     pub seconds: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameTime {
     pub game: String,
     pub seconds: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DayHistory {
     pub day: NaiveDate,
@@ -69,7 +69,7 @@ pub struct DayHistory {
     pub session_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DashboardModel {
     pub now: Timestamp,

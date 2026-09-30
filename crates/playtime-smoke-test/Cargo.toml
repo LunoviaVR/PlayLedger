@@ -1,0 +1,26 @@
+[package]
+name = "playtime-smoke-test"
+description = "End-to-end test of an installed Playtime Tracker on a real Windows machine (run by CI after installing the preview)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "playtime-smoke-test"
+path = "src/main.rs"
+
+[dependencies]
+playtime-core = { path = "../playtime-core" }
+playtime-windows = { path = "../playtime-windows" }
+# Its PNG encoder, for the screenshots.
+playtime-artwork = { path = "../playtime-artwork" }
+serde_json = "1.0.151"
+
+[target."cfg(windows)".dependencies]
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Storage_FileSystem", "Win32_Storage_Xps", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

@@ -1,0 +1,31 @@
+// Colours and type for the whole dashboard. Built-in Fluent widgets follow Windows' accent colour on their own,
+// so everything that shows the user's accent setting (selection, switches, primary buttons, bars) uses Theme.accent.
+import { Palette } from "std-widgets.slint";
+
+export global Theme {
+    // Set from the accent setting (for "windows", from Windows' own accent colour): a darker shade for light mode
+    // and a lighter one for dark mode, as WinUI uses, so text on the accent stays readable.
+    in-out property <color> accent-on-light: #005FB8;
+    in-out property <color> accent-on-dark: #60CDFF;
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    out property <color> accent: dark ? accent-on-dark : accent-on-light;
+    out property <color> accent-text: dark ? #000000 : #FFFFFF;
+    // The glass look (phase 15): Mica Alt shows through the window, and cards and the page layer use WinUI's own
+    // translucent fills over it (CardBackgroundFillColorDefault, LayerFillColorDefault), which keep text at WCAG AA.
+    // Off, everything is solid.
+    in-out property <bool> glass;
+    out property <brush> window: glass ? transparent : dark ? #202020 : #F3F3F3;
+    out property <brush> layer: glass ? (dark ? #3A3A3A4C : #FFFFFF80) : dark ? #272727 : #F9F9F9;
+    out property <brush> card: glass ? (dark ? #FFFFFF0D : #FFFFFFB3) : dark ? #2B2B2B : #FFFFFF;
+    out property <brush> card-border: dark ? #FFFFFF14 : #0000000F;
+    out property <brush> subtle: dark ? #FFFFFF0F : #0000000A;
+    out property <brush> text: dark ? #FFFFFF : #000000E4;
+    out property <brush> secondary-text: dark ? #FFFFFFC8 : #0000009E;
+    out property <brush> tertiary-text: dark ? #FFFFFF8B : #00000072;
+    out property <color> live: dark ? #6CCB5F : #0F7B0F;
+    out property <length> radius: 8px;
+    out property <length> gutter: 24px;
+    // Segoe UI Variable, as Windows 11 uses; Windows falls back to Segoe UI where it's missing.
+    out property <string> font: "Segoe UI Variable Text";
+    out property <string> icons: "Segoe Fluent Icons";
+}

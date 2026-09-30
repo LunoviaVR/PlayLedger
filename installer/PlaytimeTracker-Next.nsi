@@ -55,8 +55,8 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" ""
 
-!define MUI_ICON "..\src\GameSessionTracker\app.ico"
-!define MUI_UNICON "..\src\GameSessionTracker\app.ico"
+!define MUI_ICON "..\assets\app.ico"
+!define MUI_UNICON "..\assets\app.ico"
 !define MUI_ABORTWARNING
 
 !define MUI_WELCOMEPAGE_TEXT "This will install ${APP_NAME} ${VERSION}.$\r$\n$\r$\nIt runs quietly in the system tray, notices when you open a game, and keeps track of how long you play. Open the dashboard from the tray icon or the Start menu.$\r$\n$\r$\nIf an earlier version is installed, it's replaced and your history is kept.$\r$\n$\r$\nNo administrator rights are needed.$\r$\n$\r$\nClick Next to continue."

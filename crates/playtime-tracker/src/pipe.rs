@@ -13,21 +13,17 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use windows::core::{HSTRING, PCWSTR, PWSTR};
-use windows::Win32::Foundation::{CloseHandle, LocalFree, ERROR_PIPE_CONNECTED, HANDLE, HLOCAL};
+use windows::core::{HSTRING, PCWSTR};
+use windows::Win32::Foundation::{LocalFree, ERROR_PIPE_CONNECTED, HANDLE, HLOCAL};
 use windows::Win32::Security::Authorization::{
-    ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+    ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
 };
-use windows::Win32::Security::{
-    GetTokenInformation, TokenUser, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, TOKEN_QUERY,
-    TOKEN_USER,
-};
+use windows::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
 use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
 use windows::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, PeekNamedPipe, PIPE_READMODE_BYTE,
     PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
-use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 const BUFFER_BYTES: u32 = 64 * 1024;
 /// More simultaneous dashboard connections than this are refused (one dashboard uses two).
@@ -52,45 +48,6 @@ fn peer_connected(pipe: &File) -> bool {
     .is_ok()
 }
 
-/// The current user's SID as a string (e.g. `S-1-5-21-…`).
-pub fn current_user_sid() -> Option<String> {
-    let mut token = HANDLE::default();
-    // SAFETY: opens our own process token for querying; closed below.
-    unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) }.ok()?;
-    let mut size = 0u32;
-    // SAFETY: size query; expected to fail with "insufficient buffer" and report the size.
-    let _ = unsafe { GetTokenInformation(token, TokenUser, None, 0, &mut size) };
-    // u64 elements keep the buffer suitably aligned for TOKEN_USER.
-    let mut buffer = vec![0u64; (size as usize).div_ceil(8).max(1)];
-    // SAFETY: `buffer` has at least `size` bytes.
-    let got = unsafe {
-        GetTokenInformation(
-            token,
-            TokenUser,
-            Some(buffer.as_mut_ptr().cast()),
-            size,
-            &mut size,
-        )
-    };
-    // SAFETY: we own the token handle.
-    unsafe {
-        let _ = CloseHandle(token);
-    }
-    got.ok()?;
-    // SAFETY: the buffer now holds a TOKEN_USER whose SID points inside it.
-    let sid = unsafe { (*(buffer.as_ptr() as *const TOKEN_USER)).User.Sid };
-    let mut text = PWSTR::null();
-    // SAFETY: valid SID; the string is allocated by the system and freed with LocalFree.
-    unsafe { ConvertSidToStringSidW(sid, &mut text) }.ok()?;
-    // SAFETY: `text` is a valid NUL-terminated string until freed.
-    let result = unsafe { text.to_string() }.ok();
-    // SAFETY: freeing the string ConvertSidToStringSidW allocated.
-    unsafe {
-        let _ = LocalFree(Some(HLOCAL(text.0.cast())));
-    }
-    result
-}
-
 /// Security attributes granting full access to `sid` only (no inheritance, no one else).
 struct PipeSecurity {
     descriptor: PSECURITY_DESCRIPTOR,
@@ -99,8 +56,10 @@ struct PipeSecurity {
 
 impl PipeSecurity {
     fn for_user(sid: &str) -> Option<Self> {
-        // D:P = protected DACL; one ACE: allow Generic All to the user.
-        let sddl = HSTRING::from(format!("D:P(A;;GA;;;{sid})"));
+        // O: = owned by the user (without it, an elevated admin's objects are owned by BUILTIN\Administrators and the
+        // dashboard, which checks the owner, refuses the pipe). D:P = protected DACL; one ACE: allow Generic All to
+        // the user.
+        let sddl = HSTRING::from(format!("O:{sid}D:P(A;;GA;;;{sid})"));
         let mut descriptor = PSECURITY_DESCRIPTOR::default();
         // SAFETY: parses our SDDL string into a system-allocated descriptor, freed in Drop.
         unsafe {
@@ -137,7 +96,8 @@ impl Drop for PipeSecurity {
 
 /// Starts the pipe server on its own thread. Returns `false` if it couldn't (logged by the caller).
 pub fn start(service: Arc<Mutex<Service>>, events: EventHub) -> Result<(), String> {
-    let sid = current_user_sid().ok_or("couldn't read the current user's SID")?;
+    let sid =
+        playtime_windows::pipe::current_user_sid().ok_or("couldn't read the current user's SID")?;
     let name = ipc::pipe_name(&sid);
     let security =
         PipeSecurity::for_user(&sid).ok_or("couldn't build the pipe's security descriptor")?;

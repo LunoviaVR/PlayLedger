@@ -1,0 +1,158 @@
+// Small Fluent-style pieces shared by every page.
+import { Theme } from "theme.slint";
+
+// A card: the rounded, bordered surface Windows 11 Settings and Task Manager use.
+export component Card inherits Rectangle {
+    background: Theme.card;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.card-border;
+}
+
+// One line of text that never wraps mid-word: it ends in "…" when it doesn't fit.
+export component Line inherits Text {
+    wrap: no-wrap;
+    overflow: elide;
+    color: Theme.text;
+    font-family: Theme.font;
+}
+
+export component Caption inherits Line {
+    font-size: 12px;
+    color: Theme.secondary-text;
+}
+
+export component SectionHeader inherits Line {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+// A live dot: shown next to a game that's running.
+export component LiveDot inherits Rectangle {
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background: Theme.live;
+}
+
+// A button in the Fluent style; `primary` fills it with the accent colour.
+export component FluentButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary;
+    in property <bool> enabled: true;
+    callback clicked;
+    height: 32px;
+    min-width: label.preferred-width + 24px;
+    border-radius: 4px;
+    border-width: primary ? 0 : 1px;
+    border-color: Theme.card-border;
+    background: primary ? (touch.pressed ? Theme.accent.darker(0.2) : touch.has-hover ? Theme.accent.darker(0.1) : Theme.accent)
+                        : (touch.pressed ? Theme.subtle : touch.has-hover ? Theme.subtle : Theme.card);
+    opacity: enabled ? 1 : 0.5;
+    accessible-role: button;
+    accessible-label: text;
+    accessible-action-default => { if (enabled) { clicked(); } }
+    forward-focus: focus;
+    label := Line {
+        text: root.text;
+        color: primary ? Theme.accent-text : Theme.text;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (root.enabled && (event.text == " " || event.text == "\n")) { root.clicked(); return accept; }
+            reject
+        }
+    }
+    Rectangle {
+        border-radius: 4px;
+        border-width: focus.has-focus ? 2px : 0;
+        border-color: Theme.text;
+    }
+}
+
+// A clickable row in a card list (a game, a session): hover highlight, keyboard activation, screen-reader name.
+export component RowButton inherits Rectangle {
+    in property <string> accessible-name;
+    callback clicked;
+    border-radius: 4px;
+    background: touch.pressed ? Theme.subtle : touch.has-hover ? Theme.subtle : transparent;
+    accessible-role: button;
+    accessible-label: accessible-name;
+    accessible-action-default => { clicked(); }
+    forward-focus: focus;
+    touch := TouchArea { clicked => { root.clicked(); } }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") { root.clicked(); return accept; }
+            reject
+        }
+    }
+    @children
+    Rectangle {
+        border-radius: 4px;
+        border-width: focus.has-focus ? 2px : 0;
+        border-color: Theme.text;
+    }
+}
+
+// A Windows 11 toggle switch in the user's accent colour (Fluent's built-in one follows only Windows' accent).
+export component ToggleSwitch inherits Rectangle {
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    callback toggled;
+    width: 40px;
+    height: 20px;
+    border-radius: 10px;
+    border-width: checked ? 0 : 1px;
+    border-color: Theme.secondary-text;
+    background: checked ? (touch.has-hover ? Theme.accent.darker(0.1) : Theme.accent) : (touch.has-hover ? Theme.subtle : transparent);
+    opacity: enabled ? 1 : 0.4;
+    accessible-role: switch;
+    accessible-checkable: true;
+    accessible-checked: checked;
+    accessible-enabled: enabled;
+    accessible-action-default => { toggle(); }
+    forward-focus: focus;
+    function toggle() {
+        if (root.enabled) {
+            root.checked = !root.checked;
+            root.toggled();
+        }
+    }
+    knob := Rectangle {
+        width: touch.pressed ? 17px : 12px;
+        height: 12px;
+        border-radius: 6px;
+        x: root.checked ? root.width - self.width - 4px : 4px;
+        y: (root.height - self.height) / 2;
+        background: root.checked ? Theme.accent-text : Theme.secondary-text;
+        animate x, width { duration: 120ms; easing: ease-out; }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.toggle(); }
+    }
+    focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == " ") { root.toggle(); return accept; }
+            reject
+        }
+    }
+    Rectangle {
+        x: -3px;
+        y: -3px;
+        width: root.width + 6px;
+        height: root.height + 6px;
+        border-radius: 13px;
+        border-width: focus.has-focus ? 2px : 0;
+        border-color: Theme.text;
+    }
+}

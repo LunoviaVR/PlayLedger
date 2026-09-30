@@ -1,0 +1,37 @@
+[package]
+name = "playtime-dashboard"
+description = "Playtime Tracker's dashboard window (Slint, Fluent style); all data comes from playtime-tracker.exe over its named pipe."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "playtime-dashboard"
+path = "src/main.rs"
+
+[dependencies]
+playtime-core = { path = "../playtime-core" }
+# Windows integration (pipe, dialogs, folders); builds as stubs elsewhere.
+playtime-windows = { path = "../playtime-windows" }
+# Only its PNG encoder, for rendering pages to images (--render).
+playtime-artwork = { path = "../playtime-artwork" }
+serde_json = "1.0.151"
+# Reads artwork (PNG and JPEG only) off the UI thread and scales it to the tile size.
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock"] }
+# Pure-Rust rendering only: femtovg (GPU, OpenGL) for hardware acceleration and the software renderer without it.
+slint = { version = "1.18.1", default-features = false, features = ["std", "compat-1-2", "backend-winit", "renderer-femtovg", "renderer-software", "accessibility", "raw-window-handle-06"] }
+
+[build-dependencies]
+slint-build = "1.18.1"
+embed-resource = "3.0.11"
+
+[target."cfg(windows)".dependencies]
+# The window's handle, so the Open dialog is modal to it.
+raw-window-handle = "0.6.2"
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Dwm", "Win32_UI_Accessibility", "Win32_Security", "Win32_System_Threading"] }

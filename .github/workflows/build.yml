@@ -58,7 +58,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # The next app (Rust tracker + WinUI 3 dashboard) as a preview installer artifact, for testing on real PCs.
+  # The next app (Rust tracker + Rust dashboard) as a preview installer artifact, for testing on real PCs.
   # Not attached to releases: those keep shipping the C# app above until the new one is verified.
   preview:
     runs-on: windows-latest
@@ -68,10 +68,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        with:
-          dotnet-version: 8.0.x
 
       - name: Install NSIS
         shell: pwsh
@@ -117,7 +113,7 @@ jobs:
         shell: pwsh
         run: |
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
-          dotnet run --project dashboard/PlaytimeTracker.SmokeTest --configuration Release -- $dir publish/screenshots
+          cargo run --release --locked -p playtime-smoke-test -- $dir publish/screenshots
 
       - name: Show Windows application errors (on failure)
         if: failure()

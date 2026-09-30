@@ -8,6 +8,7 @@
 //! - [`discovery::WindowsHost`]: the real files, registry and exe version info behind game discovery.
 //! - [`http::WinHttpClient`]: HTTPS for online artwork (allow-listed hosts, system certificate validation).
 //! - [`credentials`]: API keys in Windows Credential Manager.
+//! - [`file_dialogs`]: the Windows Open and Save As dialogs.
 //! - [`icons::ExeIconProvider`]: a game's own icon as artwork.
 //! - [`processes`]: running processes and their exe paths.
 //! - [`store::Store`]: the data folder (protected files, read-only reports, error log).
@@ -25,11 +26,15 @@ pub mod discovery;
 #[cfg(windows)]
 pub mod dpapi;
 #[cfg(windows)]
+pub mod file_dialogs;
+#[cfg(windows)]
 pub mod http;
 #[cfg(windows)]
 pub mod icons;
 #[cfg(windows)]
 pub mod locks;
+#[cfg(windows)]
+pub mod pipe;
 #[cfg(windows)]
 pub mod processes;
 #[cfg(windows)]
