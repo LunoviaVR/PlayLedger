@@ -151,6 +151,8 @@ with your busiest one. Expand a day to list its sessions, and select a session f
 
 Where your time goes:
 
+- **Four tiles**: how many of the last 30 days you played, the average playtime on those days, your longest session
+  (which game and when), and how many games you've played.
 - **Most played**: your games ranked by total time, with each one's share.
 - **By day of the week**: which days you play most.
 - **By time of day**: morning (6 am to noon), afternoon (noon to 6 pm), evening (6 pm to midnight) and night
