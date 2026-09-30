@@ -193,6 +193,24 @@ impl ArtworkCache {
         }
     }
 
+    /// Forgets one image (and any recorded miss) of one game.
+    pub fn remove(&self, id: &GameId, kind: ArtworkKind) -> io::Result<()> {
+        let dir = self.game_dir(id);
+        for format in [ImageFormat::Png, ImageFormat::Jpeg, ImageFormat::WebP] {
+            match fs::remove_file(dir.join(format!("{}.{}", kind.as_str(), format.extension()))) {
+                Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
+                _ => {}
+            }
+        }
+        let mut meta = self.read_meta(id);
+        if meta.entries.remove(kind.as_str()).is_some()
+            | meta.misses.remove(kind.as_str()).is_some()
+        {
+            self.write_meta(id, &meta)?;
+        }
+        Ok(())
+    }
+
     /// Forgets one game's artwork (e.g. the user picked "Refresh artwork").
     pub fn remove_game(&self, id: &GameId) -> io::Result<()> {
         match fs::remove_dir_all(self.game_dir(id)) {

@@ -92,6 +92,15 @@ pub enum ArtworkError {
     Io(#[from] std::io::Error),
 }
 
+/// One picture a provider offers to choose from (only online providers with several images offer any).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArtworkChoice {
+    /// The full image (on an allowed artwork host).
+    pub url: String,
+    /// A smaller preview of it, for showing the choices.
+    pub thumb_url: String,
+}
+
 /// One source of artwork.
 pub trait ArtworkProvider: Send + Sync {
     /// Short name recorded in the cache (e.g. "steam-local").
@@ -104,4 +113,19 @@ pub trait ArtworkProvider: Send + Sync {
         request: &ArtworkRequest,
         kind: ArtworkKind,
     ) -> Result<Option<FetchedImage>, ArtworkError>;
+
+    /// Up to `limit` pictures of `kind` to choose from. Most providers have exactly one and offer none.
+    fn choices(
+        &self,
+        _request: &ArtworkRequest,
+        _kind: ArtworkKind,
+        _limit: usize,
+    ) -> Result<Vec<ArtworkChoice>, ArtworkError> {
+        Ok(Vec::new())
+    }
+
+    /// Downloads one of this provider's [`choices`](Self::choices) (the full image or its preview).
+    fn download(&self, _url: &str) -> Result<Option<FetchedImage>, ArtworkError> {
+        Ok(None)
+    }
 }

@@ -262,6 +262,25 @@ fn client(pipe: File, service: &Mutex<Service>, events: &EventHub) {
                     }
                 }
             }
+            // These go online: prepare under the lock, then run without it so tracking never waits on the network.
+            Ok(ipc::Request::ListArtworkChoices { game, kind }) => {
+                match service.lock().map(|mut s| s.artwork_job(&game, &kind)) {
+                    Ok(Ok(task)) => task.list_choices(),
+                    Ok(Err(response)) => response,
+                    Err(_) => Response::Error {
+                        message: "the tracker is shutting down".into(),
+                    },
+                }
+            }
+            Ok(ipc::Request::ApplyArtworkChoice { game, kind, index }) => {
+                match service.lock().map(|mut s| s.artwork_job(&game, &kind)) {
+                    Ok(Ok(task)) => task.apply_choice(index),
+                    Ok(Err(response)) => response,
+                    Err(_) => Response::Error {
+                        message: "the tracker is shutting down".into(),
+                    },
+                }
+            }
             Ok(request) => match service.lock() {
                 Ok(mut service) => service.handle(request),
                 Err(_) => Response::Error {

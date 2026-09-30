@@ -169,12 +169,14 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 9 | Migrations (verify-then-switch, logs, backups) | Done: see *Migrations* above |
 | 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing: [`testing-the-preview.md`](../testing-the-preview.md) |
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
-| 12 | Remove C# after parity is verified | Planned |
-| 13 | Game context menu: change artwork, stop tracking, delete history; fix layouts in narrow windows (History, Statistics, Overview) | Planned, not started: see *Game context menu* below |
-| 14 | Tip or donate section in Settings; search in Ignored Games and Ignored Programs | Planned, not started: see *Tip or donate* below |
-| 15 | Glass look in the Windows 11 design language | Planned, not started: see *Glass look* below |
-| 16 | "Get API key" button for SteamGridDB | Planned, not started: see *Get API key button* below |
-| 17 | Settings: section order and title-case headings | Planned, not started: see *Settings headings* below |
+| 12 | Remove all C# (the old app, the WinUI dashboard, its tests and smoke test) and every mention of it, then release 3.0.0 from the Rust installer | Planned: after phase 18 |
+| 13 | Game context menu: change artwork, stop tracking, delete history; fix layouts in narrow windows (History, Statistics, Overview) | Tracker side done (artwork choices, overrides, pipe requests); the menu and layout fixes are built into the Rust dashboard (phase 18). See *Game context menu* below |
+| 14 | Tip or donate section in Settings; search in Ignored Games and Ignored Programs | Planned: built into the Rust dashboard (phase 18). See *Tip or donate* below |
+| 15 | Glass look in the Windows 11 design language | Planned: built into the Rust dashboard (phase 18). See *Glass look* below |
+| 16 | "Get API key" button for SteamGridDB | Planned: built into the Rust dashboard (phase 18). See *Get API key button* below |
+| 17 | Settings: section order and title-case headings | Planned: built into the Rust dashboard (phase 18). See *Settings headings* below |
+| 18 | The dashboard in Rust (Slint), making Playtime Tracker 100% Rust | Planned, next: see *Rust dashboard* below |
+| 19 | Hardware acceleration setting | Planned: built into the Rust dashboard (phase 18). See *Hardware acceleration* below |
 
 ## Game context menu (phase 13, planned)
 
@@ -314,6 +316,36 @@ Not started. Two changes to the Settings page:
 Resulting order: Appearance, Startup, General, Tracking, Artwork, Custom Games, Game Folders, **Your Data**, Ignored
 Games, Ignored Programs, Updates, About (then *Support Playtime Tracker* from phase 14). Screen readers get the same
 names, and the smoke test's Settings screenshot is checked afterwards.
+
+## Rust dashboard (phase 18, planned, next)
+
+Playtime Tracker becomes 100% Rust: the WinUI 3 dashboard (C#/.NET) is rebuilt as a Rust program, and all C# goes
+(phase 12). The owner chose this, and chose **Slint** with its **Fluent** style as the toolkit: it's closest to
+WinUI 3 and Task Manager (navigation pane, cards, toggles, accent colour), works with screen readers through
+AccessKit, and follows light and dark mode. Slint is used under the GPL-3.0, the same licence as this project, and
+credited in *About*.
+
+- **New crate `playtime-dashboard`** (`PlaytimeTracker.Dashboard.exe` stays the installed name, in `Dashboard\`). It
+  talks to the tracker over the same named pipe using the shared `playtime_core::ipc` types, so the protocol is
+  defined once (the JSON fixture shared with C# isn't needed any more). It keeps every check the C# client made:
+  current-user-only pipe, and the server must be `playtime-tracker.exe`.
+- **Parity first:** every page and feature of the current dashboard, including everything fixed during real-PC
+  testing (accent colour, seconds counting up, game names on a single game's sessions, pages filling the window),
+  single instance, crash log, and the tray's *Open dashboard* / *Settings* entry points.
+- **Built in from the start:** phases 13 (menu and narrow-window layouts), 16, 17, 14, 15 and 19, so none of them is
+  written twice.
+- **The Windows smoke test is rewritten in Rust** (install, track a game, restart, screenshots of every page at
+  several sizes, the accent check), and the dashboard's unit tests become Rust tests.
+- **Mica** comes from Windows (`DwmSetWindowAttribute` on the window), with the solid fallbacks described in phase 15.
+
+## Hardware acceleration (phase 19, planned)
+
+A **Hardware acceleration** switch in *Settings → Appearance* (on by default). On, the dashboard draws with the GPU
+(Slint's Skia renderer); off, it draws entirely on the CPU (Slint's software renderer), which helps with graphics
+driver problems, remote desktop or very old GPUs. The choice is saved in the settings and applies the next time the
+dashboard opens; the switch says so ("Takes effect when the dashboard reopens") and offers **Reopen now**. If the GPU
+renderer fails to start, the dashboard falls back to the software renderer on its own and notes it in the crash log.
+The tracker itself draws nothing, so it isn't affected.
 
 ## Checks
 

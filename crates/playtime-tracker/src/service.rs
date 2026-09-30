@@ -5,14 +5,14 @@
 use crate::updater::UpdateState;
 use playtime_artwork::cache::ArtworkCache;
 use playtime_artwork::providers::{SteamCdnProvider, SteamGridDbProvider, SteamLocalProvider};
-use playtime_artwork::service::ArtworkService;
+use playtime_artwork::service::{ArtworkService, MAX_CHOICES};
 use playtime_artwork::{ArtworkKind, ArtworkProvider, ArtworkRequest};
 use playtime_core::catalog::GameCatalog;
 use playtime_core::dashboard::DashboardModel;
 use playtime_core::discovery;
 use playtime_core::engine::{Engine, ProcessInfo};
 use playtime_core::ipc::{
-    DashboardSnapshot, Event, GameIdentity, Request, Response, PROTOCOL_VERSION,
+    ArtworkChoiceInfo, DashboardSnapshot, Event, GameIdentity, Request, Response, PROTOCOL_VERSION,
 };
 use playtime_core::launchers::GameId;
 use playtime_core::migration;
@@ -120,7 +120,11 @@ fn build_artwork(online: bool) -> Arc<ArtworkService> {
             }
         }
     }
-    let service = ArtworkService::new(ArtworkCache::new(cache_root), providers);
+    // The user's own choices live beside the automatic cache, so clearing the cache never loses them.
+    let overrides = cache_root.with_file_name("Artwork Choices");
+    let choices = cache_root.with_file_name("Artwork Previews");
+    let service = ArtworkService::new(ArtworkCache::new(cache_root), providers)
+        .with_overrides(ArtworkCache::new(overrides), choices);
     service.set_online_allowed(online);
     Arc::new(service)
 }
@@ -493,23 +497,63 @@ impl Service {
         Response::Ok
     }
 
-    fn artwork(&mut self, game: &str, kind: &str) -> Response {
+    /// What the artwork service needs to know about `game`, or the response to send if it can't be looked up.
+    fn artwork_target(
+        &mut self,
+        game: &str,
+        kind: &str,
+    ) -> Result<(ArtworkRequest, ArtworkKind), Response> {
         let Some(kind) = artwork_kind(kind) else {
-            return Response::Error {
+            return Err(Response::Error {
                 message: format!("unknown artwork kind {kind:?}"),
-            };
+            });
         };
         let exe_path = self.engine.executable_of(game);
         let Some(found) = self.engine.identify(game) else {
-            return Response::Artwork { path: None };
+            return Err(Response::Error {
+                message: format!("{game} isn't a known game"),
+            });
         };
         let id = found.id.unwrap_or_else(|| GameId::Path {
             normalized: paths::key(exe_path.as_deref().unwrap_or(game)),
         });
-        let request = ArtworkRequest {
-            id,
-            name: game.to_string(),
-            exe_path,
+        Ok((
+            ArtworkRequest {
+                id,
+                name: game.to_string(),
+                exe_path,
+            },
+            kind,
+        ))
+    }
+
+    /// For requests that go online (listing and applying SteamGridDB choices): everything they need, taken under
+    /// the service lock so the slow part can run without it (see `pipe.rs`).
+    pub fn artwork_job(&mut self, game: &str, kind: &str) -> Result<ArtworkTask, Response> {
+        let (request, kind) = self.artwork_target(game, kind)?;
+        Ok(ArtworkTask {
+            service: self.artwork.clone(),
+            request,
+            kind,
+            game: game.to_string(),
+            events: self.events.clone(),
+        })
+    }
+
+    fn artwork_changed(&self, game: &str, kind: ArtworkKind) {
+        self.events.publish(Event::ArtworkReady {
+            game: game.to_string(),
+            kind: kind.as_str().into(),
+        });
+    }
+
+    fn artwork(&mut self, game: &str, kind: &str) -> Response {
+        let (request, kind) = match self.artwork_target(game, kind) {
+            Ok(target) => target,
+            Err(Response::Error { .. }) if artwork_kind(kind).is_some() => {
+                return Response::Artwork { path: None }
+            }
+            Err(response) => return response,
         };
         if let Some(cached) = self.artwork.cached(&request, kind) {
             return Response::Artwork {
@@ -578,6 +622,51 @@ impl Service {
                 Response::Ok
             }
             Request::GetArtwork { game, kind } => self.artwork(&game, &kind),
+            Request::SetArtworkFromFile { game, kind, path } => {
+                let (request, kind) = match self.artwork_target(&game, &kind) {
+                    Ok(target) => target,
+                    Err(response) => return response,
+                };
+                match self.artwork.set_override_from_file(
+                    &request,
+                    kind,
+                    std::path::Path::new(&path),
+                ) {
+                    Ok(_) => {
+                        self.artwork_changed(&game, kind);
+                        Response::Ok
+                    }
+                    Err(e) => Response::Error {
+                        message: format!("That picture can't be used: {e}"),
+                    },
+                }
+            }
+            Request::ResetArtwork { game, kind } => {
+                let (request, kind) = match self.artwork_target(&game, &kind) {
+                    Ok(target) => target,
+                    Err(response) => return response,
+                };
+                match self.artwork.clear_override(&request, kind) {
+                    Ok(()) => {
+                        self.artwork_changed(&game, kind);
+                        Response::Ok
+                    }
+                    Err(e) => Response::Error {
+                        message: format!("The artwork couldn't be reset: {e}"),
+                    },
+                }
+            }
+            // Online, so run by the pipe outside the service lock (`artwork_job`); only reached if called directly.
+            Request::ListArtworkChoices { game, kind } => match self.artwork_job(&game, &kind) {
+                Ok(task) => task.list_choices(),
+                Err(response) => response,
+            },
+            Request::ApplyArtworkChoice { game, kind, index } => {
+                match self.artwork_job(&game, &kind) {
+                    Ok(task) => task.apply_choice(index),
+                    Err(response) => response,
+                }
+            }
             Request::ExportCsv => {
                 let now = Timestamp::now();
                 let offset = *now.as_datetime().with_timezone(&chrono::Local).offset();
@@ -640,6 +729,51 @@ impl Service {
             }
             // Handled by the pipe connection itself.
             Request::Subscribe => Response::Ok,
+        }
+    }
+}
+
+/// An artwork request that goes online, prepared under the service lock and run without it.
+pub struct ArtworkTask {
+    service: Arc<ArtworkService>,
+    request: ArtworkRequest,
+    kind: ArtworkKind,
+    game: String,
+    events: EventHub,
+}
+
+impl ArtworkTask {
+    pub fn list_choices(&self) -> Response {
+        match self.service.choices(&self.request, self.kind, MAX_CHOICES) {
+            Ok(previews) => Response::ArtworkChoices {
+                choices: previews
+                    .into_iter()
+                    .map(|p| ArtworkChoiceInfo {
+                        index: p.index,
+                        path: p.path.to_string_lossy().into_owned(),
+                        width: p.width,
+                        height: p.height,
+                    })
+                    .collect(),
+            },
+            Err(e) => Response::Error {
+                message: format!("Pictures couldn't be listed: {e}"),
+            },
+        }
+    }
+
+    pub fn apply_choice(&self, index: usize) -> Response {
+        match self.service.apply_choice(&self.request, self.kind, index) {
+            Ok(_) => {
+                self.events.publish(Event::ArtworkReady {
+                    game: self.game.clone(),
+                    kind: self.kind.as_str().into(),
+                });
+                Response::Ok
+            }
+            Err(e) => Response::Error {
+                message: format!("That picture couldn't be used: {e}"),
+            },
         }
     }
 }

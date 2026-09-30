@@ -4,7 +4,9 @@
 //! game's name for a search; the key is sent only to the API host, never to the image CDN.
 
 use crate::http::{check_url, encode_segment, HttpClient, Request};
-use crate::{ArtworkError, ArtworkKind, ArtworkProvider, ArtworkRequest, FetchedImage};
+use crate::{
+    ArtworkChoice, ArtworkError, ArtworkKind, ArtworkProvider, ArtworkRequest, FetchedImage,
+};
 use playtime_core::launchers::GameId;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -39,6 +41,8 @@ struct Envelope<T> {
 #[derive(Deserialize)]
 struct Asset {
     url: String,
+    #[serde(default)]
+    thumb: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -112,6 +116,41 @@ impl SteamGridDbProvider {
         Ok(id)
     }
 
+    /// The game's images of `kind` on SteamGridDB, keeping only those on allowed hosts.
+    fn assets(
+        &self,
+        request: &ArtworkRequest,
+        kind: ArtworkKind,
+    ) -> Result<Vec<Asset>, ArtworkError> {
+        let target = match &request.id {
+            GameId::Steam { app_id } => format!("steam/{app_id}"),
+            _ => match self.game_id_for_name(&request.name)? {
+                Some(id) => format!("game/{id}"),
+                None => return Ok(Vec::new()),
+            },
+        };
+        let (collection, query) = Self::endpoint(kind);
+        Ok(self
+            .api_get::<Asset>(&format!("/{collection}/{target}{query}"))?
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|a| check_url(&a.url).is_ok())
+            .collect())
+    }
+
+    /// A plain request to the image CDN: no key, no game name.
+    fn image(&self, url: &str) -> Result<Option<FetchedImage>, ArtworkError> {
+        check_url(url)?;
+        let response = self.http.get(&Request::get(url.to_string()))?;
+        if response.status != 200 {
+            return Ok(None);
+        }
+        Ok(Some(FetchedImage {
+            bytes: response.body,
+            content_type: response.content_type,
+        }))
+    }
+
     fn endpoint(kind: ArtworkKind) -> (&'static str, &'static str) {
         match kind {
             ArtworkKind::Cover => ("grids", "?dimensions=600x900&types=static"),
@@ -142,29 +181,38 @@ impl ArtworkProvider for SteamGridDbProvider {
         request: &ArtworkRequest,
         kind: ArtworkKind,
     ) -> Result<Option<FetchedImage>, ArtworkError> {
-        let target = match &request.id {
-            GameId::Steam { app_id } => format!("steam/{app_id}"),
-            _ => match self.game_id_for_name(&request.name)? {
-                Some(id) => format!("game/{id}"),
-                None => return Ok(None),
-            },
-        };
-        let (collection, query) = Self::endpoint(kind);
-        let Some(assets) = self.api_get::<Asset>(&format!("/{collection}/{target}{query}"))? else {
-            return Ok(None);
-        };
-        let Some(asset) = assets.into_iter().find(|a| check_url(&a.url).is_ok()) else {
-            return Ok(None);
-        };
-        // The image CDN gets a plain request: no key, no game name.
-        let response = self.http.get(&Request::get(asset.url))?;
-        if response.status != 200 {
-            return Ok(None);
+        match self.assets(request, kind)?.into_iter().next() {
+            Some(asset) => self.image(&asset.url),
+            None => Ok(None),
         }
-        Ok(Some(FetchedImage {
-            bytes: response.body,
-            content_type: response.content_type,
-        }))
+    }
+
+    fn choices(
+        &self,
+        request: &ArtworkRequest,
+        kind: ArtworkKind,
+        limit: usize,
+    ) -> Result<Vec<ArtworkChoice>, ArtworkError> {
+        Ok(self
+            .assets(request, kind)?
+            .into_iter()
+            .map(|a| {
+                // A preview on an allowed host, or the full image if there's none.
+                let thumb_url = a
+                    .thumb
+                    .filter(|t| check_url(t).is_ok())
+                    .unwrap_or_else(|| a.url.clone());
+                ArtworkChoice {
+                    url: a.url,
+                    thumb_url,
+                }
+            })
+            .take(limit)
+            .collect())
+    }
+
+    fn download(&self, url: &str) -> Result<Option<FetchedImage>, ArtworkError> {
+        self.image(url)
     }
 }
 
