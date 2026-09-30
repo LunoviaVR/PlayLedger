@@ -1,6 +1,6 @@
-# Builds the next Playtime Tracker (Rust tracker + WinUI 3 dashboard) and its preview installer into .\publish
+# Builds the next Playtime Tracker (Rust tracker + Rust dashboard) and its preview installer into .\publish
 #   publish\PlaytimeTrackerSetup-Preview.exe
-# Requires Rust (rustup; rust-toolchain.toml picks the version), the .NET 8 SDK and NSIS (winget install NSIS.NSIS).
+# Requires Rust (rustup; rust-toolchain.toml picks the version) and NSIS (winget install NSIS.NSIS).
 # Releases still ship the C# app built by build.ps1 until the new app has been verified; see
 # docs/architecture/rust-migration.md.
 param(
@@ -11,14 +11,14 @@ param(
 $ErrorActionPreference = 'Stop'
 $out = "$PSScriptRoot\publish"
 
-cargo build --release --locked -p playtime-tracker
+# Both programs are Rust. The workspace version becomes the exes' version resources.
+cargo build --release --locked -p playtime-tracker -p playtime-dashboard
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-dotnet publish "$PSScriptRoot\dashboard\PlaytimeTracker.Dashboard" -c Release -r win-x64 --self-contained true `
-    -p:Platform=x64 -p:DebugType=none -p:Version=$Version -o "$out\dashboard"
-if ($LASTEXITCODE) { exit $LASTEXITCODE }
-# The compiled XAML lives in the .pri resource index; without it the dashboard can't start.
-if (-not (Get-ChildItem "$out\dashboard" -Filter *.pri)) { throw "The dashboard was published without its resources (.pri)" }
+# The dashboard installs as Dashboard\PlaytimeTracker.Dashboard.exe, the name the tray opens.
+Remove-Item "$out\dashboard" -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force "$out\dashboard" | Out-Null
+Copy-Item "$PSScriptRoot\target\release\playtime-dashboard.exe" "$out\dashboard\PlaytimeTracker.Dashboard.exe"
 
 $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
 if (-not $makensis) { $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }

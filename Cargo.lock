@@ -3427,6 +3427,7 @@ name = "playtime-dashboard"
 version = "2.2.0"
 dependencies = [
  "chrono",
+ "embed-resource",
  "image",
  "playtime-artwork",
  "playtime-core",
@@ -3435,6 +3436,17 @@ dependencies = [
  "serde_json",
  "slint",
  "slint-build",
+ "windows 0.61.3",
+]
+
+[[package]]
+name = "playtime-smoke-test"
+version = "2.2.0"
+dependencies = [
+ "playtime-artwork",
+ "playtime-core",
+ "playtime-windows",
+ "serde_json",
  "windows 0.61.3",
 ]
 

@@ -29,8 +29,9 @@ slint = { version = "1.18.1", default-features = false, features = ["std", "comp
 
 [build-dependencies]
 slint-build = "1.18.1"
+embed-resource = "3.0.11"
 
 [target."cfg(windows)".dependencies]
 # The window's handle, so the Open dialog is modal to it.
 raw-window-handle = "0.6.2"
-windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Dwm", "Win32_UI_Accessibility"] }
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Dwm", "Win32_UI_Accessibility", "Win32_Security", "Win32_System_Threading"] }

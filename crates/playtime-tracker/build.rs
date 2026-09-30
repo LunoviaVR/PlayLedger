@@ -7,7 +7,7 @@ use std::path::PathBuf;
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=tracker.manifest");
-    println!("cargo:rerun-if-changed=../../src/GameSessionTracker/app.ico");
+    println!("cargo:rerun-if-changed=../../assets/app.ico");
     let target_windows = std::env::var("CARGO_CFG_TARGET_OS").is_ok_and(|os| os == "windows");
     if !cfg!(windows) || !target_windows {
         return;
@@ -18,8 +18,7 @@ fn main() {
     let icon = rc_path(
         dir.join("..")
             .join("..")
-            .join("src")
-            .join("GameSessionTracker")
+            .join("assets")
             .join("app.ico"),
     );
     let manifest = rc_path(dir.join("tracker.manifest"));

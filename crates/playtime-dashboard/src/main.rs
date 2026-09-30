@@ -13,11 +13,13 @@ mod ui {
 
 mod accent;
 mod client;
+mod crash_log;
 mod dialogs;
 mod format;
 mod games;
 mod glass;
 mod history;
+mod instance;
 mod offscreen;
 mod open;
 mod overview;
@@ -277,6 +279,7 @@ fn run_in_background(
 /// Starts a new dashboard on the Settings page and closes this one ("Reopen now", after changing the renderer).
 fn reopen() {
     if let Ok(exe) = std::env::current_exe() {
+        instance::release();
         if std::process::Command::new(exe)
             .args(["--page", "settings"])
             .spawn()
@@ -305,9 +308,10 @@ fn select_renderer(args: &[String]) -> bool {
     if gpu {
         match select("femtovg") {
             Ok(()) => return true,
-            Err(e) => {
-                eprintln!("The GPU renderer couldn't start ({e}); drawing on the CPU instead.")
-            }
+            Err(e) => crash_log::write(
+                "Starting the GPU renderer",
+                &format!("{e}; drawing on the CPU instead"),
+            ),
         }
     }
     let _ = select("software");
@@ -505,6 +509,15 @@ fn main() -> Result<(), slint::PlatformError> {
         }
         return Ok(());
     }
+    crash_log::install();
+    let wants_settings = args
+        .iter()
+        .position(|a| a == "--page")
+        .and_then(|i| args.get(i + 1))
+        .is_some_and(|p| p == "settings");
+    if !instance::claim(wants_settings) {
+        return Ok(());
+    }
     let gpu = select_renderer(&args);
     glass::GPU.store(gpu, std::sync::atomic::Ordering::Relaxed);
     let window = AppWindow::new()?;
@@ -524,6 +537,22 @@ fn main() -> Result<(), slint::PlatformError> {
     APP.with_borrow_mut(|app| app.art_loader = Some(art_loader.clone()));
     let _ = refresh.send(Refresh::Full);
     settings_actions::wire(&window, &refresh);
+
+    // Another launch (the tray) brings this window forward, on Settings if asked.
+    let wake_window = window.as_weak();
+    instance::listen(move |wake| {
+        let weak = wake_window.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            let Some(window) = weak.upgrade() else { return };
+            if matches!(wake, instance::Wake::ShowSettings) {
+                window.set_page(4);
+                rerender(&window);
+                settings_actions::load(weak.clone());
+            }
+            let _ = window.show();
+            instance::bring_to_front(owner_of(&window));
+        });
+    });
     settings_actions::load(window.as_weak());
 
     // Events: anything that changed the data reloads it.
@@ -784,8 +813,12 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     // The GPU renderer can also fail once the window opens (a broken graphics driver): start again on the CPU.
     if result.is_err() && gpu && !args.iter().any(|a| a == "--software") {
-        eprintln!("The GPU renderer failed; reopening with the software renderer.");
+        crash_log::write(
+            "Drawing with the GPU",
+            &format!("{result:?}; reopening with the software renderer"),
+        );
         if let Ok(exe) = std::env::current_exe() {
+            instance::release();
             let _ = std::process::Command::new(exe)
                 .args(args.iter().skip(1))
                 .arg("--software")
