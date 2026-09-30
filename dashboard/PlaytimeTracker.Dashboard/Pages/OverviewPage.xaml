@@ -24,23 +24,6 @@
                 <TextBlock Grid.Column="1" Text="{x:Bind DurationText}" VerticalAlignment="Center" />
             </Grid>
         </DataTemplate>
-
-        <DataTemplate x:Key="GameRowTemplate" x:DataType="vm:GameRow">
-            <Grid Padding="0,8" ColumnSpacing="16" AutomationProperties.Name="{x:Bind AutomationName}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                        <Ellipse Width="8" Height="8" Visibility="{x:Bind LiveVisibility}" Fill="{ThemeResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <TextBlock Text="{x:Bind Detail}" Style="{StaticResource CaptionStyle}" />
-                </StackPanel>
-                <TextBlock Grid.Column="1" Text="{x:Bind TotalText}" VerticalAlignment="Center" />
-            </Grid>
-        </DataTemplate>
     </Page.Resources>
 
     <ScrollViewer>
@@ -119,7 +102,6 @@
                 <TextBlock Text="Games" Style="{StaticResource SectionHeaderStyle}" />
                 <Border Style="{StaticResource CardStyle}" Padding="16,4">
                     <ListView x:Name="GamesList" SelectionMode="None" IsItemClickEnabled="True" ItemClick="Game_Click"
-                              ItemTemplate="{StaticResource GameRowTemplate}"
                               AutomationProperties.Name="Games; choose one to show only that game" />
                 </Border>
             </StackPanel>

@@ -87,7 +87,9 @@ public sealed partial class OverviewPage : Page
         var busiest = daily.Count == 0 ? 0 : daily.Max(d => d.Seconds);
         RenderChart(daily.Select(d => new DayBar(d, busiest, today)).ToList());
 
-        GamesList.ItemsSource = s.Games.Select(x => new GameRow(x, s.Now)).ToList();
+        // Rows built in code: an x:Bind template for them crashes the XAML compiler (WMC9999).
+        GamesList.ItemsSource = s.Games.Select(x => new GameRow(x, s.Now))
+            .Select(r => Rows.Create(r, r.Name, r.Detail, r.TotalText, r.AutomationName, r.Game.IsLive, strong: true)).ToList();
 
         var finished = sessions.Where(x => !x.IsLive).ToList();
         SessionsHeader.Text = finished.Count > 0 ? $"Sessions ({finished.Count.ToString(culture)})" : "Sessions";
@@ -175,7 +177,7 @@ public sealed partial class OverviewPage : Page
 
     private void Game_Click(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not GameRow row)
+        if (Rows.ItemOf<GameRow>(e.ClickedItem) is not { } row)
             return;
         Game = row.Name;
         _shown = PageSize;

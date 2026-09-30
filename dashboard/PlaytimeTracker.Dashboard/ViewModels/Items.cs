@@ -131,7 +131,6 @@ public sealed class GameRow
         TotalText = Format.Duration(game.TotalSeconds);
         var sessions = game.SessionCount == 1 ? "1 session" : $"{game.SessionCount} sessions";
         Detail = game.IsLive ? $"{sessions} · playing now" : $"{sessions} · last played {Format.Day(game.LastPlayed, now)}";
-        LiveVisibility = game.IsLive ? Visibility.Visible : Visibility.Collapsed;
         AutomationName = $"{game.Name}, {Format.SpokenDuration(game.TotalSeconds)}, {Detail}";
     }
 
@@ -139,7 +138,6 @@ public sealed class GameRow
     public string Name { get; }
     public string TotalText { get; }
     public string Detail { get; }
-    public Visibility LiveVisibility { get; }
     public string AutomationName { get; }
 }
 
