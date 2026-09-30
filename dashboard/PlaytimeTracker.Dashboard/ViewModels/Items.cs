@@ -7,29 +7,64 @@ using PlaytimeTracker.Dashboard.Core;
 
 namespace PlaytimeTracker.Dashboard.ViewModels;
 
-/// <summary>A session row.</summary>
-public sealed class SessionItem
+/// <summary>A session row. A running one is updated in place every second (<see cref="Update"/>).</summary>
+public sealed class SessionItem : INotifyPropertyChanged
 {
+    private string _durationText = "";
+    private string _automationName = "";
+
     public SessionItem(SessionView session, DateTimeOffset now, bool showGame = true)
     {
         Session = session;
         Game = showGame ? session.Game : "";
         Day = Format.Day(session.Start, now);
         Range = session.IsLive ? $"Since {Format.Time(session.Start)}" : Format.Range(session.Start, session.End, now);
-        DurationText = session.IsLive ? $"{Format.Duration(session.Seconds)} so far" : Format.Duration(session.Seconds);
         LiveVisibility = session.IsLive ? Visibility.Visible : Visibility.Collapsed;
+        SetTimes(session);
+    }
+
+    public SessionView Session { get; private set; }
+    public string Game { get; }
+    public string Day { get; }
+    public string Range { get; }
+    public Visibility LiveVisibility { get; }
+
+    public string DurationText
+    {
+        get => _durationText;
+        private set => Set(ref _durationText, value);
+    }
+
+    public string AutomationName
+    {
+        get => _automationName;
+        private set => Set(ref _automationName, value);
+    }
+
+    /// <summary>Newer figures for the same session (a running one's time moved on).</summary>
+    public void Update(SessionView session)
+    {
+        Session = session;
+        SetTimes(session);
+    }
+
+    private void SetTimes(SessionView session)
+    {
+        DurationText = session.IsLive ? $"{Format.LiveDuration(session.Seconds)} so far" : Format.Duration(session.Seconds);
         AutomationName = session.IsLive
             ? $"{session.Game}, playing now, {Format.SpokenDuration(session.Seconds)} so far"
             : $"{session.Game}, {Day}, {Range}, {Format.SpokenDuration(session.Seconds)}";
     }
 
-    public SessionView Session { get; }
-    public string Game { get; }
-    public string Day { get; }
-    public string Range { get; }
-    public string DurationText { get; }
-    public Visibility LiveVisibility { get; }
-    public string AutomationName { get; }
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void Set(ref string field, string value, [CallerMemberName] string? name = null)
+    {
+        if (field == value)
+            return;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
 }
 
 /// <summary>A game tile; its artwork loads after the tile appears.</summary>

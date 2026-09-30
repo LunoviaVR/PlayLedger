@@ -34,26 +34,92 @@ public sealed partial class OverviewPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         App.State.SnapshotChanged += Render;
+        App.State.TimesChanged += RenderTimes;
         Render();
     }
 
-    protected override void OnNavigatedFrom(NavigationEventArgs e) => App.State.SnapshotChanged -= Render;
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        App.State.SnapshotChanged -= Render;
+        App.State.TimesChanged -= RenderTimes;
+    }
+
+    /// <summary>The chosen game (null for all games) and the sessions the page shows.</summary>
+    private static (GameView? Game, List<SessionView> Sessions) Scope(DashboardSnapshot s)
+    {
+        var game = Game is { } g ? s.Games.FirstOrDefault(x => string.Equals(x.Name, g, StringComparison.OrdinalIgnoreCase)) : null;
+        return (game, SessionMath.ForGame(s.Sessions, game?.Name).ToList());
+    }
 
     private void Render()
     {
         if (App.State.Snapshot is not { } s)
             return;
         var culture = CultureInfo.CurrentCulture;
-        var game = Game is { } g ? s.Games.FirstOrDefault(x => string.Equals(x.Name, g, StringComparison.OrdinalIgnoreCase)) : null;
+        var (game, sessions) = Scope(s);
         if (Game is not null && game is null)
             Game = null; // the game's history was deleted
-        var sessions = SessionMath.ForGame(s.Sessions, game?.Name).ToList();
         var today = DateOnly.FromDateTime(s.Now.ToLocalTime().DateTime);
-        var todayStart = new DateTimeOffset(s.Now.ToLocalTime().Date, s.Now.ToLocalTime().Offset);
 
         PageTitle.Text = game?.Name ?? "Overview";
         AllGames.Visibility = game is null ? Visibility.Collapsed : Visibility.Visible;
         GamesPanel.Visibility = game is null ? Visibility.Visible : Visibility.Collapsed;
+        RenderTiles(s, game, sessions);
+
+        var live = sessions.Where(x => x.IsLive).ToList();
+        LivePanel.Visibility = live.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        LiveList.ItemsSource = live.Select(l => new SessionItem(l, s.Now)).ToList();
+
+        var daily = game is null ? s.Daily : SessionMath.DailyTotals(sessions, s.Now);
+        var busiest = daily.Count == 0 ? 0 : daily.Max(d => d.Seconds);
+        RenderChart(daily.Select(d => new DayBar(d, busiest, today)).ToList());
+
+        // Rows built in code: an x:Bind template for them crashes the XAML compiler (WMC9999).
+        GamesList.ItemsSource = s.Games.Select(x => new GameRow(x, s.Now))
+            .Select(r => Rows.Create(r, r.Name, r.Detail, r.TotalText, r.AutomationName, r.Game.IsLive, strong: true)).ToList();
+
+        var finished = sessions.Where(x => !x.IsLive).ToList();
+        SessionsHeader.Text = finished.Count > 0 ? $"Sessions ({finished.Count.ToString(culture)})" : "Sessions";
+        SessionsList.ItemsSource = finished.Take(_shown).Select(x => new SessionItem(x, s.Now, showGame: game is null)).ToList();
+        ShowMore.Visibility = finished.Count > _shown ? Visibility.Visible : Visibility.Collapsed;
+        ShowMore.Content = $"Show more ({(finished.Count - _shown).ToString(culture)} older)";
+        EmptyText.Visibility = finished.Count == 0 && live.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// A second passed while a game runs: update the figures and the running sessions' times in place, so nothing
+    /// the user is looking at or has focused is rebuilt. The chart and lists follow on the next real change.
+    /// </summary>
+    private void RenderTimes()
+    {
+        if (App.State.Snapshot is not { } s)
+            return;
+        var (game, sessions) = Scope(s);
+        var live = sessions.Where(x => x.IsLive).ToList();
+        var rows = LiveList.ItemsSource as List<SessionItem> ?? new List<SessionItem>();
+        if (rows.Count != live.Count)
+        {
+            Render();
+            return;
+        }
+        foreach (var row in rows)
+        {
+            var current = live.FirstOrDefault(x => x.Start == row.Session.Start
+                && string.Equals(x.Game, row.Session.Game, StringComparison.OrdinalIgnoreCase));
+            if (current is null)
+            {
+                Render();
+                return;
+            }
+            row.Update(current);
+        }
+        RenderTiles(s, game, sessions);
+    }
+
+    private void RenderTiles(DashboardSnapshot s, GameView? game, List<SessionView> sessions)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        var todayStart = new DateTimeOffset(s.Now.ToLocalTime().Date, s.Now.ToLocalTime().Offset);
 
         var total = sessions.Sum(x => x.Seconds);
         var count = sessions.Count;
@@ -78,25 +144,6 @@ public sealed partial class OverviewPage : Page
             TopText.Text = Format.Duration(game.LongestSeconds);
             TopDetail.Text = game.IsLive ? "Playing now" : $"Last played {Format.Day(game.LastPlayed, s.Now)}";
         }
-
-        var live = sessions.Where(x => x.IsLive).ToList();
-        LivePanel.Visibility = live.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        LiveList.ItemsSource = live.Select(l => new SessionItem(l, s.Now)).ToList();
-
-        var daily = game is null ? s.Daily : SessionMath.DailyTotals(sessions, s.Now);
-        var busiest = daily.Count == 0 ? 0 : daily.Max(d => d.Seconds);
-        RenderChart(daily.Select(d => new DayBar(d, busiest, today)).ToList());
-
-        // Rows built in code: an x:Bind template for them crashes the XAML compiler (WMC9999).
-        GamesList.ItemsSource = s.Games.Select(x => new GameRow(x, s.Now))
-            .Select(r => Rows.Create(r, r.Name, r.Detail, r.TotalText, r.AutomationName, r.Game.IsLive, strong: true)).ToList();
-
-        var finished = sessions.Where(x => !x.IsLive).ToList();
-        SessionsHeader.Text = finished.Count > 0 ? $"Sessions ({finished.Count.ToString(culture)})" : "Sessions";
-        SessionsList.ItemsSource = finished.Take(_shown).Select(x => new SessionItem(x, s.Now, showGame: game is null)).ToList();
-        ShowMore.Visibility = finished.Count > _shown ? Visibility.Visible : Visibility.Collapsed;
-        ShowMore.Content = $"Show more ({(finished.Count - _shown).ToString(culture)} older)";
-        EmptyText.Visibility = finished.Count == 0 && live.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void RenderChart(IReadOnlyList<DayBar> bars)

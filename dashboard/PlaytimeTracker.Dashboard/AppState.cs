@@ -12,6 +12,7 @@ public sealed class AppState
     private readonly TrackerClient _client = new();
     private readonly Dictionary<(string Game, string Kind), string?> _artwork = new();
     private DispatcherQueue? _ui;
+    private DispatcherQueueTimer? _clock;
     private int _refreshing;
 
     public DashboardSnapshot? Snapshot { get; private set; }
@@ -23,6 +24,11 @@ public sealed class AppState
 
     /// <summary>New data arrived.</summary>
     public event Action? SnapshotChanged;
+    /// <summary>
+    /// Only the times moved on (a game is running and a second passed): the <see cref="Snapshot"/> has the new figures,
+    /// but nothing was added or removed, so pages update their text in place instead of rebuilding.
+    /// </summary>
+    public event Action? TimesChanged;
     /// <summary>Connected or disconnected (see <see cref="ConnectionProblem"/>).</summary>
     public event Action? ConnectionStateChanged;
     /// <summary>Artwork for (game, kind) is now available.</summary>
@@ -35,6 +41,11 @@ public sealed class AppState
     public void Attach(DispatcherQueue ui)
     {
         _ui = ui;
+        // As in the original dashboard, running games count up every second while the window is open.
+        _clock = ui.CreateTimer();
+        _clock.Interval = TimeSpan.FromSeconds(1);
+        _clock.Tick += (_, _) => _ = TickAsync();
+        _clock.Start();
         _client.EventReceived += e => Post(() => OnEvent(e));
         _client.ConnectionChanged += connected => Post(() =>
         {
@@ -81,6 +92,36 @@ public sealed class AppState
         catch (TrackerErrorException ex)
         {
             ErrorReported?.Invoke(ex.Message);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _refreshing, 0);
+        }
+    }
+
+    /// <summary>While a game is running, fetches the new times; a real change is passed on as a full refresh.</summary>
+    private async Task TickAsync()
+    {
+        if (Snapshot is not { Live.Count: > 0 } before || !Connected)
+            return;
+        if (Interlocked.Exchange(ref _refreshing, 1) == 1)
+            return;
+        try
+        {
+            var snapshot = await _client.GetDashboardAsync();
+            Snapshot = snapshot;
+            if (snapshot.Revision == before.Revision && snapshot.Live.Count == before.Live.Count)
+                TimesChanged?.Invoke();
+            else
+                SnapshotChanged?.Invoke();
+        }
+        catch (TrackerUnavailableException ex)
+        {
+            SetConnected(false, ex.Message);
+        }
+        catch (TrackerErrorException)
+        {
+            // The next tick or event tries again.
         }
         finally
         {
