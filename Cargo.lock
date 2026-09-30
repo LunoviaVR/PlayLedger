@@ -3426,9 +3426,14 @@ dependencies = [
 name = "playtime-dashboard"
 version = "2.2.0"
 dependencies = [
+ "chrono",
+ "playtime-artwork",
  "playtime-core",
+ "playtime-windows",
+ "serde_json",
  "slint",
  "slint-build",
+ "windows 0.61.3",
 ]
 
 [[package]]

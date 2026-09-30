@@ -1,0 +1,23 @@
+// Colours and type for the whole dashboard. Built-in Fluent widgets follow Windows' accent colour on their own,
+// so everything that shows the user's accent setting (selection, switches, primary buttons, bars) uses Theme.accent.
+import { Palette } from "std-widgets.slint";
+
+export global Theme {
+    // Set from the accent setting (for "windows", from Windows' own accent colour).
+    in-out property <color> accent: #005FB8;
+    in-out property <color> accent-text: #FFFFFF;
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    out property <brush> window: dark ? #202020 : #F3F3F3;
+    out property <brush> card: dark ? #2B2B2B : #FFFFFF;
+    out property <brush> card-border: dark ? #FFFFFF14 : #0000000F;
+    out property <brush> subtle: dark ? #FFFFFF0F : #0000000A;
+    out property <brush> text: dark ? #FFFFFF : #000000E4;
+    out property <brush> secondary-text: dark ? #FFFFFFC8 : #0000009E;
+    out property <brush> tertiary-text: dark ? #FFFFFF8B : #00000072;
+    out property <color> live: dark ? #6CCB5F : #0F7B0F;
+    out property <length> radius: 8px;
+    out property <length> gutter: 24px;
+    // Segoe UI Variable, as Windows 11 uses; Windows falls back to Segoe UI where it's missing.
+    out property <string> font: "Segoe UI Variable Text";
+    out property <string> icons: "Segoe Fluent Icons";
+}

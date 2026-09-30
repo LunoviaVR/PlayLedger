@@ -1,0 +1,33 @@
+// What the Rust side hands the pages: plain text, already formatted in the user's locale.
+
+export struct Tile {
+    caption: string,
+    value: string,
+    detail: string,
+}
+
+export struct SessionRow {
+    game: string,
+    day: string,
+    range: string,
+    duration: string,
+    live: bool,
+    accessible: string,
+}
+
+export struct GameRow {
+    name: string,
+    detail: string,
+    total: string,
+    live: bool,
+    accessible: string,
+}
+
+export struct DayBar {
+    // 0 to 1 of the chart's height.
+    fraction: float,
+    label: string,
+    show-label: bool,
+    tooltip: string,
+    played: bool,
+}
