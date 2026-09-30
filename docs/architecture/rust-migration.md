@@ -171,6 +171,7 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove C# after parity is verified | Planned |
 | 13 | Game context menu: change artwork, stop tracking, delete history | Planned, not started: see *Game context menu* below |
+| 14 | Tip or donate section in Settings | Planned, not started: see *Tip or donate* below |
 
 ## Game context menu (phase 13, planned)
 
@@ -194,6 +195,20 @@ automatic sources. The dashboard would reach it through new pipe requests (setti
 artwork, and listing SteamGridDB candidates), added to `dashboard/fixtures/responses.jsonl` so both sides agree.
 It would come with Rust unit tests for the override and the file checks, and a smoke-test step that sets a
 game's artwork from a file and resets it.
+
+## Tip or donate (phase 14, planned)
+
+Not started. A small **Support Playtime Tracker** section in Settings, directly below *About*: one line of text and
+a button with the Cash App logo, labelled **Tip or Donate**. It opens `https://cash.app/$LunoviaVR` in the default
+browser.
+
+- The logo is Cash App's trademark, so it would be the official asset from Cash App's brand resources, used as their
+  guidelines allow (unaltered, with clear space), not a redrawn copy. It is bundled with the dashboard, not loaded
+  from the web.
+- Nothing is sent anywhere until the user clicks. The link is a fixed address in the code, opened only after a
+  check that it's that exact `https://cash.app/` address, and the app neither sees nor handles any payment.
+- The button has an accessible name ("Tip or donate with Cash App, opens in your browser") and works with the
+  keyboard like every other control.
 
 ## Checks
 
