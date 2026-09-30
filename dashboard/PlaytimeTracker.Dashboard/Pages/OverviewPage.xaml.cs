@@ -131,7 +131,7 @@ public sealed partial class OverviewPage : Page
                 Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Center,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch, // a Rectangle has no width of its own
                 VerticalContentAlignment = VerticalAlignment.Bottom,
                 Tag = bar.Day,
             };
