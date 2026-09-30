@@ -1,0 +1,9 @@
+# cargo-audit settings for CI (`cargo audit --deny warnings`). Every exception below is an "unmaintained" notice,
+# not a vulnerability, in a crate that doesn't ship in the Windows app. Anything else still fails the build.
+[advisories]
+ignore = [
+    # bincode: used only by Slint's UI compiler (i-slint-compiler, via typed-index-collections) while building.
+    "RUSTSEC-2025-0141",
+    # ttf-parser: used only by winit's Linux Wayland window decorations (sctk-adwaita), not on Windows.
+    "RUSTSEC-2026-0192",
+]

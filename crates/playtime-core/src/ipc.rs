@@ -97,7 +97,7 @@ pub enum Request {
 }
 
 /// One picture offered by `listArtworkChoices`; `index` goes back in `applyArtworkChoice`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArtworkChoiceInfo {
     pub index: usize,
@@ -107,7 +107,7 @@ pub struct ArtworkChoiceInfo {
 }
 
 /// How a game was identified: where it was found, and the key its artwork is cached under.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameIdentity {
     pub game: String,
@@ -116,7 +116,7 @@ pub struct GameIdentity {
 }
 
 /// Everything the dashboard's pages need, in one message.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DashboardSnapshot {
     pub revision: u64,
@@ -130,7 +130,7 @@ pub struct DashboardSnapshot {
     pub identities: Vec<GameIdentity>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Event {
     #[serde(rename_all = "camelCase")]
@@ -147,7 +147,7 @@ pub enum Event {
     Heartbeat,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Response {
     #[serde(rename_all = "camelCase")]
@@ -387,7 +387,11 @@ mod tests {
         messages.extend(events);
         let mut actual = String::new();
         for message in &messages {
-            actual.push_str(&serde_json::to_string(message).expect("serializable"));
+            let json = serde_json::to_string(message).expect("serializable");
+            // The Rust dashboard reads the same types back: every message must round-trip unchanged.
+            let back: Response = serde_json::from_str(&json).expect("readable");
+            assert_eq!(&back, message, "round trip of {json}");
+            actual.push_str(&json);
             actual.push('\n');
         }
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

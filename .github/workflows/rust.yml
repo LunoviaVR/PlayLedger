@@ -11,6 +11,7 @@ on:
       - "Cargo.lock"
       - "rust-toolchain.toml"
       - "clippy.toml"
+      - ".cargo/**"
       - "dashboard/fixtures/**"
       - ".github/workflows/rust.yml"
   workflow_dispatch:

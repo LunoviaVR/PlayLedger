@@ -31,6 +31,8 @@ pub mod icons;
 #[cfg(windows)]
 pub mod locks;
 #[cfg(windows)]
+pub mod pipe;
+#[cfg(windows)]
 pub mod processes;
 #[cfg(windows)]
 mod reg;
