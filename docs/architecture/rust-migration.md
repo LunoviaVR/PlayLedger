@@ -170,7 +170,7 @@ and uninstall. [`testing-the-preview.md`](../testing-the-preview.md) is the chec
 | 10 | Replace the C# entry point | Done in code: start with Windows, updates, `--exit`/`--startup`/`--updated`, accent colour; the installed layout below. Switching releases over waits for real-PC testing: [`testing-the-preview.md`](../testing-the-preview.md) |
 | 11 | Installer and CI for the Rust build | Done: `installer/PlaytimeTracker-Next.nsi`, `build-next.ps1`, the Build workflow's `preview` job (artifact `PlaytimeTracker-Preview`), plus the Rust and Dashboard workflows |
 | 12 | Remove C# after parity is verified | Planned |
-| 13 | Game context menu: change artwork, stop tracking, delete history; fix History rows in narrow windows | Planned, not started: see *Game context menu* below |
+| 13 | Game context menu: change artwork, stop tracking, delete history; fix layouts in narrow windows (History, Statistics, Overview) | Planned, not started: see *Game context menu* below |
 | 14 | Tip or donate section in Settings | Planned, not started: see *Tip or donate* below |
 | 15 | Glass look in the Windows 11 design language | Planned, not started: see *Glass look* below |
 | 16 | "Get API key" button for SteamGridDB | Planned, not started: see *Get API key button* below |
@@ -199,6 +199,21 @@ breaks one letter per line and each row becomes very tall. Fix: the summary neve
 when it doesn't fit, with the full text in a tooltip and the row's accessible name); the bar column shrinks with
 the window instead of a fixed 230 px; and below a narrow width the summary moves to its own line under the day, so
 it always has room. Checked with History screenshots at a narrow and a wide window size.
+
+**Same bug on Statistics and the Overview: summary tiles collapse in a narrow window.** Both pages lay their four
+tiles (e.g. *Days played*, *Average per day played*, *Longest session*, *Games played*) out as four equal columns at
+any width, so in a narrow window each is about 40 px wide and its caption and value wrap one letter per line. The
+Statistics lists (*Most played*, by weekday, by time of day) use fixed 200 + 340 px columns and overflow too. Fix,
+for every page:
+
+- **Tiles reflow with the width:** four across when there's room, two by two when medium, one per row when narrow.
+- **Captions and values never wrap mid-word:** one line, ending in "…" if needed, with the full text in a tooltip
+  and the accessible name.
+- **List rows:** the name column and the bar share the width proportionally instead of fixed 200 + 340 px.
+- **A minimum window size** (about 500 × 500), as Task Manager has, so the window can't be shrunk past the point
+  where the layout still works.
+
+Checked with screenshots of the Overview, History and Statistics at a narrow, a medium and a wide window size.
 
 **Recommended artwork size**, shown next to *Choose an image file…* so people can make their own:
 
