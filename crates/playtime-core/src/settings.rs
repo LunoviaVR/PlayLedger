@@ -81,8 +81,9 @@ pub struct Settings {
     /// Fetch missing game artwork online (Steam store images, and SteamGridDB if the user added an API key).
     /// Off by default: until the user turns it on, nothing about their games leaves the PC.
     pub online_artwork: bool,
-    /// The dashboard's glass look (Windows' Acrylic material); off draws plain solid surfaces.
-    pub glass_effects: bool,
+    /// AMOLED mode: the dashboard's dark theme uses true black. Older files' `glassEffects` (the removed glass look)
+    /// is ignored.
+    pub amoled_black: bool,
     /// The dashboard draws with the GPU; off draws on the CPU only (for driver trouble or remote desktop).
     pub hardware_acceleration: bool,
 }
@@ -114,7 +115,7 @@ impl Default for Settings {
             settings_version: 0,
             startup_configured: false,
             online_artwork: false,
-            glass_effects: true,
+            amoled_black: false,
             hardware_acceleration: true,
         }
     }
@@ -248,6 +249,20 @@ mod tests {
             .iter()
             .any(|e| e == "steamwebhelper.exe"));
         assert_eq!(s.settings_version, CURRENT_SETTINGS_VERSION);
+    }
+
+    #[test]
+    fn amoled_mode_replaces_glass_effects() {
+        // 3.0.x wrote glassEffects; it's ignored, and AMOLED mode starts off.
+        let old = Settings::from_json(r#"{"glassEffects":true}"#).expect("parses");
+        assert!(!old.amoled_black);
+        let json = Settings::from_json(r#"{"amoledBlack":true}"#)
+            .expect("parses")
+            .to_json()
+            .expect("serializes");
+        let value: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(value["amoledBlack"], true);
+        assert!(value.get("glassEffects").is_none());
     }
 
     #[test]

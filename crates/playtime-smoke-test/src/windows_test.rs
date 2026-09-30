@@ -677,13 +677,13 @@ mod native {
                 .args(["--page", page])
                 .spawn()
                 .map_err(|e| format!("the dashboard didn't start: {e}"))?;
-            let (hwnd, pid) = wait_for(
-                &format!("the {page} window"),
-                Duration::from_secs(45),
-                find_dashboard,
-            )?;
+            let title = format!("the {page} window");
+            wait_for(&title, Duration::from_secs(45), find_dashboard)?;
             // Connect, load data and artwork, settle.
             std::thread::sleep(Duration::from_secs(5));
+            // The first window can belong to a dashboard that then restarts on the software renderer, so the window
+            // is looked up again once it has settled.
+            let (hwnd, pid) = wait_for(&title, Duration::from_secs(45), find_dashboard)?;
             Ok(Self { hwnd, pid })
         }
 

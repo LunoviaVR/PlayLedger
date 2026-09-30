@@ -17,7 +17,7 @@ export global SettingsData {
     in-out property <int> accent;
     in-out property <string> custom-accent;
     in property <bool> custom-accent-valid: true;
-    in-out property <bool> glass;
+    in-out property <bool> amoled;
     in-out property <bool> hardware-acceleration;
     // Set when the switch no longer matches how this window draws.
     in property <bool> reopen-needed;
@@ -227,13 +227,13 @@ export component SettingsPage inherits Rectangle {
                 }
             }
             Setting {
-                title: "Glass effects";
-                description: "Let the desktop show through the window and cards, as Windows' own apps do. Solid colours are used when Windows' transparency effects are off.";
+                title: "AMOLED mode";
+                description: "Use true black in the dark theme. It looks deeper and saves power on OLED screens.";
                 narrow: root.narrow;
                 ToggleSwitch {
                     enabled: SettingsData.loaded;
-                    checked <=> SettingsData.glass;
-                    accessible-label: "Glass effects";
+                    checked <=> SettingsData.amoled;
+                    accessible-label: "AMOLED mode";
                     toggled => { SettingsData.changed(); }
                 }
             }

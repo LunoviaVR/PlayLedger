@@ -116,12 +116,11 @@ icons, cards, and a minimum window size of 500 × 500.
   41", a clear button and "No matches"). *Get API key* shows only while no SteamGridDB key is saved.
 - **Links**: *Get API key* opens `https://www.steamgriddb.com/profile/preferences/api` and *Tip* opens
   `https://cash.app/$LunoviaVR`, each only after checking it's exactly that address. The app sends nothing itself.
-- **Glass look**: Windows' Acrylic material behind the window (`DWMSBT_TRANSIENTWINDOW`), extended over the whole
-  client area (`DwmExtendFrameIntoClientArea`) so the page's transparent pixels show it, with WinUI's translucent
-  card and layer fills over it (text stays at WCAG AA contrast), a matching light or dark title bar, and solid
-  surfaces when the *Glass effects* switch is off, Windows' transparency effects are off, a high-contrast theme is on,
-  Acrylic isn't available, or the software renderer is in use. Windows itself turns the material solid when the window
-  isn't focused or in energy saver. Dialogs and game artwork stay opaque.
+- **AMOLED mode** (off by default): in the dark theme the window and page are `#000000`, cards `#0D0D0D` with a
+  brighter border, and dialogs `#161616`; the title bar matches (`DWMWA_CAPTION_COLOR`, black). It has no effect in
+  the light theme. The title bar also follows light or dark (`DWMWA_USE_IMMERSIVE_DARK_MODE`). Every surface is
+  opaque: the 3.0.1 glass look was removed in 3.0.2, because some graphics drivers drop an OpenGL window's
+  transparency and drew it black.
 - **Hardware acceleration** (on by default): Skia on OpenGL draws with the GPU (smooth, subpixel-positioned text;
   femtovg, which hints glyphs to the pixel grid, is the fallback if Skia can't start); off, the software
   renderer draws on the CPU. The choice applies when the dashboard reopens (*Reopen now*). If the GPU renderer fails,

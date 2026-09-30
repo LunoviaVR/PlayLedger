@@ -139,7 +139,7 @@ pub fn fill(
         .map(accent::to_hex)
         .unwrap_or_default()));
     data.set_custom_accent_valid(true);
-    data.set_glass(settings.glass_effects);
+    data.set_amoled(settings.amoled_black);
     data.set_hardware_acceleration(settings.hardware_acceleration);
     data.set_reopen_needed(settings.hardware_acceleration != state.drawn_with_gpu);
     data.set_start_with_windows(start_with_windows);
@@ -169,7 +169,7 @@ pub fn read(window: &AppWindow, state: &mut SettingsState) -> Option<Settings> {
         2 => ThemeMode::Dark,
         _ => ThemeMode::System,
     };
-    settings.glass_effects = data.get_glass();
+    settings.amoled_black = data.get_amoled();
     settings.hardware_acceleration = data.get_hardware_acceleration();
     settings.show_notifications = data.get_notifications();
     settings.use_windows_game_list = data.get_windows_game_list();
@@ -187,7 +187,7 @@ fn color((r, g, b): accent::Rgb) -> Color {
     Color::from_rgb_u8(r, g, b)
 }
 
-/// Light or dark, and the accent colour, for every page.
+/// Light or dark (and AMOLED black), and the accent colour, for every page and the title bar.
 pub fn apply_appearance(window: &AppWindow, settings: &Settings) {
     use slint::language::ColorScheme;
     window
@@ -204,12 +204,12 @@ pub fn apply_appearance(window: &AppWindow, settings: &Settings) {
     let theme = window.global::<Theme>();
     theme.set_accent_on_light(color(on_light));
     theme.set_accent_on_dark(color(on_dark));
-    let glass = crate::glass::apply(
+    theme.set_amoled(settings.amoled_black);
+    crate::title_bar::apply(
         crate::owner_of(window),
-        settings.glass_effects,
         theme.get_dark(),
+        settings.amoled_black,
     );
-    theme.set_glass(glass);
 }
 
 /// "You're up to date (3.0.0). Last checked today at 9:00 AM."

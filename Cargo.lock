@@ -3407,7 +3407,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "playtime-artwork"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "miniz_oxide 0.8.9",
  "playtime-core",
@@ -3418,7 +3418,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-core"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "chrono",
  "serde",
@@ -3428,7 +3428,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-dashboard"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "chrono",
  "embed-resource",
@@ -3445,7 +3445,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-smoke-test"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "playtime-artwork",
  "playtime-core",
@@ -3456,7 +3456,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-tracker"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "chrono",
  "embed-resource",
@@ -3469,7 +3469,7 @@ dependencies = [
 
 [[package]]
 name = "playtime-windows"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "chrono",
  "playtime-artwork",

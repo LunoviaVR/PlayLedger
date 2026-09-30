@@ -17,7 +17,7 @@ Riot Games and more), needs no account, and keeps your history on your own PC.
   by themselves (Roblox, Minecraft, Genshin Impact and more). Anything else takes one click to add.
 - **Accurate**: sleep never counts, a launcher handing off to its game stays one session, and play survives a crash or
   power cut.
-- **A proper Windows 11 app**: see-through Acrylic glass, your accent colour, light and dark themes, full keyboard and screen reader
+- **A proper Windows 11 app**: your accent colour, light and dark themes with a true-black AMOLED mode, full keyboard and screen reader
   support, and a layout that fits any window size.
 - **Your data stays yours**: nothing about your play leaves your PC. History is encrypted for your Windows account,
   and you can export every session to a spreadsheet at any time.
@@ -46,8 +46,7 @@ Riot Games and more), needs no account, and keeps your history on your own PC.
 
 ## Requirements
 
-- **Windows 11** on a 64-bit (x64) PC. The glass look uses Acrylic, which Windows provides from Windows 11 version 22H2;
-  on earlier versions the dashboard uses solid colours instead. Windows 10 isn't tested.
+- **Windows 11** on a 64-bit (x64) PC. Windows 10 isn't tested.
 - A 7 MB download. No administrator rights, and nothing else to install.
 
 ## Install
@@ -182,10 +181,9 @@ only way to remove a single session, since your history can't be edited by hand 
 - **Theme**: follows Windows' light or dark mode, or is always light or always dark.
 - **Accent colour**: Windows' own, one of six presets (blue, violet, teal, green, amber, rose), or any colour you pick.
   Buttons, switches, selection and charts all use it.
-- **Glass effects** (on by default): the window is see-through. Windows' Acrylic material shows whatever is behind
-  it, softly blurred, and cards and panels are translucent over it, as in Windows 11's own apps. The dashboard switches
-  to solid colours by itself when Windows' transparency effects are off, with a high-contrast theme, and on Windows
-  versions without Acrylic.
+- **AMOLED mode** (off by default): the dark theme uses true black for the window and pages, with cards just above
+  it. It looks deeper, and on an OLED screen the black pixels are switched off, which saves power. It has no effect
+  in the light theme.
 - **Hardware acceleration** (on by default): the dashboard draws with your graphics card, with smooth text like the
   rest of Windows. If the window flickers or
   stays blank, for example over remote desktop, turn it off and click **Reopen now**. If the graphics card can't draw
@@ -195,12 +193,7 @@ only way to remove a single session, since your history can't be edited by hand 
 - **Accessible**: every control works with the keyboard (Tab, Space, Enter, and Escape to close a dialog) and has a
   label for screen readers.
 
-These two images are **mock-ups** of the glass look: on your PC, Windows blurs whatever is behind the window, so the
-rendered images use a sample backdrop instead.
-
-| Glass, dark theme (mock-up) | Glass, light theme (mock-up) |
-| --- | --- |
-| ![The Overview page with glass effects in the dark theme (mock-up)](docs/glass.png) | ![The Games page with glass effects in the light theme (mock-up)](docs/glass-light.png) |
+![The Overview page in AMOLED mode](docs/amoled.png)
 
 ## Game artwork
 
@@ -278,7 +271,7 @@ straight away.
 | --- | --- | --- |
 | **Appearance** | Theme: system, light or dark | System |
 | | Accent colour: Windows', a preset, or any colour | Blue |
-| | Glass effects | On |
+| | AMOLED mode (true black in the dark theme) | Off |
 | | Hardware acceleration (applies when the dashboard reopens; **Reopen now** does it at once) | On |
 | **Startup** | Start Playtime Tracker when you sign in to Windows | On |
 | **General** | Show a notification when a session is logged | On |
@@ -397,10 +390,6 @@ the sessions it already logged with **Delete history…**.
 **The dashboard flickers or stays blank.**
 Turn off **Settings → Appearance → Hardware acceleration** and click **Reopen now**. This mostly helps over remote
 desktop and with older graphics drivers.
-
-**The window isn't see-through.**
-Glass effects need **Hardware acceleration** on, Windows 11 version 22H2 or later, with **Transparency effects** on in *Settings → Personalization →
-Colors*. Windows also turns the material solid while the window isn't focused and in energy saver.
 
 **I can't see the tray icon.**
 It's probably behind the **^** arrow next to the clock. See [Getting started](#getting-started) to keep it in view.

@@ -10,17 +10,19 @@ export global Theme {
     out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
     out property <color> accent: dark ? accent-on-dark : accent-on-light;
     out property <color> accent-text: dark ? #000000 : #FFFFFF;
-    // The glass look (phase 15): Acrylic shows through the window, and cards and the page layer use WinUI's own
-    // translucent fills over it (CardBackgroundFillColorDefault, LayerFillColorDefault), which keep text at WCAG AA.
-    // Off, everything is solid.
-    in-out property <bool> glass;
+    // AMOLED mode: in the dark theme the window and page are true black (an OLED screen turns those pixels off), and
+    // cards and dialogs sit just above it, held apart by brighter borders. No effect in the light theme.
+    in-out property <bool> amoled;
+    out property <bool> black: dark && amoled;
     // Focus rings show only while the keyboard is in use, as in Windows: set when focus arrives by Tab, cleared by a
     // click.
     in-out property <bool> focus-visible;
-    out property <brush> window: glass ? transparent : dark ? #202020 : #F3F3F3;
-    out property <brush> layer: glass ? (dark ? #3A3A3A4C : #FFFFFF80) : dark ? #272727 : #F9F9F9;
-    out property <brush> card: glass ? (dark ? #FFFFFF0D : #FFFFFFB3) : dark ? #2B2B2B : #FFFFFF;
-    out property <brush> card-border: dark ? #FFFFFF14 : #0000000F;
+    out property <brush> window: black ? #000000 : dark ? #202020 : #F3F3F3;
+    out property <brush> layer: black ? #000000 : dark ? #272727 : #F9F9F9;
+    out property <brush> card: black ? #0D0D0D : dark ? #2B2B2B : #FFFFFF;
+    // Dialogs (and placeholder artwork in AMOLED mode): solid, a step above the cards.
+    out property <brush> raised: black ? #161616 : dark ? #2B2B2B : #FFFFFF;
+    out property <brush> card-border: black ? #FFFFFF24 : dark ? #FFFFFF14 : #0000000F;
     out property <brush> subtle: dark ? #FFFFFF0F : #0000000A;
     out property <brush> text: dark ? #FFFFFF : #000000E4;
     out property <brush> secondary-text: dark ? #FFFFFFC8 : #0000009E;
