@@ -1,0 +1,1 @@
+lab=mica,noblur on=true dark=true accepted=true

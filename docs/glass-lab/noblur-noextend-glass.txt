@@ -1,0 +1,1 @@
+lab=noblur,noextend on=true dark=true accepted=true
