@@ -5,8 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:PlaytimeTracker.Dashboard.ViewModels">
 
-    <ScrollViewer>
-        <StackPanel Padding="24,16,24,32" MaxWidth="1200" HorizontalAlignment="Stretch">
+    <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Padding="24,16,24,32" HorizontalAlignment="Stretch">
             <TextBlock Text="History" Style="{StaticResource PageTitleStyle}" />
             <TextBlock Text="The last 30 days. Expand a day to see its sessions; select a session for its details."
                        Style="{StaticResource CaptionStyle}" Margin="0,-8,0,16" TextWrapping="Wrap" />

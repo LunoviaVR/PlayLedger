@@ -24,10 +24,10 @@
         </DataTemplate>
     </Page.Resources>
 
-    <ScrollViewer>
+    <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
         <!-- A ContentControl so the whole page can be disabled until the settings have loaded. -->
         <ContentControl x:Name="Body" IsEnabled="False" HorizontalContentAlignment="Stretch" IsTabStop="False">
-        <StackPanel Padding="24,16,24,32" MaxWidth="1000" HorizontalAlignment="Stretch" Spacing="4">
+        <StackPanel Padding="24,16,24,32" HorizontalAlignment="Stretch" Spacing="4">
             <TextBlock Text="Settings" Style="{StaticResource PageTitleStyle}" />
 
             <!-- Appearance -->

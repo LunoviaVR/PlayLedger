@@ -26,8 +26,8 @@
         </DataTemplate>
     </Page.Resources>
 
-    <ScrollViewer>
-        <StackPanel Padding="24,16,24,32" MaxWidth="1200" HorizontalAlignment="Stretch">
+    <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Padding="24,16,24,32" HorizontalAlignment="Stretch">
             <Grid ColumnSpacing="12" Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

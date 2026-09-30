@@ -230,6 +230,13 @@ if (screenshots is not null)
             await Task.Delay(TimeSpan.FromSeconds(6)); // connect, load data and artwork, settle animations
             Check(!window!.HasExited, $"the dashboard closed on the {page} page");
             Native.Capture(handle, Path.Combine(screenshots, $"next-{page}.png"));
+            if (page == "overview")
+            {
+                // Make the same window much wider, as maximising does: the page must follow and fill it.
+                Native.Resize(handle, 1800, 900);
+                await Task.Delay(TimeSpan.FromSeconds(3));
+                Native.Capture(handle, Path.Combine(screenshots, "next-overview-wide.png"));
+            }
             window.Kill();
             await window.WaitForExitAsync();
         }
@@ -338,6 +345,10 @@ static class Native
         SetWindowPos(hwnd, IntPtr.Zero, 0, 0, width, height, SwpNoZOrder);
         SetForegroundWindow(hwnd);
     }
+
+    /// <summary>Sets the window's size, even beyond the (small) CI screen; the capture still renders all of it.</summary>
+    public static void Resize(IntPtr hwnd, int width, int height) =>
+        SetWindowPos(hwnd, IntPtr.Zero, 0, 0, width, height, SwpNoZOrder);
 
     public static void Capture(IntPtr hwnd, string path)
     {

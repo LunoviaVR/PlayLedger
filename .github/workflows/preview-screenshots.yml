@@ -54,6 +54,8 @@ jobs:
           exit $code
 
       - name: Commit the screenshots
+        # Also after a failed smoke test (the job stays red): the screenshots show what went wrong.
+        if: ${{ !cancelled() }}
         shell: pwsh
         run: |
           git config user.name "github-actions[bot]"
