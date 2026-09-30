@@ -100,6 +100,49 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # End-to-end on this real Windows machine: install silently, drive the installed tracker over its pipe
+      # (tracking a real process, protected storage, restart), screenshot the dashboard, then uninstall.
+      - name: Install the preview silently
+        shell: pwsh
+        run: |
+          Start-Process -FilePath publish/PlaytimeTrackerSetup-Preview.exe -ArgumentList '/S' -Wait
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
+          foreach ($file in 'playtime-tracker.exe', 'Uninstall.exe', 'Dashboard\PlaytimeTracker.Dashboard.exe') {
+            if (-not (Test-Path (Join-Path $dir $file))) { throw "$file wasn't installed" }
+          }
+          $run = Get-ItemPropertyValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name PlaytimeTracker
+          if ($run -notlike '*playtime-tracker.exe*--startup*') { throw "unexpected Run entry: $run" }
+
+      - name: Smoke test the installed app
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
+          dotnet run --project dashboard/PlaytimeTracker.SmokeTest --configuration Release -- $dir publish/screenshots
+
+      - name: Upload dashboard screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: PlaytimeTracker-Preview-Screenshots
+          path: publish/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Uninstall silently (history kept)
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\Playtime Tracker'
+          Start-Process -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '/S' -Wait
+          # The uninstaller copies itself to a temp folder and finishes there; give it time.
+          for ($i = 0; $i -lt 60 -and (Test-Path (Join-Path $dir 'playtime-tracker.exe')); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path (Join-Path $dir 'playtime-tracker.exe')) { throw 'the tracker is still installed' }
+          if (Test-Path (Join-Path $dir 'Dashboard')) { throw 'the dashboard is still installed' }
+          if (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name PlaytimeTracker -ErrorAction SilentlyContinue) { throw 'the Run entry is still there' }
+          if (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PlaytimeTracker') { throw 'the Apps entry is still there' }
+          $data = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Playtime Tracker\sessions.dat'
+          if (-not (Test-Path $data)) { throw 'the play history was removed' }
+          Write-Host 'Uninstalled; play history kept.'
+
   release:
     # Only version tags publish a release, and only this job can write to the repository.
     # The release carries a single installer, Setup.exe (the online installer); the app's updater looks for that name.
