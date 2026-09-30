@@ -26,16 +26,30 @@ mod imp {
 
     /// Becomes the dashboard, or hands over to the one already open (returning `false`).
     pub fn claim(settings: bool) -> bool {
+        // A dashboard that is closing still holds the name but no longer listens: try again for a moment, then take
+        // over, so a launch never does nothing.
+        for _ in 0..10 {
+            match try_claim(settings) {
+                Some(claimed) => return claimed,
+                None => std::thread::sleep(std::time::Duration::from_millis(300)),
+            }
+        }
+        true
+    }
+
+    /// `Some(true)`: this is the dashboard now. `Some(false)`: the open one was asked to come forward. `None`: the
+    /// open one isn't listening (it's closing).
+    fn try_claim(settings: bool) -> Option<bool> {
         // SAFETY: plain calls with constant names; the handle is kept for the life of the process (or released by
         // `release`).
         unsafe {
             let Ok(mutex) = CreateMutexW(None, true, w!("Local\\PlaytimeTracker.Dashboard")) else {
                 // Can't tell: better two windows than none.
-                return true;
+                return Some(true);
             };
             if GetLastError() != ERROR_ALREADY_EXISTS {
                 HELD.store(mutex.0 as isize, std::sync::atomic::Ordering::Relaxed);
-                return true;
+                return Some(true);
             }
             let _ = CloseHandle(mutex);
             // Let the open dashboard come to the front.
@@ -45,11 +59,10 @@ mod imp {
             } else {
                 w!("Local\\PlaytimeTracker.Dashboard.Show")
             };
-            if let Ok(event) = OpenEventW(EVENT_MODIFY_STATE, false, name) {
-                let _ = SetEvent(event);
-                let _ = CloseHandle(event);
-            }
-            false
+            let event = OpenEventW(EVENT_MODIFY_STATE, false, name).ok()?;
+            let _ = SetEvent(event);
+            let _ = CloseHandle(event);
+            Some(false)
         }
     }
 

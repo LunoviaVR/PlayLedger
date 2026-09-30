@@ -563,8 +563,9 @@ mod native {
     };
     use windows::Win32::Storage::Xps::{PrintWindow, PRINT_WINDOW_FLAGS};
     use windows::Win32::System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, TerminateProcess, PROCESS_NAME_WIN32,
-        PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE,
+        OpenProcess, QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject,
+        PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
+        PROCESS_TERMINATE,
     };
     use windows::Win32::UI::Shell::ExtractIconExW;
     use windows::Win32::UI::WindowsAndMessaging::{
@@ -751,11 +752,16 @@ mod native {
             Ok(pixels)
         }
 
+        /// Ends the dashboard and waits until its process is gone: until then it still holds the single-instance
+        /// lock, and the next dashboard would hand over to it and exit.
         pub fn close(self) {
             // SAFETY: the handle is closed after use.
             unsafe {
-                if let Ok(process) = OpenProcess(PROCESS_TERMINATE, false, self.pid) {
+                if let Ok(process) =
+                    OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, false, self.pid)
+                {
                     let _ = TerminateProcess(process, 0);
+                    let _ = WaitForSingleObject(process, 15_000);
                     let _ = CloseHandle(process);
                 }
             }
