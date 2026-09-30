@@ -204,7 +204,7 @@ browser.
 
 - The logo is Cash App's trademark, so it would be the official asset from Cash App's brand resources, used as their
   guidelines allow (unaltered, with clear space), not a redrawn copy. It is bundled with the dashboard, not loaded
-  from the web.
+  from the web. The owner of this project has agreed to use it under Cash App's terms.
 - Nothing is sent anywhere until the user clicks. The link is a fixed address in the code, opened only after a
   check that it's that exact `https://cash.app/` address, and the app neither sees nor handles any payment.
 - The button has an accessible name ("Tip or donate with Cash App, opens in your browser") and works with the
