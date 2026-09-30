@@ -201,6 +201,8 @@
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="Rescan installed games" Click="Rescan_Click" />
                         <Button Content="Export sessions…" Click="Export_Click" />
+                        <Button Content="Open report" Click="OpenReport_Click"
+                                ToolTipService.ToolTip="Game Stats.txt: every game and session as plain text" />
                         <Button Content="Open data folder" Click="OpenFolder_Click" />
                     </StackPanel>
                 </StackPanel>

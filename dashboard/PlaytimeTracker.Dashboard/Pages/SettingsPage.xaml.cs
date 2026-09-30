@@ -422,6 +422,13 @@ public sealed partial class SettingsPage : Page
         await File.WriteAllTextAsync(file.Path, csv, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 
+    private void OpenReport_Click(object sender, RoutedEventArgs e)
+    {
+        var report = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Playtime Tracker", "Game Stats.txt");
+        if (File.Exists(report))
+            Process.Start(new ProcessStartInfo(report) { UseShellExecute = true })?.Dispose();
+    }
+
     private void OpenFolder_Click(object sender, RoutedEventArgs e)
     {
         var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Playtime Tracker");

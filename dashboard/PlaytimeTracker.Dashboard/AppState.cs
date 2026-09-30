@@ -15,6 +15,9 @@ public sealed class AppState
     private int _refreshing;
 
     public DashboardSnapshot? Snapshot { get; private set; }
+
+    /// <summary>The game the Overview is showing (null = all games); kept while switching pages.</summary>
+    public string? OverviewGame { get; set; }
     public bool Connected { get; private set; }
     public string? ConnectionProblem { get; private set; }
 

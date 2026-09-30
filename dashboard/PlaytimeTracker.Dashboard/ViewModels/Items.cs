@@ -105,6 +105,7 @@ public sealed class DayBar
 
     public DayBar(DayTotal day, long busiest, DateOnly today)
     {
+        Day = day.Day;
         Height = busiest <= 0 || day.Seconds <= 0 ? 2 : Math.Max(4, MaxHeight * day.Seconds / busiest);
         Label = day.Day == today ? "Today" : day.Day.Day.ToString(System.Globalization.CultureInfo.CurrentCulture);
         Tooltip = $"{Format.Day(day.Day, today)}: {Format.Duration(day.Seconds)}";
@@ -112,11 +113,32 @@ public sealed class DayBar
         Opacity = day.Seconds > 0 ? 1.0 : 0.35;
     }
 
+    public DateOnly Day { get; }
     public double Height { get; }
     public string Label { get; }
     public string Tooltip { get; }
     public string AutomationName { get; }
     public double Opacity { get; }
+}
+
+/// <summary>A game in the Overview's Games list.</summary>
+public sealed class GameRow
+{
+    public GameRow(GameView game, DateTimeOffset now)
+    {
+        Game = game;
+        Name = game.Name;
+        TotalText = Format.Duration(game.TotalSeconds);
+        var sessions = game.SessionCount == 1 ? "1 session" : $"{game.SessionCount} sessions";
+        Detail = game.IsLive ? $"{sessions} · playing now" : $"{sessions} · last played {Format.Day(game.LastPlayed, now)}";
+        AutomationName = $"{game.Name}, {Format.SpokenDuration(game.TotalSeconds)}, {Detail}";
+    }
+
+    public GameView Game { get; }
+    public string Name { get; }
+    public string TotalText { get; }
+    public string Detail { get; }
+    public string AutomationName { get; }
 }
 
 /// <summary>A day on the History page.</summary>
